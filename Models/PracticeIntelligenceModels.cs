@@ -4,7 +4,7 @@ namespace SimplexLawFirm.Models;
 
 public enum ForecastResult { Unsuccessful, PartlySuccessful, Successful }
 public enum ForecastStatus { Refused, Draft, Locked, Scored }
-public enum HandoverStatus { Preparing, Ready, Accepted, Overdue }
+public enum HandoverStatus { Preparing, Ready, Accepted, Overdue, PendingDirectorReview }
 public enum ComplaintStatus { Submitted, Acknowledged, Escalated, Resolved }
 public enum ComplaintCategory { Communication, Conduct, Billing, Delay, QualityOfService, Other }
 public enum ReassignmentStatus { Approved, HandoverPreparing, Completed, Cancelled }
@@ -92,11 +92,26 @@ public class CaseHandover
     public string? Notes { get; set; }
     public string? UrgentMatters { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? SubmittedForReviewAtUtc { get; set; }
     public DateTime? ReadyAtUtc { get; set; }
     public DateTime? AcceptedAtUtc { get; set; }
     public int CaseReassignmentId { get; set; }
     public CaseReassignment CaseReassignment { get; set; } = null!;
     public ICollection<HandoverItem> Items { get; set; } = new List<HandoverItem>();
+
+    // Director review (the gate between outgoing preparation and receiving acceptance)
+    public int? DirectorReviewedByUserId { get; set; }
+    public ApplicationUser? DirectorReviewedByUser { get; set; }
+    public string? DirectorSummary { get; set; }
+    public string? DirectorRiskFlags { get; set; }
+    public DateTime? DirectorReviewedAtUtc { get; set; }
+    public string? DirectorReturnReason { get; set; }
+
+    // Receiving attorney acceptance
+    public bool RiskFlagsAcknowledgedByReceiving { get; set; }
+    public string? ReceivingSignature { get; set; }
+
+    public ICollection<HandoverQuery> Queries { get; set; } = new List<HandoverQuery>();
 }
 
 public class HandoverItem
@@ -110,6 +125,23 @@ public class HandoverItem
     public bool IsResolved { get; set; }
     public string? ResolutionNote { get; set; }
     public string SourceFingerprint { get; set; } = "";
+    public bool AcknowledgedByReceiving { get; set; }
+
+    // The Director may re-open a specific item the outgoing attorney marked resolved, stating what's
+    // actually missing. This reopens just that item (not the whole handover's checklist) and notifies
+    // the outgoing attorney with the reason, rather than a generic whole-handover return.
+    public string? DirectorDisputeNote { get; set; }
+}
+
+public class HandoverQuery
+{
+    public int Id { get; set; }
+    public int CaseHandoverId { get; set; }
+    public CaseHandover CaseHandover { get; set; } = null!;
+    public int RaisedByUserId { get; set; }
+    public ApplicationUser RaisedByUser { get; set; } = null!;
+    public string Question { get; set; } = "";
+    public DateTime RaisedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
 public class ClientCorrespondence
@@ -121,6 +153,10 @@ public class ClientCorrespondence
     public DateTime ReceivedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? AnsweredAtUtc { get; set; }
 }
+
+public enum ComplaintResolutionOutcome { Upheld, PartiallyUpheld, NotUpheld }
+public enum AppointmentFormat { InPerson, Video, Phone }
+public enum ComplaintAppointmentStatus { Scheduled, Cancelled }
 
 public class ServiceComplaint
 {
@@ -141,6 +177,31 @@ public class ServiceComplaint
     public DateTime? AcknowledgedAtUtc { get; set; }
     public bool DuplicateWarningAcknowledged { get; set; }
     public ICollection<ComplaintAttachment> Attachments { get; set; } = new List<ComplaintAttachment>();
+    public ICollection<ComplaintAppointment> Appointments { get; set; } = new List<ComplaintAppointment>();
+
+    // Resolution
+    public ComplaintResolutionOutcome? Outcome { get; set; }
+    public string? MediationSteps { get; set; }
+    public string? FormalResponse { get; set; }
+    public string? Remedy { get; set; }
+    public int? ResolvedByUserId { get; set; }
+    public ApplicationUser? ResolvedByUser { get; set; }
+    public DateTime? ResolvedAtUtc { get; set; }
+    public bool ClientNotifiedOfResolution { get; set; }
+}
+
+public class ComplaintAppointment
+{
+    public int Id { get; set; }
+    public int ServiceComplaintId { get; set; }
+    public ServiceComplaint ServiceComplaint { get; set; } = null!;
+    public DateTime ScheduledAtUtc { get; set; }
+    public AppointmentFormat Format { get; set; }
+    public string? Notes { get; set; }
+    public int BookedByUserId { get; set; }
+    public ApplicationUser BookedByUser { get; set; } = null!;
+    public DateTime BookedAtUtc { get; set; } = DateTime.UtcNow;
+    public ComplaintAppointmentStatus Status { get; set; } = ComplaintAppointmentStatus.Scheduled;
 }
 
 public class ComplaintAttachment

@@ -117,8 +117,10 @@ namespace SimplexLawFirm.Data
         public DbSet<CaseForecast> CaseForecasts { get; set; }
         public DbSet<CaseHandover> CaseHandovers { get; set; }
         public DbSet<HandoverItem> HandoverItems { get; set; }
+        public DbSet<HandoverQuery> HandoverQueries { get; set; }
         public DbSet<ServiceComplaint> ServiceComplaints { get; set; }
         public DbSet<ComplaintAttachment> ComplaintAttachments { get; set; }
+        public DbSet<ComplaintAppointment> ComplaintAppointments { get; set; }
         public DbSet<CaseReassignment> CaseReassignments { get; set; }
         public DbSet<ForecastCalibration> ForecastCalibrations { get; set; }
         public DbSet<ClientCorrespondence> ClientCorrespondence { get; set; }
@@ -155,6 +157,8 @@ namespace SimplexLawFirm.Data
         public DbSet<CaseReadinessReview> CaseReadinessReviews { get; set; }
         public DbSet<LegalAuthority> LegalAuthorities { get; set; }
         public DbSet<CaseAuthorityReliance> CaseAuthorityReliances { get; set; }
+        public DbSet<ResearchQuery> ResearchQueries { get; set; }
+        public DbSet<ResearchDisagreement> ResearchDisagreements { get; set; }
         public DbSet<AttorneyWhereabout> AttorneyWhereabouts { get; set; }
         public DbSet<BeneficiaryTrustDisbursementRequest> BeneficiaryTrustDisbursementRequests { get; set; }
 
@@ -162,6 +166,15 @@ namespace SimplexLawFirm.Data
         {
             base.OnModelCreating(modelBuilder);
             modelBuilder.Entity<CaseAuthorityReliance>().HasIndex(x => new { x.CaseId, x.LegalAuthorityId, x.AttorneyId });
+            modelBuilder.Entity<ResearchQuery>(e => {
+                e.HasOne(x => x.Case).WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.Attorney).WithMany().HasForeignKey(x => x.AttorneyId).OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => new { x.CaseId, x.CreatedAtUtc });
+            });
+            modelBuilder.Entity<ResearchDisagreement>(e => {
+                e.HasOne(x => x.Case).WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.Attorney).WithMany().HasForeignKey(x => x.AttorneyId).OnDelete(DeleteBehavior.Restrict);
+            });
             modelBuilder.Entity<AttorneyWhereabout>().HasIndex(x => new { x.Status, x.ExpectedReturnAtUtc });
             modelBuilder.Entity<BeneficiaryTrustDisbursementRequest>().HasIndex(x => x.ReferenceNumber).IsUnique();
             modelBuilder.Entity<BeneficiaryTrustDisbursementRequest>().Property(x => x.Amount).HasPrecision(18, 2);
@@ -268,14 +281,24 @@ namespace SimplexLawFirm.Data
                 e.HasOne(x => x.OutgoingAttorney).WithMany().HasForeignKey(x => x.OutgoingAttorneyId).OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.ReceivingAttorney).WithMany().HasForeignKey(x => x.ReceivingAttorneyId).OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.CaseReassignment).WithMany().HasForeignKey(x => x.CaseReassignmentId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.DirectorReviewedByUser).WithMany().HasForeignKey(x => x.DirectorReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
             });
             modelBuilder.Entity<HandoverItem>().HasOne(x => x.CaseHandover).WithMany(x => x.Items).HasForeignKey(x => x.CaseHandoverId).OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<HandoverQuery>(e => {
+                e.HasOne(x => x.CaseHandover).WithMany(x => x.Queries).HasForeignKey(x => x.CaseHandoverId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.RaisedByUser).WithMany().HasForeignKey(x => x.RaisedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
             modelBuilder.Entity<ServiceComplaint>(e => {
                 e.HasIndex(x => x.ReferenceNumber).IsUnique();
                 e.HasIndex(x => new { x.Status, x.ResponseDueAtUtc });
                 e.HasOne(x => x.Case).WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.Client).WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.RoutedToUser).WithMany().HasForeignKey(x => x.RoutedToUserId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.ResolvedByUser).WithMany().HasForeignKey(x => x.ResolvedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<ComplaintAppointment>(e => {
+                e.HasOne(x => x.ServiceComplaint).WithMany(x => x.Appointments).HasForeignKey(x => x.ServiceComplaintId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.BookedByUser).WithMany().HasForeignKey(x => x.BookedByUserId).OnDelete(DeleteBehavior.Restrict);
             });
             modelBuilder.Entity<ComplaintAttachment>(e => {
                 e.HasOne(x => x.ServiceComplaint).WithMany(x => x.Attachments).HasForeignKey(x => x.ServiceComplaintId).OnDelete(DeleteBehavior.Cascade);

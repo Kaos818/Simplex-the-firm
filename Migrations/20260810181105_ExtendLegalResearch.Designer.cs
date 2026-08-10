@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SimplexLawFirm.Data;
 
@@ -11,9 +12,11 @@ using SimplexLawFirm.Data;
 namespace SimplexLawFirm.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810181105_ExtendLegalResearch")]
+    partial class ExtendLegalResearch
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1407,21 +1410,6 @@ namespace SimplexLawFirm.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DirectorReturnReason")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("DirectorReviewedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("DirectorReviewedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("DirectorRiskFlags")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DirectorSummary")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime>("DueAtUtc")
                         .HasColumnType("datetime2");
 
@@ -1437,17 +1425,8 @@ namespace SimplexLawFirm.Migrations
                     b.Property<int>("ReceivingAttorneyId")
                         .HasColumnType("int");
 
-                    b.Property<string>("ReceivingSignature")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("RiskFlagsAcknowledgedByReceiving")
-                        .HasColumnType("bit");
-
                     b.Property<int>("Status")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("SubmittedForReviewAtUtc")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("UrgentMatters")
                         .HasColumnType("nvarchar(max)");
@@ -1455,8 +1434,6 @@ namespace SimplexLawFirm.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CaseReassignmentId");
-
-                    b.HasIndex("DirectorReviewedByUserId");
 
                     b.HasIndex("OutgoingAttorneyId");
 
@@ -1805,44 +1782,6 @@ namespace SimplexLawFirm.Migrations
                     b.HasIndex("ClientId", "ExpiresAtUtc");
 
                     b.ToTable("ClientSupportSessions");
-                });
-
-            modelBuilder.Entity("SimplexLawFirm.Models.ComplaintAppointment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("BookedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("BookedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Format")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("ScheduledAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("ServiceComplaintId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookedByUserId");
-
-                    b.HasIndex("ServiceComplaintId");
-
-                    b.ToTable("ComplaintAppointments");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.ComplaintAttachment", b =>
@@ -2561,17 +2500,11 @@ namespace SimplexLawFirm.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<bool>("AcknowledgedByReceiving")
-                        .HasColumnType("bit");
-
                     b.Property<int>("CaseHandoverId")
                         .HasColumnType("int");
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DirectorDisputeNote")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsMandatory")
@@ -2596,36 +2529,6 @@ namespace SimplexLawFirm.Migrations
                     b.HasIndex("CaseHandoverId");
 
                     b.ToTable("HandoverItems");
-                });
-
-            modelBuilder.Entity("SimplexLawFirm.Models.HandoverQuery", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CaseHandoverId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Question")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("RaisedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("RaisedByUserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CaseHandoverId");
-
-                    b.HasIndex("RaisedByUserId");
-
-                    b.ToTable("HandoverQueries");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.Invoice", b =>
@@ -4422,9 +4325,6 @@ namespace SimplexLawFirm.Migrations
                     b.Property<int>("ClientId")
                         .HasColumnType("int");
 
-                    b.Property<bool>("ClientNotifiedOfResolution")
-                        .HasColumnType("bit");
-
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -4432,27 +4332,9 @@ namespace SimplexLawFirm.Migrations
                     b.Property<bool>("DuplicateWarningAcknowledged")
                         .HasColumnType("bit");
 
-                    b.Property<string>("FormalResponse")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("MediationSteps")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("Outcome")
-                        .HasColumnType("int");
-
                     b.Property<string>("ReferenceNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("Remedy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("ResolvedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ResolvedByUserId")
-                        .HasColumnType("int");
 
                     b.Property<DateTime>("ResponseDueAtUtc")
                         .HasColumnType("datetime2");
@@ -4478,8 +4360,6 @@ namespace SimplexLawFirm.Migrations
 
                     b.HasIndex("ReferenceNumber")
                         .IsUnique();
-
-                    b.HasIndex("ResolvedByUserId");
 
                     b.HasIndex("RoutedToUserId");
 
@@ -5341,11 +5221,6 @@ namespace SimplexLawFirm.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "DirectorReviewedByUser")
-                        .WithMany()
-                        .HasForeignKey("DirectorReviewedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("SimplexLawFirm.Models.ApplicationUser", "OutgoingAttorney")
                         .WithMany()
                         .HasForeignKey("OutgoingAttorneyId")
@@ -5361,8 +5236,6 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("Case");
 
                     b.Navigation("CaseReassignment");
-
-                    b.Navigation("DirectorReviewedByUser");
 
                     b.Navigation("OutgoingAttorney");
 
@@ -5482,25 +5355,6 @@ namespace SimplexLawFirm.Migrations
                         .HasForeignKey("ClientId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("SimplexLawFirm.Models.ComplaintAppointment", b =>
-                {
-                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "BookedByUser")
-                        .WithMany()
-                        .HasForeignKey("BookedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SimplexLawFirm.Models.ServiceComplaint", "ServiceComplaint")
-                        .WithMany("Appointments")
-                        .HasForeignKey("ServiceComplaintId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("BookedByUser");
-
-                    b.Navigation("ServiceComplaint");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.ComplaintAttachment", b =>
@@ -5654,25 +5508,6 @@ namespace SimplexLawFirm.Migrations
                         .IsRequired();
 
                     b.Navigation("CaseHandover");
-                });
-
-            modelBuilder.Entity("SimplexLawFirm.Models.HandoverQuery", b =>
-                {
-                    b.HasOne("SimplexLawFirm.Models.CaseHandover", "CaseHandover")
-                        .WithMany("Queries")
-                        .HasForeignKey("CaseHandoverId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "RaisedByUser")
-                        .WithMany()
-                        .HasForeignKey("RaisedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("CaseHandover");
-
-                    b.Navigation("RaisedByUser");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.Invoice", b =>
@@ -6158,11 +5993,6 @@ namespace SimplexLawFirm.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "ResolvedByUser")
-                        .WithMany()
-                        .HasForeignKey("ResolvedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("SimplexLawFirm.Models.ApplicationUser", "RoutedToUser")
                         .WithMany()
                         .HasForeignKey("RoutedToUserId")
@@ -6172,8 +6002,6 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("Case");
 
                     b.Navigation("Client");
-
-                    b.Navigation("ResolvedByUser");
 
                     b.Navigation("RoutedToUser");
                 });
@@ -6414,8 +6242,6 @@ namespace SimplexLawFirm.Migrations
             modelBuilder.Entity("SimplexLawFirm.Models.CaseHandover", b =>
                 {
                     b.Navigation("Items");
-
-                    b.Navigation("Queries");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.Client", b =>
@@ -6483,8 +6309,6 @@ namespace SimplexLawFirm.Migrations
 
             modelBuilder.Entity("SimplexLawFirm.Models.ServiceComplaint", b =>
                 {
-                    b.Navigation("Appointments");
-
                     b.Navigation("Attachments");
                 });
 

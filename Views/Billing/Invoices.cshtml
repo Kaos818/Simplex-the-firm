@@ -67,7 +67,7 @@
             <form method="get" class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label">Status</label>
-                    <select name="status" class="form-select" onchange="this.form.submit()">
+                    <select name="status" class="form-select" onchange="this.disabled=true; this.form.submit()">
                         <option value="">All Status</option>
                         @foreach (InvoiceStatus status in ViewBag.StatusOptions)
                         {
@@ -102,10 +102,10 @@
                         <tr>
                             <th>Invoice #</th>
                             <th>Client</th>
-                            <th>Date</th>
-                            <th>Due Date</th>
+                            <th class="d-none d-md-table-cell">Date</th>
+                            <th class="d-none d-md-table-cell">Due Date</th>
                             <th>Amount</th>
-                            <th>Paid</th>
+                            <th class="d-none d-md-table-cell">Paid</th>
                             <th>Balance</th>
                             <th>Status</th>
                             <th>Action</th>
@@ -129,10 +129,10 @@
                                 <td>
                                     <a href="/Client/Details/@invoice.ClientId">@invoice.Client?.FullName</a>
                                 </td>
-                                <td>@invoice.IssueDate.ToString("MMM dd, yyyy")</td>
-                                <td>@invoice.DueDate.ToString("MMM dd, yyyy")</td>
+                                <td class="d-none d-md-table-cell">@invoice.IssueDate.ToString("MMM dd, yyyy")</td>
+                                <td class="d-none d-md-table-cell">@invoice.DueDate.ToString("MMM dd, yyyy")</td>
                                 <td class="fw-bold">R @invoice.TotalAmount.ToString("N2")</td>
-                                <td class="text-success">R @paidAmount.ToString("N2")</td>
+                                <td class="text-success d-none d-md-table-cell">R @paidAmount.ToString("N2")</td>
                                 <td class="text-danger">R @balanceDue.ToString("N2")</td>
                                 <td>
                                     @{

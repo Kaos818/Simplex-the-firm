@@ -61,14 +61,24 @@ namespace SimplexLawFirm.Controllers
         }
 
         [RequireSessionRole("Accountant")]
-        public IActionResult Accountant()
+        public async Task<IActionResult> Accountant()
         {
+            ViewBag.TrustBalance = await _context.TrustAccounts.Where(x => !x.IsClosed).SumAsync(x => x.Balance);
+            ViewBag.TrustAccountCount = await _context.TrustAccounts.CountAsync(x => !x.IsClosed);
+            ViewBag.OverdueInvoices = await _context.Invoices.CountAsync(i => i.Status != InvoiceStatus.Paid && i.Status != InvoiceStatus.Cancelled && i.DueDate < DateTime.Now);
+            ViewBag.PendingReimbursements = await _context.ReimbursementClaims.CountAsync(r => r.Status == ReimbursementStatus.PendingDirector);
+            ViewBag.RecentPayments = await _context.Payments.Include(p => p.Client).OrderByDescending(p => p.PaymentDate).Take(5).ToListAsync();
             return View();
         }
 
         [RequireSessionRole("Paralegal")]
-        public IActionResult Paralegal()
+        public async Task<IActionResult> Paralegal()
         {
+            var userId = HttpContext.Session.GetInt32("UserId");
+            ViewBag.MyTasks = await _context.CalendarEvents.CountAsync(e => e.AssignedToUserId == userId && e.Type == EventType.Task && e.Status != EventStatus.Completed && e.Status != EventStatus.Cancelled);
+            ViewBag.UpcomingDeadlines = await _context.CalendarEvents.Where(e => e.AssignedToUserId == userId && e.Type == EventType.Deadline && e.Status != EventStatus.Completed && e.Status != EventStatus.Cancelled && e.StartDateTime >= DateTime.Now)
+                .OrderBy(e => e.StartDateTime).Take(5).ToListAsync();
+            ViewBag.RecentDocuments = await _context.Documents.OrderByDescending(d => d.Id).Take(5).ToListAsync();
             return View();
         }
     }

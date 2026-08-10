@@ -84,6 +84,8 @@ body { background: var(--paper) !important; color: var(--ink); font-family: Inte
 .status-pill { display:inline-flex; align-items:center; width:max-content; padding:6px 10px; border-radius:100px; background:#e7eee9; color:var(--forest); font-size:.74rem; font-weight:800; }
 .status-pill.large { padding:9px 14px; background:var(--lime); z-index:1; }
 .empty-state { padding:34px 10px; color:var(--muted); text-align:center; border-top:1px solid var(--line); }
+.cursor-pointer { cursor: pointer; }
+.pre-wrap { white-space: pre-wrap; }
 .breadcrumb-line { display:flex; gap:9px; align-items:center; color:var(--muted); margin:0 0 15px 4px; font-size:.88rem; }
 .action-panel { display:flex; justify-content:space-between; align-items:center; gap:30px; }
 .action-panel p { color:var(--muted); max-width:720px; }
@@ -250,7 +252,8 @@ body>.d-flex,.wrapper{min-height:100vh;align-items:stretch!important}
 /* SIMPLEX LADY JUSTICE DESIGN SYSTEM */
 :root{--sx-navy:#07182d;--sx-navy-2:#0d2947;--sx-gold:#c99b42;--sx-gold-light:#f1d99b;--sx-ivory:#f7f3ea;--sx-paper:#fffdf8;--sx-ink:#132033;--sx-muted:#697382;--sx-line:#e4dccb;--sx-teal:#216c72;--sx-mint:#e5d29b;--sx-sand:#f5f1e8;--sx-cloud:#eee8dc;--sx-shadow:0 16px 44px rgba(7,24,45,.10);--sx-shadow-lg:0 32px 85px rgba(7,24,45,.22)}
 body{background:linear-gradient(135deg,rgba(201,155,66,.055),transparent 30%),var(--sx-ivory)!important;color:var(--sx-ink)}
-h1,h2,h3,h4,h5,h6,.page-hero h1,.auth-story h1{font-family:Georgia,"Times New Roman",serif!important;letter-spacing:-.025em}
+h1,h2,h3,.page-hero h1,.auth-story h1{font-family:Georgia,"Times New Roman",serif!important;letter-spacing:-.025em}
+h4,h5,h6{letter-spacing:-.01em}
 .sidebar{background:linear-gradient(170deg,#061426 0%,#0a203a 58%,#102d4a 100%)!important;border-right:1px solid rgba(241,217,155,.16);box-shadow:18px 0 55px rgba(7,24,45,.18)!important}
 .sidebar:before{background:radial-gradient(circle at 14% 4%,rgba(241,217,155,.12),transparent 25%),linear-gradient(145deg,transparent 60%,rgba(201,155,66,.055))}
 .sx-sidebar-brand{display:flex!important;align-items:center!important;gap:12px!important;min-height:72px;height:auto!important;font-size:initial!important}

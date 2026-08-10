@@ -1,11 +1,29 @@
 @using Microsoft.AspNetCore.Http
-@{ ViewData["Title"] = "Paralegal Dashboard"; Layout = "_ParalegalLayout"; }
-<div class="container-fluid">
-    <h1 class="mb-2">Paralegal Dashboard</h1>
-    <p class="lead">Welcome, @Context.Session.GetString("UserFullName").</p>
-    <div class="row g-4 mt-2">
-        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><i class="fas fa-tasks fa-2x text-info mb-3"></i><h2 class="h5">My tasks</h2><p>Review and update assigned legal work.</p><a class="btn btn-info" href="/Calendar/Tasks">Open tasks</a></div></div></div>
-        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><i class="fas fa-folder fa-2x text-info mb-3"></i><h2 class="h5">Documents</h2><p>File and retrieve matter documents.</p><a class="btn btn-info" href="/Document/Index">Open documents</a></div></div></div>
-        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><i class="fas fa-gavel fa-2x text-info mb-3"></i><h2 class="h5">Cases and notes</h2><p>Review the matters your team supports.</p><a class="btn btn-info" href="/Case/Index">Open cases</a></div></div></div>
-    </div>
+@using SimplexLawFirm.Models
+@{ ViewData["Title"] = "Paralegal Dashboard"; Layout = "_ParalegalLayout"; var deadlines = ViewBag.UpcomingDeadlines as IEnumerable<CalendarEvent> ?? Enumerable.Empty<CalendarEvent>(); var docs = ViewBag.RecentDocuments as IEnumerable<Document> ?? Enumerable.Empty<Document>(); }
+<div class="page-hero compact"><div><span class="eyebrow">Paralegal chamber</span><h1>Welcome, @Context.Session.GetString("UserFullName")</h1><p>Your task queue, upcoming deadlines, and the firm's most recent filings.</p></div></div>
+
+<div class="metric-grid">
+ <div class="metric-card"><span>Open tasks</span><strong>@ViewBag.MyTasks</strong><small>Assigned to you</small></div>
+ <div class="metric-card"><span>Upcoming deadlines</span><strong>@deadlines.Count()</strong><small>Next scheduled</small></div>
+ <div class="metric-card"><span>Recent documents</span><strong>@docs.Count()</strong><small>Latest filed</small></div>
 </div>
+
+<div class="workspace-grid">
+ <section class="surface"><div class="section-heading"><div><span class="eyebrow">Schedule</span><h2>Upcoming deadlines</h2></div><a href="/Calendar/Tasks">Open tasks →</a></div>
+  @foreach(var e in deadlines){<div class="record-row"><span><b>@e.Title</b><small>@e.StartDateTime.ToString("dd MMM yyyy HH:mm")</small></span><span class="status-pill">@e.Status</span></div>}
+  @if(!deadlines.Any()){<div class="empty-state">No upcoming deadlines assigned to you.</div>}
+ </section>
+ <section class="surface"><div class="section-heading"><div><span class="eyebrow">Documents</span><h2>Recently filed</h2></div><a href="/Document/Index">Open documents →</a></div>
+  @foreach(var d in docs){<div class="record-row"><span><b>@d.FileName</b><small>@d.FileType</small></span></div>}
+  @if(!docs.Any()){<div class="empty-state">No documents filed yet.</div>}
+ </section>
+</div>
+
+<section class="surface mt-3"><div class="section-heading"><div><span class="eyebrow">Quick actions</span><h2>Where to go next</h2></div></div>
+ <div class="d-flex flex-wrap gap-2">
+  <a class="btn-secondary-modern" href="/Calendar/Tasks"><i class="fas fa-tasks me-2"></i>My tasks</a>
+  <a class="btn-secondary-modern" href="/Document/Index"><i class="fas fa-folder me-2"></i>Documents</a>
+  <a class="btn-secondary-modern" href="/Case/Index"><i class="fas fa-gavel me-2"></i>Cases and notes</a>
+ </div>
+</section>

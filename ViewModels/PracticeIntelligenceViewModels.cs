@@ -19,6 +19,7 @@ public class HandoverPageViewModel
 {
     public CaseHandover Handover { get; set; } = null!;
     public List<HandoverItem> BlockingItems => Handover.Items.Where(x => x.IsMandatory && !x.IsResolved).ToList();
+    public List<HandoverItem> UnacknowledgedMandatoryItems => Handover.Items.Where(x => x.IsMandatory && !x.AcknowledgedByReceiving).ToList();
 }
 
 public class LodgeComplaintViewModel

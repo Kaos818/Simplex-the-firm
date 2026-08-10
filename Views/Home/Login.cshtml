@@ -20,7 +20,7 @@
     <span class="eyebrow">Welcome back</span><h2>Sign in to Simplex</h2><p class="muted">Enter your account details to continue.</p>
     @if(TempData["Success"] != null){<div class="alert alert-success">@TempData["Success"]</div>}
     @if(TempData["Error"] != null){<div class="alert alert-danger">@TempData["Error"]</div>}
-    <form method="post" action="/Home/Login" class="stack-form">@Html.AntiForgeryToken()
+    <form method="post" action="/Home/Login" class="stack-form">@Html.AntiForgeryToken()<input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl"/>
      <label>Email address<div class="input-icon"><i class="fas fa-envelope"></i><input type="email" name="emailAddress" autocomplete="email" required autofocus/></div></label>
      <label>Password<div class="input-icon"><i class="fas fa-lock"></i><input type="password" name="password" autocomplete="current-password" required/></div></label>
      <div class="auth-options"><label class="check-line"><input type="checkbox" name="rememberMe"/> Keep me signed in</label><a href="/Home/ForgotPassword">Forgot password?</a></div>

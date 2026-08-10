@@ -10,8 +10,12 @@ namespace SimplexLawFirm.Services;
 
 public interface IOperationalUseCaseService
 {
-    Task<IReadOnlyList<LegalAuthority>> ResearchAsync(int attorneyId, int caseId, string issue, CancellationToken ct = default);
+    Task<IReadOnlyList<LegalAuthority>> ResearchAsync(int attorneyId, int caseId, string issue, int? caseNoteId = null, CancellationToken ct = default);
     Task<CaseAuthorityReliance> RelyAsync(int attorneyId, int caseId, int authorityId, string reason, bool confirmAdverseTreatment, CancellationToken ct = default);
+    Task<IReadOnlyList<ResearchQuery>> GetThreadAsync(int caseId, int attorneyId, CancellationToken ct = default);
+    Task<(IReadOnlyList<LegalAuthority> Supports, IReadOnlyList<LegalAuthority> Against)> GuidedResearchAsync(int attorneyId, int caseId, string unsure, string view, string approach, CancellationToken ct = default);
+    Task<ResearchDisagreement> RecordDisagreementAsync(int attorneyId, int caseId, string topic, string note, CancellationToken ct = default);
+    Task<IReadOnlyList<CaseAuthorityReliance>> BuildMemoAsync(int caseId, int attorneyId, CancellationToken ct = default);
     Task<AttorneyWhereabout> CheckInAsync(int attorneyId, int? eventId, string venue, DateTime expectedReturnUtc, CancellationToken ct = default);
     Task CheckOutAsync(int attorneyId, int whereaboutId, CancellationToken ct = default);
     Task EscalateOverdueAsync(CancellationToken ct = default);
@@ -30,24 +34,72 @@ public sealed class LegalResearchOptions
 public sealed class OperationalUseCaseService(ApplicationDbContext db, INotificationService notifications, IEmailService email,
     IOptions<LegalResearchOptions> researchOptions) : IOperationalUseCaseService
 {
-    public async Task<IReadOnlyList<LegalAuthority>> ResearchAsync(int attorneyId, int caseId, string issue, CancellationToken ct = default)
+    private async Task<List<LegalAuthority>> RankAuthorities(string text, bool limitedToInternal, CancellationToken ct)
     {
-        var matter = await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId && x.LawyerId == attorneyId && x.Status == CaseStatus.Active, ct)
-            ?? throw new UnauthorizedAccessException("Only the assigned attorney may research an active matter.");
-        if (string.IsNullOrWhiteSpace(issue)) throw new InvalidOperationException("A legal issue or source passage is required.");
-        var terms = issue.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(x => x.Length > 3).Distinct().ToArray();
-        var limitedToInternal = !researchOptions.Value.ExternalSourcesAvailable;
+        var terms = text.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(x => x.Length > 3).Distinct().ToArray();
         var authorities = await db.LegalAuthorities.Where(x => x.IsInternalFallback == limitedToInternal).ToListAsync(ct);
-        var ranked = authorities.Select(x => new { Item=x, Score=terms.Count(term => $"{x.Citation} {x.Subject} {x.Summary} {x.SearchText}".Contains(term, StringComparison.OrdinalIgnoreCase)) })
+        return authorities.Select(x => new { Item=x, Score=terms.Count(term => $"{x.Citation} {x.Subject} {x.Summary} {x.SearchText}".Contains(term, StringComparison.OrdinalIgnoreCase)) })
             .Where(x => x.Score > 0).OrderByDescending(x => x.Item.Rank == AuthorityRank.Binding).ThenByDescending(x => x.Score).Select(x => x.Item).Take(20).ToList();
+    }
+
+    private async Task<Case> RequireActiveMatterAsync(int attorneyId, int caseId, CancellationToken ct) =>
+        await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId && x.LawyerId == attorneyId && x.Status == CaseStatus.Active, ct)
+            ?? throw new UnauthorizedAccessException("Only the assigned attorney may research an active matter.");
+
+    public async Task<IReadOnlyList<LegalAuthority>> ResearchAsync(int attorneyId, int caseId, string issue, int? caseNoteId = null, CancellationToken ct = default)
+    {
+        var matter = await RequireActiveMatterAsync(attorneyId, caseId, ct);
+        if (string.IsNullOrWhiteSpace(issue)) throw new InvalidOperationException("A legal issue or source passage is required.");
+        var limitedToInternal = !researchOptions.Value.ExternalSourcesAvailable;
+        var ranked = await RankAuthorities(issue, limitedToInternal, ct);
         db.AuditEntries.Add(new() { ActorUserId=attorneyId, EntityType="LegalResearch", EntityId=matter.Id.ToString(), Action=ranked.Count == 0 ? "Research returned no authority" : "Legal authority research performed", SafeMetadataJson=System.Text.Json.JsonSerializer.Serialize(new { issue, results=ranked.Count, limitedToInternal }) });
+        db.ResearchQueries.Add(new() { CaseId=caseId, AttorneyId=attorneyId, CaseNoteId=caseNoteId, Issue=issue.Trim(), ResultCount=ranked.Count, LimitedToInternal=limitedToInternal });
         await db.SaveChangesAsync(ct); return ranked;
+    }
+
+    public async Task<IReadOnlyList<ResearchQuery>> GetThreadAsync(int caseId, int attorneyId, CancellationToken ct = default)
+    {
+        await RequireActiveMatterAsync(attorneyId, caseId, ct);
+        return await db.ResearchQueries.Where(x => x.CaseId == caseId).OrderByDescending(x => x.CreatedAtUtc).Take(30).ToListAsync(ct);
+    }
+
+    public async Task<(IReadOnlyList<LegalAuthority> Supports, IReadOnlyList<LegalAuthority> Against)> GuidedResearchAsync(int attorneyId, int caseId, string unsure, string view, string approach, CancellationToken ct = default)
+    {
+        await RequireActiveMatterAsync(attorneyId, caseId, ct);
+        if (string.IsNullOrWhiteSpace(unsure) && string.IsNullOrWhiteSpace(view)) throw new InvalidOperationException("Describe what you're unsure about and your view before running guided research.");
+        var limitedToInternal = !researchOptions.Value.ExternalSourcesAvailable;
+        var ranked = await RankAuthorities($"{unsure} {view} {approach}", limitedToInternal, ct);
+        // Best-effort split: an authority still good law is treated as supporting the attorney's position;
+        // one with adverse subsequent treatment is surfaced as the challenge to be ready for.
+        var supports = ranked.Where(x => x.Treatment == AuthorityTreatment.GoodLaw).ToList();
+        var against = ranked.Where(x => x.Treatment != AuthorityTreatment.GoodLaw).ToList();
+        db.AuditEntries.Add(new() { ActorUserId=attorneyId, EntityType="LegalResearch", EntityId=caseId.ToString(), Action="Guided research performed", SafeMetadataJson=System.Text.Json.JsonSerializer.Serialize(new { unsure, view, approach, supports=supports.Count, against=against.Count }) });
+        db.ResearchQueries.Add(new() { CaseId=caseId, AttorneyId=attorneyId, Issue=$"Guided: {unsure}", ResultCount=ranked.Count, LimitedToInternal=limitedToInternal });
+        await db.SaveChangesAsync(ct);
+        return (supports, against);
+    }
+
+    public async Task<ResearchDisagreement> RecordDisagreementAsync(int attorneyId, int caseId, string topic, string note, CancellationToken ct = default)
+    {
+        await RequireActiveMatterAsync(attorneyId, caseId, ct);
+        if (string.IsNullOrWhiteSpace(note)) throw new InvalidOperationException("Record why your professional judgement differs before saving a disagreement.");
+        var disagreement = new ResearchDisagreement { CaseId=caseId, AttorneyId=attorneyId, Topic=(topic ?? "").Trim(), Note=note.Trim() };
+        db.ResearchDisagreements.Add(disagreement);
+        db.AuditEntries.Add(new() { ActorUserId=attorneyId, EntityType="ResearchDisagreement", EntityId=caseId.ToString(), Action="Professional disagreement recorded", SafeMetadataJson=System.Text.Json.JsonSerializer.Serialize(new { topic }) });
+        await db.SaveChangesAsync(ct); return disagreement;
+    }
+
+    public async Task<IReadOnlyList<CaseAuthorityReliance>> BuildMemoAsync(int caseId, int attorneyId, CancellationToken ct = default)
+    {
+        await RequireActiveMatterAsync(attorneyId, caseId, ct);
+        return await db.CaseAuthorityReliances.Include(x => x.LegalAuthority).Include(x => x.Attorney)
+            .Where(x => x.CaseId == caseId).OrderBy(x => x.RecordedAtUtc).ToListAsync(ct);
     }
 
     public async Task<CaseAuthorityReliance> RelyAsync(int attorneyId, int caseId, int authorityId, string reason, bool confirmAdverseTreatment, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(reason)) throw new InvalidOperationException("Record why the authority is relevant before relying on it.");
-        var matter = await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId && x.LawyerId == attorneyId && x.Status == CaseStatus.Active, ct) ?? throw new UnauthorizedAccessException();
+        var matter = await RequireActiveMatterAsync(attorneyId, caseId, ct);
         var authority = await db.LegalAuthorities.FindAsync([authorityId], ct) ?? throw new KeyNotFoundException();
         if (authority.Treatment != AuthorityTreatment.GoodLaw && !confirmAdverseTreatment) throw new InvalidOperationException("Express confirmation is required because this authority has adverse subsequent treatment.");
         var reliance = new CaseAuthorityReliance { CaseId=caseId, LegalAuthorityId=authorityId, AttorneyId=attorneyId, RelevanceReason=reason.Trim(), AdverseTreatmentConfirmed=confirmAdverseTreatment };

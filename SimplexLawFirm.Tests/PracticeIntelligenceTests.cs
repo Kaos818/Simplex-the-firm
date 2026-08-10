@@ -95,6 +95,173 @@ public class PracticeIntelligenceTests
     }
 
     [Fact]
+    public async Task Ready_handover_requires_director_review_before_receiving_attorney_can_see_it()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var (matter, outgoing, _) = await fixture.SeedMatterAsync();
+        var receiver = new ApplicationUser { FullName = "Attorney Two", Email = "two@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
+        var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
+        fixture.Db.AddRange(receiver, director);
+        await fixture.Db.SaveChangesAsync();
+
+        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
+        Assert.True(await fixture.Service.MarkHandoverReadyAsync(handover.Id));
+        Assert.Equal(HandoverStatus.PendingDirectorReview, handover.Status);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.AcceptHandoverAsync(handover.Id, receiver.Id, "Attorney Two", false));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, "", null, null));
+
+        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, "Prepared and reviewed; proceed.", "Client is anxious, call within 24h.", null);
+        Assert.Equal(HandoverStatus.Ready, handover.Status);
+        Assert.Equal(director.Id, handover.DirectorReviewedByUserId);
+        Assert.Equal("Client is anxious, call within 24h.", handover.DirectorRiskFlags);
+        var reloaded = await fixture.Db.CaseHandovers.AsNoTracking().SingleAsync(x => x.Id == handover.Id);
+        Assert.Equal("Client is anxious, call within 24h.", reloaded.DirectorRiskFlags);
+    }
+
+    [Fact]
+    public async Task Director_can_return_handover_to_outgoing_attorney_with_a_reason()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var (matter, outgoing, _) = await fixture.SeedMatterAsync();
+        var receiver = new ApplicationUser { FullName = "Attorney Two", Email = "two@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
+        var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
+        fixture.Db.AddRange(receiver, director);
+        await fixture.Db.SaveChangesAsync();
+        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
+        await fixture.Service.MarkHandoverReadyAsync(handover.Id);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, false, null, null, ""));
+        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, false, null, null, "Notes are too thin, expand the briefing.");
+        Assert.Equal(HandoverStatus.Preparing, handover.Status);
+        Assert.Contains("too thin", handover.DirectorReturnReason);
+    }
+
+    [Fact]
+    public async Task Director_can_dispute_a_specific_item_which_reopens_it_and_notifies_the_outgoing_attorney()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var (matter, outgoing, _) = await fixture.SeedMatterAsync();
+        var receiver = new ApplicationUser { FullName = "Attorney Two", Email = "two@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
+        var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
+        fixture.Db.AddRange(receiver, director);
+        await fixture.Db.SaveChangesAsync();
+        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
+        await fixture.Service.MarkHandoverReadyAsync(handover.Id);
+        Assert.Equal(HandoverStatus.PendingDirectorReview, handover.Status);
+        var disputedItem = handover.Items.First(x => x.IsMandatory);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.DisputeHandoverItemAsync(handover.Id, disputedItem.Id, director.Id, ""));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Service.DisputeHandoverItemAsync(handover.Id, disputedItem.Id, outgoing.Id, "Not actually done."));
+
+        await fixture.Service.DisputeHandoverItemAsync(handover.Id, disputedItem.Id, director.Id, "The signature bundle is still outstanding.");
+        Assert.Equal(HandoverStatus.Preparing, handover.Status);
+        Assert.False(disputedItem.IsResolved);
+        Assert.Equal("The signature bundle is still outstanding.", disputedItem.DirectorDisputeNote);
+
+        // Once the director has already moved on from review, disputing is no longer allowed.
+        disputedItem.IsResolved = true; disputedItem.ResolutionNote = "Fixed."; disputedItem.DirectorDisputeNote = null;
+        await fixture.Db.SaveChangesAsync();
+        await fixture.Service.MarkHandoverReadyAsync(handover.Id);
+        Assert.Equal(HandoverStatus.PendingDirectorReview, handover.Status);
+        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, "Reviewed and approved.", null, null);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.DisputeHandoverItemAsync(handover.Id, disputedItem.Id, director.Id, "Too late."));
+    }
+
+    [Fact]
+    public async Task Acceptance_requires_every_mandatory_item_acknowledged_and_a_signature()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var (matter, outgoing, _) = await fixture.SeedMatterAsync();
+        var receiver = new ApplicationUser { FullName = "Attorney Two", Email = "two@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
+        var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
+        fixture.Db.AddRange(receiver, director);
+        await fixture.Db.SaveChangesAsync();
+        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
+        await fixture.Service.MarkHandoverReadyAsync(handover.Id);
+        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, "Reviewed and ready.", "Watch the deadline closely.", null);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.AcceptHandoverAsync(handover.Id, receiver.Id, "Attorney Two", true));
+
+        foreach (var item in handover.Items.Where(x => x.IsMandatory))
+            await fixture.Service.AcknowledgeHandoverItemAsync(handover.Id, item.Id, receiver.Id);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.AcceptHandoverAsync(handover.Id, receiver.Id, "Attorney Two", false));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.AcceptHandoverAsync(handover.Id, receiver.Id, "", true));
+
+        await fixture.Service.AcceptHandoverAsync(handover.Id, receiver.Id, "Attorney Two", true);
+        Assert.Equal(HandoverStatus.Accepted, handover.Status);
+        Assert.Equal(receiver.Id, matter.LawyerId);
+        Assert.Equal(ReassignmentStatus.Completed, (await fixture.Db.CaseReassignments.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Receiving_attorney_can_query_or_decline_and_decline_loops_back_to_director()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var (matter, outgoing, _) = await fixture.SeedMatterAsync();
+        var receiver = new ApplicationUser { FullName = "Attorney Two", Email = "two@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
+        var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
+        fixture.Db.AddRange(receiver, director);
+        await fixture.Db.SaveChangesAsync();
+        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
+        await fixture.Service.MarkHandoverReadyAsync(handover.Id);
+        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, "Reviewed.", null, null);
+
+        await fixture.Service.RaiseHandoverQueryAsync(handover.Id, receiver.Id, "What happened with the settlement offer?");
+        Assert.Single(await fixture.Db.HandoverQueries.ToListAsync());
+
+        await fixture.Service.DeclineHandoverAcceptanceAsync(handover.Id, receiver.Id, "The financial exposure notes are unclear.");
+        Assert.Equal(HandoverStatus.PendingDirectorReview, handover.Status);
+        Assert.Contains("unclear", handover.DirectorReturnReason);
+    }
+
+    [Fact]
+    public async Task Resolving_a_complaint_requires_a_mediation_step_and_a_formal_response()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var (matter, _, client) = await fixture.SeedMatterAsync();
+        var director = new ApplicationUser { FullName = "Senior Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
+        var otherDirector = new ApplicationUser { FullName = "Other Director", Email = "other@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
+        fixture.Db.AddRange(director, otherDirector);
+        await fixture.Db.SaveChangesAsync();
+        var complaint = await fixture.Service.LodgeComplaintAsync(client.Id, new LodgeComplaintViewModel { CaseId = matter.Id, Category = ComplaintCategory.Delay, Description = "The matter has stalled for weeks with no explanation given to me." });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ResolveComplaintAsync(complaint.Id, complaint.RoutedToUserId, ComplaintResolutionOutcome.Upheld, [], "We are sorry.", null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ResolveComplaintAsync(complaint.Id, complaint.RoutedToUserId, ComplaintResolutionOutcome.Upheld, ["Apology issued"], "", null));
+        var notReviewer = complaint.RoutedToUserId == director.Id ? otherDirector.Id : director.Id;
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Service.ResolveComplaintAsync(complaint.Id, notReviewer, ComplaintResolutionOutcome.Upheld, ["Apology issued"], "We are sorry.", null));
+
+        var resolved = await fixture.Service.ResolveComplaintAsync(complaint.Id, complaint.RoutedToUserId, ComplaintResolutionOutcome.Upheld, ["Apology issued", "Fee waived"], "We are sorry for the delay.", "10% fee reduction");
+        Assert.Equal(ComplaintStatus.Resolved, resolved.Status);
+        Assert.True(resolved.ClientNotifiedOfResolution);
+        Assert.Contains("Apology issued", resolved.MediationSteps);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ResolveComplaintAsync(complaint.Id, complaint.RoutedToUserId, ComplaintResolutionOutcome.Upheld, ["Again"], "Again.", null));
+    }
+
+    [Fact]
+    public async Task Complaint_appointment_can_be_booked_by_the_reviewer_or_the_matching_client_and_replaces_any_prior_booking()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var (matter, _, client) = await fixture.SeedMatterAsync();
+        var director = new ApplicationUser { FullName = "Senior Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
+        var clientUser = new ApplicationUser { FullName = client.FullName, Email = client.Email, PasswordHash = "x", Role = UserRole.Client, IsActive = true };
+        var stranger = new ApplicationUser { FullName = "Stranger", Email = "stranger@test", PasswordHash = "x", Role = UserRole.Client, IsActive = true };
+        fixture.Db.AddRange(director, clientUser, stranger);
+        await fixture.Db.SaveChangesAsync();
+        var complaint = await fixture.Service.LodgeComplaintAsync(client.Id, new LodgeComplaintViewModel { CaseId = matter.Id, Category = ComplaintCategory.Delay, Description = "The matter has stalled for weeks with no explanation given to me." });
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Service.BookComplaintAppointmentAsync(complaint.Id, stranger.Id, DateTime.UtcNow.AddDays(2), AppointmentFormat.Video, null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.BookComplaintAppointmentAsync(complaint.Id, clientUser.Id, DateTime.UtcNow.AddDays(-1), AppointmentFormat.Video, null));
+
+        var first = await fixture.Service.BookComplaintAppointmentAsync(complaint.Id, clientUser.Id, DateTime.UtcNow.AddDays(2), AppointmentFormat.Video, "Discuss fee");
+        Assert.Equal(ComplaintAppointmentStatus.Scheduled, first.Status);
+        var second = await fixture.Service.BookComplaintAppointmentAsync(complaint.Id, complaint.RoutedToUserId, DateTime.UtcNow.AddDays(3), AppointmentFormat.InPerson, null);
+        Assert.Equal(ComplaintAppointmentStatus.Cancelled, (await fixture.Db.ComplaintAppointments.SingleAsync(x => x.Id == first.Id)).Status);
+        Assert.Equal(ComplaintAppointmentStatus.Scheduled, second.Status);
+    }
+
+    [Fact]
     public async Task Complaint_naming_director_routes_to_alternate_and_restricts_named_director()
     {
         await using var fixture = await Fixture.CreateAsync();

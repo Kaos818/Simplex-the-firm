@@ -2,33 +2,174 @@
 @using SimplexLawFirm.Models
 @{
     ViewData["Title"] = "Case handover";
-    Layout = Context.Session.GetString("UserRole") == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    var role = Context.Session.GetString("UserRole");
+    Layout = role == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
     var userId = Context.Session.GetInt32("UserId");
     var isOutgoing = userId == Model.Handover.OutgoingAttorneyId;
     var isReceiving = userId == Model.Handover.ReceivingAttorneyId;
+    var isDirector = role == "Admin";
     var editable = Model.Handover.Status is HandoverStatus.Preparing or HandoverStatus.Overdue;
 }
 <div class="breadcrumb-line"><a href="/Practice">Practice intelligence</a><span>/</span><span>Handover</span></div>
-<div class="page-hero compact"><div><span class="eyebrow">Safe transfer</span><h1>@Model.Handover.Case.Title</h1><p>@Model.Handover.OutgoingAttorney.FullName → @Model.Handover.ReceivingAttorney.FullName</p></div><span class="status-pill large">@Model.Handover.Status</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">UC-02 · Case handover</span><h1>@Model.Handover.Case.Title</h1><p>@Model.Handover.OutgoingAttorney.FullName → @Model.Handover.ReceivingAttorney.FullName</p></div><span class="status-pill large">@Model.Handover.Status</span></div>
 
-@if (Model.BlockingItems.Count > 0) {
-    <div class="alert alert-warning"><strong>Handover is blocked.</strong> The outgoing attorney must record a position for each mandatory item below before it can be marked ready.</div>
+@{
+    var stepIndex = Model.Handover.Status switch {
+        HandoverStatus.Preparing or HandoverStatus.Overdue => 0,
+        HandoverStatus.PendingDirectorReview => 1,
+        HandoverStatus.Ready => 2,
+        HandoverStatus.Accepted => 3,
+        _ => 0
+    };
+    string[] stepLabels = ["Preparing", "Director review", "Ready", "Accepted"];
 }
+<div class="handover-stepper d-flex align-items-center gap-2 mb-3" role="list" aria-label="Handover progress">
+ @for (var s = 0; s < stepLabels.Length; s++) {
+  var stepState = s < stepIndex ? "done" : s == stepIndex ? "current" : "upcoming";
+  <div role="listitem" class="handover-step @stepState"><span class="handover-step-dot">@(stepState == "done" ? "✓" : (s + 1).ToString())</span><span class="handover-step-label">@stepLabels[s]</span></div>
+  if (s < stepLabels.Length - 1) { <span class="handover-step-connector @(s < stepIndex ? "done" : "")"></span> }
+ }
+</div>
+<style>
+ .handover-step{display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:var(--muted);}
+ .handover-step.current{color:var(--ink);}
+ .handover-step.done{color:var(--forest-2,#2f6b45);}
+ .handover-step-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--line,#d8dfda);font-size:.78rem;flex-shrink:0;}
+ .handover-step.current .handover-step-dot{border-color:var(--ink);background:var(--ink);color:#fff;}
+ .handover-step.done .handover-step-dot{border-color:var(--forest-2,#2f6b45);background:var(--forest-2,#2f6b45);color:#fff;}
+ .handover-step-connector{flex:1;height:2px;background:var(--line,#d8dfda);min-width:20px;}
+ .handover-step-connector.done{background:var(--forest-2,#2f6b45);}
+ @@media(max-width:700px){.handover-stepper{flex-wrap:wrap;}.handover-step-label{display:none;}}
+</style>
+
+@if (Model.Handover.Status == HandoverStatus.PendingDirectorReview) {
+    <div class="alert alert-warning"><strong>Awaiting director review.</strong> The handover cannot reach the receiving attorney until a director approves it.</div>
+}
+@if ((Model.Handover.Status == HandoverStatus.Preparing || Model.Handover.Status == HandoverStatus.PendingDirectorReview) && !string.IsNullOrWhiteSpace(Model.Handover.DirectorReturnReason)) {
+    <div class="alert alert-warning"><strong>Handover returned:</strong> @Model.Handover.DirectorReturnReason</div>
+}
+@if (Model.BlockingItems.Count > 0 && editable) {
+    <div class="alert alert-warning"><strong>Handover is blocked.</strong> The outgoing attorney must record a position for each mandatory item below before it can be submitted for director review.</div>
+}
+
 <div class="workspace-grid">
  <section class="surface"><div class="section-heading"><div><span class="eyebrow">Live checklist</span><h2>@Model.BlockingItems.Count blocker(s)</h2></div><small>Rechecked when readiness is submitted</small></div>
  @foreach(var item in Model.Handover.Items){
+     @if (!string.IsNullOrWhiteSpace(item.DirectorDisputeNote)) {<div class="alert alert-warning mb-1"><strong>⚠ Director flagged "@item.Type" as incorrectly confirmed:</strong> @item.DirectorDisputeNote</div>}
      @if (isOutgoing && editable) {
          <form method="post" action="/Practice/ResolveItem" class="checklist-item @(item.IsResolved ? "done" : "")">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@item.Id"/><input type="hidden" name="handoverId" value="@Model.Handover.Id"/><input type="hidden" name="resolved" value="@(!item.IsResolved)"/><button type="submit" class="check-button" aria-label="@(item.IsResolved ? "Reopen checklist item" : "Record checklist item position")">@(item.IsResolved ? "✓" : "○")</button><div class="item-copy"><b>@item.Type</b><p>@item.Description</p><small>@(item.IsMandatory ? "Mandatory" : "Advisory")</small>@if(!item.IsResolved){<input name="resolutionNote" required="@item.IsMandatory" placeholder="Record the position taken…" aria-label="Resolution note"/>}else if(!string.IsNullOrWhiteSpace(item.ResolutionNote)){<em>@item.ResolutionNote</em>}</div></form>
+     } else if (isDirector && Model.Handover.Status == HandoverStatus.PendingDirectorReview) {
+         <div class="checklist-item @(item.IsResolved ? "done" : "")"><span class="check-button" aria-hidden="true">@(item.IsResolved ? "✓" : "○")</span><div class="item-copy"><b>@item.Type</b><p>@item.Description</p><small>@(item.IsMandatory ? "Mandatory" : "Advisory")</small>@if(!string.IsNullOrWhiteSpace(item.ResolutionNote)){<em>@item.ResolutionNote</em>}
+          @if(item.IsResolved){<details class="mt-1"><summary class="muted cursor-pointer" style="font-size:.8rem;">⚠ Dispute this confirmation</summary><form method="post" action="/Practice/DisputeHandoverItem" class="d-flex gap-2 flex-wrap mt-1">@Html.AntiForgeryToken()<input type="hidden" name="handoverId" value="@Model.Handover.Id"/><input type="hidden" name="itemId" value="@item.Id"/><input class="form-control" name="note" placeholder="State what's actually missing…" required/><button class="btn btn-outline-warning btn-sm">Reopen &amp; notify @Model.Handover.OutgoingAttorney.FullName</button></form></details>}
+         </div></div>
+     } else if (isReceiving && Model.Handover.Status == HandoverStatus.Ready) {
+         <form method="post" action="/Practice/AcknowledgeItem" class="checklist-item @(item.AcknowledgedByReceiving ? "done" : "")">@Html.AntiForgeryToken()<input type="hidden" name="itemId" value="@item.Id"/><input type="hidden" name="handoverId" value="@Model.Handover.Id"/><button type="submit" class="check-button" aria-label="Acknowledge item">@(item.AcknowledgedByReceiving ? "✓" : "○")</button><div class="item-copy"><b>@item.Type</b><p>@item.Description</p><small>@(item.IsMandatory ? "Mandatory — acknowledge before accepting" : "Advisory")</small>@if(!string.IsNullOrWhiteSpace(item.ResolutionNote)){<em>@item.ResolutionNote</em>}</div></form>
      } else {
          <div class="checklist-item @(item.IsResolved ? "done" : "")"><span class="check-button" aria-hidden="true">@(item.IsResolved ? "✓" : "○")</span><div class="item-copy"><b>@item.Type</b><p>@item.Description</p><small>@(item.IsMandatory ? "Mandatory" : "Advisory")</small>@if(!string.IsNullOrWhiteSpace(item.ResolutionNote)){<em>@item.ResolutionNote</em>}</div></div>
      }
  }
  </section>
+
+ <section class="surface">
+  <div class="section-heading"><div><span class="eyebrow">Documents</span><h2>@Model.Handover.Case.Documents.Count file(s) on this matter</h2></div>@if(isOutgoing && editable){<a class="btn-secondary-modern btn-sm" asp-controller="Document" asp-action="Upload" asp-route-caseId="@Model.Handover.CaseId">Upload document</a>}</div>
+  @if(!Model.Handover.Case.Documents.Any()){<div class="empty-state">No documents attached to this matter yet.</div>}
+  @foreach(var doc in Model.Handover.Case.Documents){<a class="record-row" href="/Document/Details/@doc.Id"><span><b>@doc.FileName</b><small>@doc.FileType · @doc.FileSize</small></span><span class="muted">View →</span></a>}
+  <small class="muted d-block mt-2">Visible to the outgoing attorney, the director, and the receiving attorney throughout the handover.</small>
+ </section>
+
  @if (isOutgoing && editable) {
- <section class="surface"><span class="eyebrow">Handover briefing</span><h2>Prepare the next attorney</h2><form method="post" action="/Practice/MarkReady" class="stack-form">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Handover.Id"/><label>Handover notes<textarea name="notes" rows="5">@Model.Handover.Notes</textarea></label><label>Urgent matters & imminent deadlines<textarea name="urgentMatters" rows="4">@Model.Handover.UrgentMatters</textarea></label><div class="responsibility-note">Responsibility remains with <b>@Model.Handover.OutgoingAttorney.FullName</b> until acceptance.</div><button type="submit" class="btn-primary-modern">Run live check & mark ready</button></form></section>
- } else if (isReceiving && Model.Handover.Status == HandoverStatus.Ready) {
- <section class="surface"><span class="eyebrow">Receiving attorney</span><h2>Accept responsibility</h2><p>The live checklist and briefing are complete. Acceptance transfers responsibility to you.</p><form method="post" action="/Practice/AcceptHandover">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Handover.Id"/><button type="submit" class="btn-primary-modern">Accept handover</button></form></section>
- } else {
- <section class="surface"><span class="eyebrow">Handover status</span><h2>Read-only for your role</h2><p>@(Model.Handover.Status == HandoverStatus.Ready ? "Waiting for the receiving attorney to accept responsibility." : "The outgoing attorney is preparing the handover pack.")</p></section>
+ <section class="surface"><span class="eyebrow">Handover briefing</span><h2>Prepare the next attorney</h2><form method="post" action="/Practice/MarkReady" class="stack-form">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Handover.Id"/><label>Handover notes<textarea name="notes" rows="5">@Model.Handover.Notes</textarea></label><label>Urgent matters & imminent deadlines<textarea name="urgentMatters" rows="4">@Model.Handover.UrgentMatters</textarea></label><div class="responsibility-note">Responsibility remains with <b>@Model.Handover.OutgoingAttorney.FullName</b> until acceptance.</div><button type="submit" class="btn-primary-modern">Submit for director review</button></form></section>
+ }
+
+ @if (isDirector && Model.Handover.Status == HandoverStatus.PendingDirectorReview) {
+ <section class="surface" id="directorReview">
+  <span class="eyebrow">Director review</span><h2>Verify before releasing to @Model.Handover.ReceivingAttorney.FullName</h2>
+  @if (!string.IsNullOrWhiteSpace(Model.Handover.UrgentMatters)) {<div class="alert alert-warning"><strong>Urgent matters flagged:</strong> @Model.Handover.UrgentMatters</div>}
+  @if (!string.IsNullOrWhiteSpace(Model.Handover.Notes)) {<p class="muted">@Model.Handover.Notes</p>}
+  <form method="post" action="/Practice/SubmitDirectorReview" class="stack-form" id="directorApproveForm">
+   @Html.AntiForgeryToken()<input type="hidden" name="handoverId" value="@Model.Handover.Id"/><input type="hidden" name="approve" value="true"/><input type="hidden" name="checksConfirmed" id="checksConfirmed" value="false"/>
+   <div class="director-checks" aria-describedby="checkCountLabel">
+    @{ string[] checks = ["All mandatory checklist items are resolved or recorded", "Deadlines verified and diarised for the receiving attorney", "Financial exposure (unbilled time, invoices) reviewed", "Client communication threads are complete or documented", "Stakeholder involvement and authority confirmed", "Evidence completeness and document bundle verified", "Urgent matters reviewed and priority assigned", "No conflict of interest with the receiving attorney"]; }
+    @for (var i = 0; i < checks.Length; i++) {
+     <label class="check-line"><input type="checkbox" class="director-check" /> @checks[i]</label>
+    }
+   </div>
+   <small class="muted" id="checkCountLabel"><span id="checkCount">0</span> / @checks.Length checks complete</small>
+   <label>Director's summary (required) — shown to @Model.Handover.ReceivingAttorney.FullName<textarea name="summary" rows="5" required placeholder="Case status, strategic context, and key priorities for the receiving attorney…"></textarea></label>
+   <label>Risk flags for the receiving attorney (they must acknowledge these to accept)<textarea name="riskFlags" rows="3" placeholder="e.g. imminent court deadline, difficult client relationship, large financial exposure…"></textarea></label>
+   <button type="submit" class="btn-primary-modern" id="directorApproveBtn" disabled aria-disabled="true" title="Complete all checklist items to approve">Approve & release to receiving attorney</button>
+  </form>
+  <details class="mt-2"><summary class="muted cursor-pointer">↩ Return to outgoing attorney instead</summary>
+   <form method="post" action="/Practice/SubmitDirectorReview" class="d-flex gap-2 flex-wrap mt-2">@Html.AntiForgeryToken()<input type="hidden" name="handoverId" value="@Model.Handover.Id"/><input type="hidden" name="approve" value="false"/><input class="form-control" name="returnReason" placeholder="What must be corrected?" required/><button class="btn btn-outline-warning btn-sm">Confirm return</button></form>
+  </details>
+ </section>
+ }
+
+ @if ((Model.Handover.Status == HandoverStatus.Ready || Model.Handover.Status == HandoverStatus.Accepted) && !string.IsNullOrWhiteSpace(Model.Handover.DirectorSummary)) {
+ <section class="surface"><span class="eyebrow">Director's summary</span><h2>@Model.Handover.DirectorReviewedByUser?.FullName</h2><p>@Model.Handover.DirectorSummary</p>
+  @if (!string.IsNullOrWhiteSpace(Model.Handover.DirectorRiskFlags)) {<div class="alert alert-warning"><strong>⚠ Risk flags:</strong> @Model.Handover.DirectorRiskFlags</div>}
+ </section>
+ }
+
+ @if (isReceiving && Model.Handover.Status == HandoverStatus.Ready) {
+ <section class="surface">
+  <span class="eyebrow">Receiving attorney</span><h2>Accept responsibility</h2>
+  <p>Acknowledge every mandatory checklist item above, then sign to accept.</p>
+  @if (Model.UnacknowledgedMandatoryItems.Count > 0) {<p class="muted">@Model.UnacknowledgedMandatoryItems.Count mandatory item(s) still need acknowledgement.</p>}
+  <form method="post" action="/Practice/AcceptHandover" class="stack-form">
+   @Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Handover.Id"/>
+   @if (!string.IsNullOrWhiteSpace(Model.Handover.DirectorRiskFlags)) {
+   <label class="check-line"><input type="checkbox" name="riskFlagsAcknowledged" value="true"/> I have read and understood the director's risk flags and accept responsibility for managing them.</label>
+   }
+   <label>Type your full name to sign digitally<input type="text" name="signature" required placeholder="@Model.Handover.ReceivingAttorney.FullName"/></label>
+   <button type="submit" class="btn-primary-modern">Accept handover</button>
+  </form>
+  <details class="mt-2"><summary class="muted cursor-pointer">✉ Raise a query instead</summary>
+   <form method="post" action="/Practice/RaiseHandoverQuery" class="d-flex gap-2 flex-wrap mt-2">@Html.AntiForgeryToken()<input type="hidden" name="handoverId" value="@Model.Handover.Id"/><input class="form-control" name="question" placeholder="Describe your query…" required/><button class="btn btn-secondary-modern btn-sm">Send query</button></form>
+  </details>
+  <details class="mt-2"><summary class="muted cursor-pointer">✕ Decline acceptance instead</summary>
+   <form method="post" action="/Practice/DeclineHandover" class="d-flex gap-2 flex-wrap mt-2">@Html.AntiForgeryToken()<input type="hidden" name="handoverId" value="@Model.Handover.Id"/><input class="form-control" name="reason" placeholder="Why are you declining?" required/><button class="btn btn-outline-danger btn-sm">Confirm decline</button></form>
+  </details>
+ </section>
+ }
+ @{ var interactiveStageShown = (isOutgoing && editable) || (isDirector && Model.Handover.Status == HandoverStatus.PendingDirectorReview) || (isReceiving && Model.Handover.Status == HandoverStatus.Ready); }
+ @if (!interactiveStageShown) {
+ <section class="surface"><span class="eyebrow">Handover status</span><h2>Read-only for your role</h2><p>
+  @(Model.Handover.Status switch {
+      HandoverStatus.PendingDirectorReview => "Waiting for a director to review and approve this handover.",
+      HandoverStatus.Ready => "Waiting for the receiving attorney to accept responsibility.",
+      HandoverStatus.Accepted => $"Complete. Signed by {Model.Handover.ReceivingSignature} on {Model.Handover.AcceptedAtUtc:d}.",
+      _ => "The outgoing attorney is preparing the handover pack."
+  })
+ </p></section>
+ }
+
+ @if (Model.Handover.Queries.Any()) {
+ <section class="surface"><span class="eyebrow">Queries</span><h2>Questions raised on this handover</h2>
+  @foreach (var q in Model.Handover.Queries.OrderByDescending(x => x.RaisedAtUtc)) {
+  <div class="record-row align-items-start"><span><b>@q.RaisedByUser.FullName</b><p class="mb-0">@q.Question</p></span><small class="muted">@q.RaisedAtUtc.ToLocalTime().ToString("g")</small></div>
+  }
+ </section>
  }
 </div>
+
+<script>
+(function(){
+  var checks = document.querySelectorAll('.director-check');
+  var hidden = document.getElementById('checksConfirmed');
+  var btn = document.getElementById('directorApproveBtn');
+  var count = document.getElementById('checkCount');
+  if(!checks.length || !hidden || !btn) return;
+  function refresh(){
+    var checked = Array.prototype.filter.call(checks, function(c){ return c.checked; }).length;
+    var all = checked === checks.length;
+    hidden.value = all ? 'true' : 'false';
+    btn.disabled = !all;
+    btn.setAttribute('aria-disabled', all ? 'false' : 'true');
+    btn.title = all ? '' : 'Complete all checklist items to approve';
+    if(count) count.textContent = checked;
+  }
+  checks.forEach(function(c){ c.addEventListener('change', refresh); });
+  refresh();
+})();
+</script>

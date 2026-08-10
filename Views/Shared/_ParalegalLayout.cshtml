@@ -98,8 +98,11 @@
 <script>
     $(document).ready(function() {
         setTimeout(function() {
-            $('.alert').fadeOut(500, function() { $(this).remove(); });
+            $('.alert.alert-dismissible.alert-success, .alert.alert-dismissible.alert-info').fadeOut(500, function() { $(this).remove(); });
         }, 3000);
+        setTimeout(function() {
+            $('.alert.alert-dismissible.alert-danger, .alert.alert-dismissible.alert-warning').fadeOut(500, function() { $(this).remove(); });
+        }, 6000);
         
         $('.sidebar a').each(function() {
             if (window.location.href.indexOf($(this).attr('href')) > -1 && $(this).attr('href') !== '/Home/Logout') {

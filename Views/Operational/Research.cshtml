@@ -1,7 +1,92 @@
 @model IReadOnlyList<SimplexLawFirm.Models.LegalAuthority>
 @{Layout="_LawyerLayout";ViewData["Title"]="Research case law";}
-<div class="page-hero compact"><div><span class="eyebrow">UC-08 · Case execution</span><h1>Research case law</h1><p>Binding authority is ranked first and adverse treatment is shown before reliance.</p></div></div>
-<form method="get" class="surface stack-form"><input type="hidden" name="caseId" value="@ViewBag.CaseId"/><div asp-validation-summary="All" class="validation-summary"></div><label>Legal issue or selected passage<textarea name="issue" required>@ViewBag.Issue</textarea></label><button type="submit" class="btn-primary-modern">Research</button></form>
+<div class="breadcrumb-line"><a href="/Dashboard/Lawyer">Dashboard</a><span>/</span><a href="/Case/Details/@ViewBag.CaseId">Case</a><span>/</span><span>Research</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">UC-08 · Case execution</span><h1>Research case law</h1><p>Binding authority is ranked first and adverse treatment is shown before reliance.</p></div><div class="d-flex gap-2"><a class="btn-secondary-modern" asp-action="Guided" asp-route-caseId="@ViewBag.CaseId">🧭 Guided research</a><a class="btn-secondary-modern" asp-action="Memo" asp-route-caseId="@ViewBag.CaseId">🖨 Research memo</a></div></div>
+
+@{ var notes = ViewBag.CaseNotes as IEnumerable<SimplexLawFirm.Models.CaseNote>; }
+@if(notes != null && notes.Any()){
+<section class="surface mt-3">
+ <h3>Case notes</h3>
+ <div class="notes-block" id="notesBlock" style="line-height:1.9;user-select:text;">
+  @foreach(var n in notes){<p data-note-id="@n.Id">@n.Content</p>}
+ </div>
+ <small class="muted">Select (highlight) any passage above to research it — this is the use case's triggering event.</small>
+</section>
+} else {
+<div class="alert alert-info mt-3">This matter has no case notes yet, so there's nothing to highlight and send to research. <a asp-controller="Case" asp-action="AddNote" asp-route-id="@ViewBag.CaseId">Add a case note</a> first, then come back here to select a passage from it.</div>
+}
+
+<form method="get" class="surface stack-form mt-3" id="researchForm"><input type="hidden" name="caseId" value="@ViewBag.CaseId"/><input type="hidden" id="caseNoteId" name="caseNoteId" value=""/><div asp-validation-summary="All" class="validation-summary"></div><label>Legal issue or selected passage<textarea id="issueInput" name="issue" required>@ViewBag.Issue</textarea></label><button type="submit" class="btn-primary-modern">Research</button></form>
+
 @if(ViewBag.LimitedToInternal == true){<div class="alert alert-warning mt-3"><b>Limited result:</b> external legal sources are unavailable, so these results are from the firm's internal precedent collection only. Verify them against an authoritative source before reliance.</div>}
 @if(!string.IsNullOrWhiteSpace(ViewBag.Issue) && !Model.Any()){<div class="surface mt-3"><p class="muted">No matching authority was found in the available source collection. Refine the selected passage or legal issue.</p></div>}
-@foreach(var item in Model){<section class="surface mt-3"><span class="status-pill">@item.Rank · @item.Treatment</span><h3>@item.Citation</h3><p>@item.Summary</p><form method="post" action="/Operational/Rely">@Html.AntiForgeryToken()<input type="hidden" name="caseId" value="@ViewBag.CaseId"/><input type="hidden" name="authorityId" value="@item.Id"/><textarea name="reason" required placeholder="Why is this authority relevant?"></textarea>@if(item.Treatment!=SimplexLawFirm.Models.AuthorityTreatment.GoodLaw){<label><input type="checkbox" name="confirmAdverseTreatment" value="true"/> I acknowledge the adverse treatment</label>}<button class="btn-secondary-modern">Attach to matter</button></form></section>}
+@foreach(var item in Model){
+<section class="surface mt-3">
+ <span class="status-pill">@item.Rank · @item.Treatment</span>
+ <h3>@item.Citation</h3>
+ <p>@item.Summary</p>
+ <div class="d-flex gap-2 mb-2"><a class="btn-secondary-modern btn-sm" asp-action="Authority" asp-route-id="@item.Id" asp-route-caseId="@ViewBag.CaseId">📄 View document</a></div>
+ <form method="post" action="/Operational/Rely">@Html.AntiForgeryToken()<input type="hidden" name="caseId" value="@ViewBag.CaseId"/><input type="hidden" name="authorityId" value="@item.Id"/><textarea name="reason" required placeholder="Why is this authority relevant?"></textarea>@if(item.Treatment!=SimplexLawFirm.Models.AuthorityTreatment.GoodLaw){<label><input type="checkbox" name="confirmAdverseTreatment" value="true"/> I acknowledge the adverse treatment</label>}<button class="btn-secondary-modern">Attach to matter</button></form>
+ <details class="mt-2"><summary class="muted cursor-pointer">⚠ I disagree with this result — record why</summary>
+  <form method="post" action="/Operational/Disagree" class="d-flex gap-2 flex-wrap mt-2">@Html.AntiForgeryToken()<input type="hidden" name="caseId" value="@ViewBag.CaseId"/><input type="hidden" name="topic" value="@item.Citation"/><input class="form-control" name="note" placeholder="Why does your professional judgement differ?" required/><button class="btn btn-outline-warning btn-sm">Record disagreement</button></form>
+ </details>
+</section>
+}
+
+@{ var thread = ViewBag.Thread as IEnumerable<SimplexLawFirm.Models.ResearchQuery>; }
+@if(thread != null && thread.Any()){
+<section class="surface mt-3">
+ <h3>🕓 Research thread — this matter's audit trail</h3>
+ @foreach(var q in thread){<div class="record-row"><span><b>@q.Issue</b><small>@q.ResultCount result(s)@(q.LimitedToInternal ? " · internal fallback only" : "")</small></span><span class="status-pill">@q.CreatedAtUtc.ToLocalTime().ToString("g")</span></div>}
+</section>
+}
+
+<script>
+(function(){
+  var notesBlock = document.getElementById('notesBlock');
+  var issueInput = document.getElementById('issueInput');
+  var caseNoteId = document.getElementById('caseNoteId');
+  var researchForm = document.getElementById('researchForm');
+  if(!notesBlock) return;
+  var fab = document.createElement('button');
+  fab.type = 'button'; fab.textContent = '🔎 Research this passage';
+  fab.style.cssText = 'position:fixed;display:none;z-index:400;';
+  fab.className = 'btn-primary-modern btn-sm';
+  fab.tabIndex = 0;
+  document.body.appendChild(fab);
+  function showFabForSelection(focusFab){
+    var sel = window.getSelection();
+    var text = sel.toString().trim();
+    if(text.length > 8 && notesBlock.contains(sel.anchorNode)){
+      var range = sel.getRangeAt(0);
+      var rect = range.getBoundingClientRect();
+      fab.style.top = (rect.bottom + window.scrollY + 8) + 'px';
+      fab.style.left = Math.max(20, rect.left) + 'px';
+      fab.style.display = 'inline-block';
+      fab.onclick = function(){
+        issueInput.value = text;
+        var p = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+        var noteEl = p ? p.closest('[data-note-id]') : null;
+        caseNoteId.value = noteEl ? noteEl.getAttribute('data-note-id') : '';
+        fab.style.display = 'none';
+        researchForm.submit();
+      };
+      if(focusFab) fab.focus();
+      return true;
+    }
+    return false;
+  }
+  document.addEventListener('mouseup', function(e){
+    if(!showFabForSelection(false) && e.target !== fab){
+      fab.style.display = 'none';
+    }
+  });
+  document.addEventListener('keyup', function(e){
+    if(e.key === 'Shift' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown'){
+      showFabForSelection(true);
+    } else if(e.key === 'Escape'){
+      fab.style.display = 'none';
+    }
+  });
+})();
+</script>

@@ -26,23 +26,26 @@ public sealed class HomeController(
     }
 
     [HttpGet]
-    public IActionResult Login() =>
-        string.IsNullOrWhiteSpace(HttpContext.Session.GetString("UserRole"))
-            ? View()
-            : RedirectToAction(nameof(Index));
+    public IActionResult Login(string? returnUrl = null)
+    {
+        if (!string.IsNullOrWhiteSpace(HttpContext.Session.GetString("UserRole")))
+            return RedirectToLocalOrDashboard(returnUrl, HttpContext.Session.GetString("UserRole")!);
+        ViewBag.ReturnUrl = returnUrl;
+        return View();
+    }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Login(string emailAddress, string password, bool rememberMe = false, CancellationToken ct = default)
+    public async Task<IActionResult> Login(string emailAddress, string password, bool rememberMe = false, string? returnUrl = null, CancellationToken ct = default)
     {
         var normalizedEmail = NormalizeEmail(emailAddress);
         if (normalizedEmail.Length == 0 || string.IsNullOrWhiteSpace(password))
-            return LoginError("Please enter both email and password.");
+            return LoginError("Please enter both email and password.", returnUrl);
 
         var user = await db.Users.SingleOrDefaultAsync(x => x.Email.ToLower() == normalizedEmail, ct);
         if (user is null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
-            return LoginError("Invalid email or password.");
-        if (!user.IsActive) return LoginError("Account is inactive. Contact the Director.");
-        if (!user.EmailConfirmed) return LoginError("Please confirm your email before signing in.");
+            return LoginError("Invalid email or password.", returnUrl);
+        if (!user.IsActive) return LoginError("Account is inactive. Contact the Director.", returnUrl);
+        if (!user.EmailConfirmed) return LoginError("Please confirm your email before signing in.", returnUrl);
 
         SetSession(user);
         user.LastLoginAt = DateTime.UtcNow;
@@ -68,7 +71,7 @@ public sealed class HomeController(
 
         await db.SaveChangesAsync(ct);
         TempData["Success"] = $"Welcome back, {user.FullName}.";
-        return RedirectToDashboard(user.Role.ToString());
+        return RedirectToLocalOrDashboard(returnUrl, user.Role.ToString());
     }
 
     [HttpGet]
@@ -255,7 +258,10 @@ public sealed class HomeController(
         _ => RedirectToAction(nameof(Index))
     };
 
-    private IActionResult LoginError(string message) { TempData["Error"] = message; return View(nameof(Login)); }
+    private IActionResult RedirectToLocalOrDashboard(string? returnUrl, string role) =>
+        !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl) : RedirectToDashboard(role);
+
+    private IActionResult LoginError(string message, string? returnUrl = null) { TempData["Error"] = message; ViewBag.ReturnUrl = returnUrl; return View(nameof(Login)); }
     private IActionResult ResetError(string message) { TempData["Error"] = message; return View(nameof(ResetPassword)); }
     private IActionResult InvalidToken(string message) { TempData["Error"] = message; return RedirectToAction(nameof(Login)); }
 

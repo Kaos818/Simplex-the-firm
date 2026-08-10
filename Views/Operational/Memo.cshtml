@@ -1,0 +1,21 @@
+@model IReadOnlyList<SimplexLawFirm.Models.CaseAuthorityReliance>
+@{Layout="_LawyerLayout";ViewData["Title"]="Research memo"; var matter=ViewBag.Case as SimplexLawFirm.Models.Case;}
+<div class="page-hero compact d-print-none"><div><span class="eyebrow">UC-08 · Research memo</span><h1>Research memo</h1><p>Evidence of research work performed on this matter, for the file.</p></div><div class="d-flex gap-2"><a class="btn-secondary-modern" asp-action="Research" asp-route-caseId="@ViewBag.CaseId">← Back to research</a><button class="btn-primary-modern" onclick="window.print()">🖨 Print</button></div></div>
+
+<section class="surface mt-3">
+ <h2>@(matter?.Title ?? "Matter #" + ViewBag.CaseId)</h2>
+ <p class="muted">@matter?.CaseType · @matter?.Status</p>
+ @if(!Model.Any()){<p class="muted">No authorities have been relied upon in this matter yet.</p>}
+ @foreach(var r in Model){
+ <div class="record-row align-items-start">
+  <span>
+   <b>@r.LegalAuthority.Citation</b>
+   <small>@r.LegalAuthority.Rank · @r.LegalAuthority.Treatment@(r.AdverseTreatmentConfirmed ? " · adverse treatment expressly confirmed" : "")</small>
+   <p class="mb-0 mt-1">@r.RelevanceReason</p>
+  </span>
+  <span class="status-pill">@r.RecordedAtUtc.ToLocalTime().ToString("g")</span>
+ </div>
+ }
+</section>
+
+<style>@@media print { .d-print-none, nav, .sidebar { display:none !important; } }</style>

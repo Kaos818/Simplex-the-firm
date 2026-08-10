@@ -9,14 +9,13 @@ using SimplexLawFirm.Services.Notifications;
 
 namespace SimplexLawFirm.Controllers;
 
-[RequireSessionRole("Client")]
-public sealed class ConsultationBookingController(ApplicationDbContext db, ICurrentClientService currentClient, IEmailService email, INotificationService notifications) : Controller
+public sealed class ConsultationBookingController(ApplicationDbContext db, ICurrentClientService currentClient, IEmailService email, INotificationService notifications, IConfiguration configuration) : Controller
 {
     private const decimal DefaultFee = 1500m;
     private static readonly TimeSpan DayStart = new(9, 0, 0);
     private static readonly TimeSpan DayEnd = new(16, 0, 0);
 
-    [HttpGet]
+    [HttpGet, RequireSessionRole("Client")]
     public async Task<IActionResult> Index(int? lawyerId, DateTime? date, CancellationToken ct)
     {
         var selectedDate = (date ?? DateTime.Today.AddDays(1)).Date;
@@ -33,7 +32,7 @@ public sealed class ConsultationBookingController(ApplicationDbContext db, ICurr
         return View();
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Client")]
     public async Task<IActionResult> RequestBooking(int lawyerId, DateTime start, string? notes, CancellationToken ct)
     {
         var client = await currentClient.GetAsync(ct); if (client is null) return Forbid();
@@ -44,9 +43,27 @@ public sealed class ConsultationBookingController(ApplicationDbContext db, ICurr
         if (await db.CalendarEvents.AnyAsync(x => x.AssignedToUserId == lawyerId && x.Status != EventStatus.Cancelled && x.StartDateTime < end && x.EndDateTime > start, ct)) return Conflict("That slot was just taken. Please choose another.");
         var appointment = new CalendarEvent { Title = $"Consultation request: {client.FullName}", Description = notes?.Trim()[..Math.Min(notes.Trim().Length, 2000)] ?? "", Location = "To be confirmed", StartDateTime = start, EndDateTime = end, Type = EventType.Consultation, Status = EventStatus.Scheduled, Color = "#17a2b8", ClientId = client.Id, AssignedToUserId = lawyer.Id, CreatedByUserId = HttpContext.Session.GetInt32("UserId"), AppointmentFee = DefaultFee, PaymentDueDays = 7, ClientResponseStatus = AppointmentResponseStatus.NotRequired, LawyerApprovalStatus = AppointmentApprovalStatus.Pending, Attendees = [], Reminders = [], ChildEvents = [] };
         db.CalendarEvents.Add(appointment); await db.SaveChangesAsync(ct);
-        await notifications.QueueAsync(lawyer.Id, "ConsultationRequest", "Consultation approval required", $"{client.FullName} requested {start:dd MMM yyyy HH:mm}.", $"/ConsultationBooking/Review/{appointment.Id}", $"consultation-request:{appointment.Id}:{lawyer.Id}", ct);
-        await email.QueueAsync(lawyer.Email, "Consultation approval required", $"<p>{client.FullName} requested a consultation for {start:dd MMM yyyy HH:mm}.</p>", $"{client.FullName} requested a consultation for {start:dd MMM yyyy HH:mm}.", $"consultation-request-email:{appointment.Id}", ct);
+        var reviewPath = $"/ConsultationBooking/Review/{appointment.Id}";
+        await notifications.QueueAsync(lawyer.Id, "ConsultationRequest", "Consultation approval required", $"{client.FullName} requested {start:dd MMM yyyy HH:mm}.", reviewPath, $"consultation-request:{appointment.Id}:{lawyer.Id}", ct);
+        var root = configuration["Email:PublicBaseUrl"]?.TrimEnd('/');
+        var baseUrl = string.IsNullOrWhiteSpace(root) ? $"{Request.Scheme}://{Request.Host}" : root;
+        var reviewUrl = $"{baseUrl}{reviewPath}";
+        var text = $"{client.FullName} requested a consultation for {start:dd MMM yyyy HH:mm}.\nNotes: {(string.IsNullOrWhiteSpace(notes) ? "None" : notes.Trim())}\nReview and respond: {reviewUrl}";
+        var html = $"<p>{System.Net.WebUtility.HtmlEncode(client.FullName)} requested a consultation for <strong>{start:dd MMM yyyy HH:mm}</strong>.</p>"
+            + (string.IsNullOrWhiteSpace(notes) ? "" : $"<p>Notes: {System.Net.WebUtility.HtmlEncode(notes.Trim())}</p>")
+            + $"<p><a style=\"display:inline-block;padding:10px 16px;background:#0d6efd;color:white;text-decoration:none;border-radius:4px\" href=\"{System.Net.WebUtility.HtmlEncode(reviewUrl)}\">Review &amp; respond</a></p>";
+        await email.QueueAsync(lawyer.Email, "Consultation approval required", html, text, $"consultation-request-email:{appointment.Id}", ct);
         await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct); TempData["Success"] = "Your booking request was sent for lawyer approval."; return RedirectToAction(nameof(Index));
+    }
+
+    [HttpGet, RequireSessionRole("Lawyer", "Admin")]
+    public async Task<IActionResult> Review(int id, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        var appointment = await db.CalendarEvents.Include(x => x.Client).Include(x => x.AssignedToUser).SingleOrDefaultAsync(x => x.Id == id && x.Type == EventType.Consultation, ct);
+        if (appointment is null) return NotFound();
+        if (HttpContext.Session.GetString("UserRole") == "Lawyer" && appointment.AssignedToUserId != userId) return Forbid();
+        return View(appointment);
     }
 
     [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Lawyer", "Admin")]

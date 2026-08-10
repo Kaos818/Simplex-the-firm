@@ -1,3 +1,37 @@
 @model SimplexLawFirm.Models.ServiceComplaint
-@{ ViewData["Title"]="Complaint received"; Layout="_ClientLayout"; }
-<div class="receipt-card"><div class="receipt-check">✓</div><span class="eyebrow">Complaint received</span><h1>@Model.ReferenceNumber</h1><p>We have securely recorded your complaint about <b>@Model.Case.Title</b>.</p><div class="receipt-detail"><span>Response due</span><strong>@Model.ResponseDueAtUtc.ToString("dddd, dd MMMM yyyy")</strong></div><p class="muted">Keep this reference. If the response clock is missed, the system will escalate the matter automatically.</p><a class="btn-primary-modern" href="/Dashboard/Client">Return to dashboard</a></div>
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"]="Complaint received"; Layout="_ClientLayout";
+    var scheduled = Model.Appointments.Where(a => a.Status == ComplaintAppointmentStatus.Scheduled).OrderByDescending(a => a.ScheduledAtUtc).FirstOrDefault();
+}
+<div class="receipt-card"><div class="receipt-check">✓</div><span class="eyebrow">Complaint received</span><h1>@Model.ReferenceNumber</h1><p>We have securely recorded your complaint about <b>@Model.Case.Title</b>.</p><div class="receipt-detail"><span>Response due</span><strong>@Model.ResponseDueAtUtc.ToString("dddd, dd MMMM yyyy")</strong></div><p class="muted">Keep this reference. If the response clock is missed, the system will escalate the matter automatically.</p>
+
+@if (Model.Status == ComplaintStatus.Resolved) {
+<div class="surface mt-3">
+ <span class="eyebrow">Resolved</span><h2>@Model.Outcome</h2>
+ <p class="pre-wrap">@Model.FormalResponse</p>
+ @if (!string.IsNullOrWhiteSpace(Model.Remedy)) {<p><b>Remedy:</b> @Model.Remedy</p>}
+</div>
+}
+
+<div class="surface mt-3">
+ <span class="eyebrow">Appointment</span><h2>@(scheduled != null ? "Scheduled" : "Request a discussion")</h2>
+ @if (scheduled != null) {
+  <p><b>@scheduled.ScheduledAtUtc.ToLocalTime().ToString("f")</b> · @scheduled.Format</p>
+ }
+ <form method="post" action="/Practice/BookComplaintAppointment" class="stack-form mt-2">
+  @Html.AntiForgeryToken()<input type="hidden" name="complaintId" value="@Model.Id"/>
+  <label>Date &amp; time<input type="datetime-local" name="scheduledAtUtc" required/></label>
+  <label>Format
+   <select name="format">
+    <option value="@AppointmentFormat.Video">Video call</option>
+    <option value="@AppointmentFormat.Phone">Phone call</option>
+    <option value="@AppointmentFormat.InPerson">In person</option>
+   </select>
+  </label>
+  <label>Notes<input type="text" name="notes" placeholder="What would you like to discuss?"/></label>
+  <button type="submit" class="btn-primary-modern">@(scheduled != null ? "Reschedule" : "Book appointment")</button>
+ </form>
+</div>
+
+<a class="btn-secondary-modern mt-3" href="/Dashboard/Client">Return to dashboard</a>

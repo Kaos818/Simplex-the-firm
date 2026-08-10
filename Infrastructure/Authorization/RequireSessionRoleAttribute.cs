@@ -13,7 +13,9 @@ public sealed class RequireSessionRoleAttribute(params string[] roles) : Attribu
             var request = context.HttpContext.Request;
             var wantsJson = request.Headers.Accept.Any(x => x?.Contains("application/json") == true)
                 || string.Equals(request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
-            context.Result = wantsJson ? new UnauthorizedResult() : new RedirectToActionResult("Login", "Home", null);
+            if (wantsJson) { context.Result = new UnauthorizedResult(); return; }
+            var returnUrl = request.Path.ToString() + request.QueryString.ToString();
+            context.Result = new RedirectToActionResult("Login", "Home", new { returnUrl });
             return;
         }
         var role = context.HttpContext.Session.GetString("UserRole");

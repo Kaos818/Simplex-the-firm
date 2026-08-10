@@ -1,0 +1,15 @@
+@model SimplexLawFirm.Models.LegalAuthority
+@{Layout="_LawyerLayout";ViewData["Title"]=Model.Citation;}
+<div class="page-hero compact"><div><span class="eyebrow">UC-08 · Document viewer</span><h1>@Model.Citation</h1><p>@Model.Subject · <span class="status-pill">@Model.Rank · @Model.Treatment</span></p></div><a class="btn-secondary-modern" asp-action="Research" asp-route-caseId="@ViewBag.CaseId">← Back to research</a></div>
+
+@if(Model.Treatment != SimplexLawFirm.Models.AuthorityTreatment.GoodLaw){<div class="alert alert-warning mt-3">⚠ This authority's subsequent treatment is <b>@Model.Treatment</b>. Confirm you understand this before relying on it.</div>}
+
+<section class="surface mt-3" id="docBody" style="line-height:1.85;user-select:text;white-space:pre-wrap;">
+@(string.IsNullOrWhiteSpace(Model.FullText) ? Model.Summary : Model.FullText)
+</section>
+<small class="muted">💡 Highlight any passage above, then use the research form to ask about it.</small>
+
+<section class="surface mt-3">
+ <h3>Rely on this in the matter</h3>
+ <form method="post" action="/Operational/Rely">@Html.AntiForgeryToken()<input type="hidden" name="caseId" value="@ViewBag.CaseId"/><input type="hidden" name="authorityId" value="@Model.Id"/><textarea name="reason" required placeholder="Why is this authority relevant?"></textarea>@if(Model.Treatment!=SimplexLawFirm.Models.AuthorityTreatment.GoodLaw){<label><input type="checkbox" name="confirmAdverseTreatment" value="true"/> I acknowledge the adverse treatment</label>}<button class="btn-primary-modern">Attach to matter</button></form>
+</section>

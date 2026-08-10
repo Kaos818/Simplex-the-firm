@@ -14,6 +14,7 @@ public sealed class LegalAuthority
     public AuthorityRank Rank { get; set; }
     public AuthorityTreatment Treatment { get; set; }
     public bool IsInternalFallback { get; set; }
+    public string? FullText { get; set; }
 }
 public sealed class CaseAuthorityReliance
 {
@@ -26,6 +27,30 @@ public sealed class CaseAuthorityReliance
     public ApplicationUser Attorney { get; set; } = null!;
     public string RelevanceReason { get; set; } = "";
     public bool AdverseTreatmentConfirmed { get; set; }
+    public DateTime RecordedAtUtc { get; set; } = DateTime.UtcNow;
+}
+public sealed class ResearchQuery
+{
+    public int Id { get; set; }
+    public int CaseId { get; set; }
+    public Case Case { get; set; } = null!;
+    public int AttorneyId { get; set; }
+    public ApplicationUser Attorney { get; set; } = null!;
+    public int? CaseNoteId { get; set; }
+    public string Issue { get; set; } = "";
+    public int ResultCount { get; set; }
+    public bool LimitedToInternal { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+public sealed class ResearchDisagreement
+{
+    public int Id { get; set; }
+    public int CaseId { get; set; }
+    public Case Case { get; set; } = null!;
+    public int AttorneyId { get; set; }
+    public ApplicationUser Attorney { get; set; } = null!;
+    [MaxLength(300)] public string Topic { get; set; } = "";
+    public string Note { get; set; } = "";
     public DateTime RecordedAtUtc { get; set; } = DateTime.UtcNow;
 }
 

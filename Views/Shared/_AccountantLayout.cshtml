@@ -99,10 +99,13 @@
 
 <script>
     $(document).ready(function() {
-        // Auto-dismiss alerts after 3 seconds
+        // Auto-dismiss success/info alerts after 3 seconds, danger/warning after 6
         setTimeout(function() {
-            $('.alert').fadeOut(500, function() { $(this).remove(); });
+            $('.alert.alert-dismissible.alert-success, .alert.alert-dismissible.alert-info').fadeOut(500, function() { $(this).remove(); });
         }, 3000);
+        setTimeout(function() {
+            $('.alert.alert-dismissible.alert-danger, .alert.alert-dismissible.alert-warning').fadeOut(500, function() { $(this).remove(); });
+        }, 6000);
         
         // Highlight active menu item
         $('.sidebar a').each(function() {

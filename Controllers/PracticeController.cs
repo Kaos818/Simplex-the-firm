@@ -28,6 +28,13 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
             .Where(x => role == "Admin" || x.OutgoingAttorneyId == userId || x.ReceivingAttorneyId == userId).OrderByDescending(x => x.CreatedAtUtc).Take(8).ToListAsync(ct);
         ViewBag.Complaints = role == "Admin" ? await db.ServiceComplaints.Include(x => x.Case).Where(x => x.RoutedToUserId == userId).OrderByDescending(x => x.SubmittedAtUtc).Take(8).ToListAsync(ct) : [];
         ViewBag.Calibration = await db.ForecastCalibrations.Include(x => x.Attorney).OrderBy(x => x.AttorneyId != null).ThenByDescending(x => x.ForecastCount).ToListAsync(ct);
+        if (role == "Admin")
+        {
+            var busyCaseIds = await db.CaseHandovers.Where(x => x.Status != HandoverStatus.Accepted).Select(x => x.CaseId).ToListAsync(ct);
+            ViewBag.ReassignableCases = await db.Cases.Include(x => x.Lawyer).Where(x => x.LawyerId != null
+                && x.Status != CaseStatus.Closed && x.Status != CaseStatus.Archived && !busyCaseIds.Contains(x.Id))
+                .OrderBy(x => x.CaseNumber).ToListAsync(ct);
+        }
         return View();
     }
 
@@ -99,7 +106,8 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
 
     public async Task<IActionResult> Handover(int id, CancellationToken ct)
     {
-        var handover = await db.CaseHandovers.Include(x => x.Case).Include(x => x.OutgoingAttorney).Include(x => x.ReceivingAttorney).Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
+        var handover = await db.CaseHandovers.Include(x => x.Case).ThenInclude(x => x.Documents).Include(x => x.OutgoingAttorney).Include(x => x.ReceivingAttorney).Include(x => x.DirectorReviewedByUser)
+            .Include(x => x.Items).Include(x => x.Queries).ThenInclude(x => x.RaisedByUser).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (handover == null) return NotFound();
         var userId = HttpContext.Session.GetInt32("UserId");
         if (userId is null || (HttpContext.Session.GetString("UserRole") != "Admin" && handover.OutgoingAttorneyId != userId && handover.ReceivingAttorneyId != userId)) return Forbid();
@@ -170,7 +178,19 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
             return RedirectToAction(nameof(Handover), new { id = handoverId });
         }
         item.IsResolved = resolved; item.ResolutionNote = resolutionNote;
+        if (resolved) item.DirectorDisputeNote = null;
         await db.SaveChangesAsync(ct);
+        return RedirectToAction(nameof(Handover), new { id = handoverId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DisputeHandoverItem(int handoverId, int itemId, string note, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null) return Forbid();
+        try { await service.DisputeHandoverItemAsync(handoverId, itemId, userId.Value, note, ct); TempData["Success"] = "Item reopened and the outgoing attorney has been notified."; }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Handover), new { id = handoverId });
     }
 
@@ -191,17 +211,63 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> AcceptHandover(int id, CancellationToken ct)
+    public async Task<IActionResult> AcceptHandover(int id, string signature, bool riskFlagsAcknowledged, CancellationToken ct)
     {
         var userId = HttpContext.Session.GetInt32("UserId");
-        var handover = await db.CaseHandovers.Include(x => x.Case).Include(x => x.CaseReassignment).SingleOrDefaultAsync(x => x.Id == id && x.ReceivingAttorneyId == userId, ct);
-        if (handover == null) return Forbid();
-        if (handover.Status != HandoverStatus.Ready) { TempData["Error"] = "This handover is not ready for acceptance."; return RedirectToAction(nameof(Handover), new { id }); }
-        handover.Status = HandoverStatus.Accepted; handover.AcceptedAtUtc = DateTime.UtcNow; handover.Case.LawyerId = handover.ReceivingAttorneyId;
-        handover.CaseReassignment.Status = ReassignmentStatus.Completed;
-        await db.SaveChangesAsync(ct);
-        TempData["Success"] = "Handover accepted. Responsibility has transferred to you.";
+        if (userId is null) return Forbid();
+        try { await service.AcceptHandoverAsync(id, userId.Value, signature, riskFlagsAcknowledged, ct); TempData["Success"] = "Handover accepted. Responsibility has transferred to you."; }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Handover), new { id });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SubmitDirectorReview(int handoverId, bool approve, bool checksConfirmed, string? summary, string? riskFlags, string? returnReason, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null || HttpContext.Session.GetString("UserRole") != "Admin") return Forbid();
+        if (approve && !checksConfirmed) { TempData["Error"] = "All director verification checks must be confirmed before approval."; return RedirectToAction(nameof(Handover), new { id = handoverId }); }
+        try
+        {
+            await service.SubmitDirectorReviewAsync(handoverId, userId.Value, approve, summary, riskFlags, returnReason, ct);
+            TempData["Success"] = approve ? "Handover approved and released to the receiving attorney." : "Handover returned to the outgoing attorney.";
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Handover), new { id = handoverId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AcknowledgeItem(int handoverId, int itemId, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null) return Forbid();
+        try { await service.AcknowledgeHandoverItemAsync(handoverId, itemId, userId.Value, ct); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Handover), new { id = handoverId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RaiseHandoverQuery(int handoverId, string question, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null) return Forbid();
+        try { await service.RaiseHandoverQueryAsync(handoverId, userId.Value, question, ct); TempData["Success"] = "Query sent."; }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Handover), new { id = handoverId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeclineHandover(int handoverId, string reason, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null) return Forbid();
+        try { await service.DeclineHandoverAcceptanceAsync(handoverId, userId.Value, reason, ct); TempData["Success"] = "Acceptance declined. The handover has been returned to the director."; }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Handover), new { id = handoverId });
     }
 
     public async Task<IActionResult> LodgeComplaint(CancellationToken ct)
@@ -276,7 +342,7 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
     public async Task<IActionResult> ComplaintReceipt(int id, CancellationToken ct)
     {
         var client = await currentClient.GetAsync(ct);
-        var complaint = client == null ? null : await db.ServiceComplaints.Include(x => x.Case).SingleOrDefaultAsync(x => x.Id == id && x.ClientId == client.Id, ct);
+        var complaint = client == null ? null : await db.ServiceComplaints.Include(x => x.Case).Include(x => x.Appointments).SingleOrDefaultAsync(x => x.Id == id && x.ClientId == client.Id, ct);
         return complaint == null ? NotFound() : View(complaint);
     }
 
@@ -284,7 +350,8 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
     public async Task<IActionResult> Complaint(int id, CancellationToken ct)
     {
         var userId = HttpContext.Session.GetInt32("UserId");
-        var complaint = await db.ServiceComplaints.Include(x => x.Case).Include(x => x.Client).Include(x => x.RoutedToUser).Include(x => x.Attachments).SingleOrDefaultAsync(x => x.Id == id, ct);
+        var complaint = await db.ServiceComplaints.Include(x => x.Case).Include(x => x.Client).Include(x => x.RoutedToUser).Include(x => x.Attachments)
+            .Include(x => x.ResolvedByUser).Include(x => x.Appointments).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (complaint == null) return NotFound();
         var restricted = complaint.RestrictedUserIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToHashSet();
         if (userId is null || complaint.RoutedToUserId != userId || restricted.Contains(userId.Value)) return Forbid();
@@ -314,5 +381,36 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
         await db.SaveChangesAsync(ct);
         TempData["Success"] = "Complaint acknowledged and response clock stopped.";
         return RedirectToAction(nameof(Complaint), new { id });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResolveComplaint(int complaintId, ComplaintResolutionOutcome outcome, List<string> mediationSteps, string? customStep, string formalResponse, string? remedy, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null) return Forbid();
+        if (!string.IsNullOrWhiteSpace(customStep)) mediationSteps.Add(customStep);
+        try
+        {
+            var complaint = await service.ResolveComplaintAsync(complaintId, userId.Value, outcome, mediationSteps, formalResponse, remedy, ct);
+            await email.QueueAsync(complaint.Client.Email, $"Complaint resolved: {complaint.ReferenceNumber}",
+                $"<h2>Your complaint has been resolved</h2><p><strong>{complaint.ReferenceNumber}</strong></p><p>{System.Net.WebUtility.HtmlEncode(complaint.FormalResponse)}</p>",
+                $"Your complaint {complaint.ReferenceNumber} has been resolved. {complaint.FormalResponse}", $"complaint-resolved-{complaint.Id}", ct);
+            TempData["Success"] = "Resolution recorded and the client has been notified.";
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Complaint), new { id = complaintId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> BookComplaintAppointment(int complaintId, DateTime scheduledAtUtc, AppointmentFormat format, string? notes, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null) return Forbid();
+        try { await service.BookComplaintAppointmentAsync(complaintId, userId.Value, scheduledAtUtc, format, notes, ct); TempData["Success"] = "Appointment booked."; }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        var role = HttpContext.Session.GetString("UserRole");
+        return role == "Client" ? RedirectToAction(nameof(ComplaintReceipt), new { id = complaintId }) : RedirectToAction(nameof(Complaint), new { id = complaintId });
     }
 }

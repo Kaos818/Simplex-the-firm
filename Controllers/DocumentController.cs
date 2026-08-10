@@ -584,7 +584,16 @@ namespace SimplexLawFirm.Controllers
             var userId = HttpContext.Session.GetInt32("UserId")!.Value;
             if (role is "Admin" or "Paralegal" or "Accountant") return true;
             if (document.UploadedById == userId || document.SharedWith?.Any(x => x.SharedWithUserId == userId && (x.ExpiresAt == null || x.ExpiresAt > DateTime.Now)) == true) return true;
-            if (role == "Lawyer") return document.CaseId.HasValue && (document.Case?.LawyerId ?? await _context.Cases.Where(x => x.Id == document.CaseId).Select(x => x.LawyerId).SingleOrDefaultAsync()) == userId;
+            if (role == "Lawyer")
+            {
+                if (!document.CaseId.HasValue) return false;
+                var currentLawyerId = document.Case?.LawyerId ?? await _context.Cases.Where(x => x.Id == document.CaseId).Select(x => x.LawyerId).SingleOrDefaultAsync();
+                if (currentLawyerId == userId) return true;
+                // A case being handed over is visible to both the outgoing and receiving attorney
+                // for the life of the handover, not just whoever currently owns the case record.
+                return await _context.CaseHandovers.AnyAsync(x => x.CaseId == document.CaseId && x.Status != HandoverStatus.Accepted
+                    && (x.OutgoingAttorneyId == userId || x.ReceivingAttorneyId == userId));
+            }
             if (role != "Client") return false;
             var email = HttpContext.Session.GetString("UserEmail");
             var clientId = await _context.Clients.Where(x => x.Email == email).Select(x => (int?)x.Id).SingleOrDefaultAsync();

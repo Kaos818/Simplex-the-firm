@@ -1,0 +1,22 @@
+@model SimplexLawFirm.Models.CalendarEvent
+@using SimplexLawFirm.Models
+@{ ViewData["Title"] = "Review consultation request"; Layout = "_LawyerLayout"; var decided = Model.LawyerApprovalStatus != AppointmentApprovalStatus.Pending; }
+<div class="page-hero compact"><div><span class="eyebrow">Consultation request</span><h1>@Model.Client?.FullName</h1><p>Requested @Model.StartDateTime.ToString("dddd, dd MMMM yyyy HH:mm") – @Model.EndDateTime.ToString("HH:mm")</p></div><span class="status-pill large">@Model.LawyerApprovalStatus</span></div>
+
+<div class="surface mt-3">
+ <div class="record-row"><span class="muted">Client</span><span>@Model.Client?.FullName · @Model.Client?.Email</span></div>
+ <div class="record-row"><span class="muted">Assigned to</span><span>@Model.AssignedToUser?.FullName</span></div>
+ <div class="record-row"><span class="muted">Fee</span><span>R @((Model.AppointmentFee ?? 0).ToString("N2")) · due within @Model.PaymentDueDays day(s) of acceptance</span></div>
+ @if (!string.IsNullOrWhiteSpace(Model.Description)) {<div class="record-row align-items-start"><span class="muted">Notes</span><span class="pre-wrap">@Model.Description</span></div>}
+</div>
+
+@if (!decided) {
+<div class="d-flex gap-2 mt-3">
+ <form method="post" action="/ConsultationBooking/Decide">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Id"/><input type="hidden" name="approved" value="true"/><button type="submit" class="btn-primary-modern">Accept consultation</button></form>
+ <form method="post" action="/ConsultationBooking/Decide">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Id"/><input type="hidden" name="approved" value="false"/><button type="submit" class="btn btn-outline-danger">Reject consultation</button></form>
+</div>
+} else {
+<div class="alert @(Model.LawyerApprovalStatus == AppointmentApprovalStatus.Approved ? "alert-success" : "alert-warning") mt-3">
+ This request was already @(Model.LawyerApprovalStatus.ToString().ToLower()).
+</div>
+}

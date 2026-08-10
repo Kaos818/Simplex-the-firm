@@ -1015,6 +1015,25 @@ namespace SimplexLawFirm.Controllers
             return View("PendingApprovalsAdmin", pendingRetainers);
         }
 
+        // GET: Retainer/Api/AdminPendingCounts - Get pending counts for admin sidebar badges
+        [HttpGet]
+        public async Task<IActionResult> GetAdminPendingCounts()
+        {
+            if (GetCurrentUserRole() != UserRole.Admin)
+            {
+                return Json(new { pendingApprovals = 0, pendingRequests = 0 });
+            }
+
+            var pendingApprovals = await _context.Retainers
+                .Where(r => r.Status == RetainerStatus.PendingApproval && !r.IsDeleted)
+                .CountAsync();
+            var pendingRequests = await _context.ClientRequests
+                .Where(x => x.Status == "Pending")
+                .CountAsync();
+
+            return Json(new { pendingApprovals, pendingRequests });
+        }
+
         // GET: Retainer/Api/PendingCount - Get pending count for lawyer badge
         [HttpGet]
         public async Task<IActionResult> GetLawyerPendingCount()

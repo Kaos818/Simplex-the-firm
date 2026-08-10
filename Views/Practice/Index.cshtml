@@ -22,9 +22,24 @@
     @if(!forecasts.Any()){<div class="empty-state">No forecasts yet. Open an active matter to begin.</div>}
   </section>
   <section class="surface"><div class="section-heading"><div><span class="eyebrow">UC-02</span><h2>Case handovers</h2></div></div>
+    @if(ViewBag.Role == "Admin"){
+    var reassignable = ViewBag.ReassignableCases as IEnumerable<SimplexLawFirm.Models.Case>;
+    <form method="get" id="reassignPicker" action="/Practice/Reassign" class="d-flex gap-2 mb-3">
+     <select name="__caseId" class="form-select form-select-sm" onchange="document.getElementById('reassignPicker').action='/Practice/Reassign/'+this.value; if(this.value) this.form.submit();">
+      <option value="">Reassign a case…</option>
+      @foreach(var c in reassignable ?? Enumerable.Empty<SimplexLawFirm.Models.Case>()){<option value="@c.Id">@c.CaseNumber · @c.Title (@c.Lawyer?.FullName)</option>}
+     </select>
+    </form>
+    @if(reassignable != null && !reassignable.Any()){<small class="muted d-block mb-2">No case is currently eligible — every active, assigned case already has a handover in progress.</small>}
+    }
     @foreach(var item in handovers){<a class="record-row" href="/Practice/Handover/@item.Id"><span><b>@item.Case.CaseNumber</b><small>To @item.ReceivingAttorney.FullName</small></span><span class="status-pill">@item.Status</span></a>}
     @if(!handovers.Any()){<div class="empty-state">Approved reassignments will appear here.</div>}
   </section>
 </div>
-@if(complaints.Any()){<section class="surface"><div class="section-heading"><div><span class="eyebrow">UC-03</span><h2>Confidential complaints</h2></div></div>@foreach(var item in complaints){<a class="record-row" href="/Practice/Complaints/@item.Id"><span><b>@item.ReferenceNumber</b><small>@item.Case.Title · due @item.ResponseDueAtUtc.ToString("dd MMM")</small></span><span class="status-pill">@item.Status</span></a>}</section>}
+@if(ViewBag.Role == "Admin"){
+<section class="surface"><div class="section-heading"><div><span class="eyebrow">UC-03</span><h2>Confidential complaints</h2></div></div>
+ @foreach(var item in complaints){<a class="record-row" href="/Practice/Complaints/@item.Id"><span><b>@item.ReferenceNumber</b><small>@item.Case.Title · due @item.ResponseDueAtUtc.ToString("dd MMM")</small></span><span class="status-pill">@item.Status</span></a>}
+ @if(!complaints.Any()){<div class="empty-state">No complaints currently routed to you for review. Complaints are confidentially assigned to a specific reviewer, so this list may be empty even if others exist elsewhere in the firm.</div>}
+</section>
+}
 @if(calibration.Any()){<section class="surface calibration-panel"><div class="section-heading"><div><span class="eyebrow">Forecast governance</span><h2>Calibration record</h2></div></div><div class="table-responsive"><table class="table"><thead><tr><th>Record</th><th>Forecasts</th><th>Mean accuracy</th><th>Bias</th><th>Optimistic</th></tr></thead><tbody>@foreach(var row in calibration){<tr><td><b>@(row.Attorney?.FullName ?? "Firm-wide")</b></td><td>@row.ForecastCount</td><td>@row.MeanAccuracy.ToString("P0")</td><td>@row.MeanBias.ToString("+0.0%;-0.0%;0.0%")</td><td>@row.OptimisticForecastCount</td></tr>}</tbody></table></div></section>}

@@ -1,11 +1,25 @@
 @using Microsoft.AspNetCore.Http
-@{ ViewData["Title"] = "Accountant Dashboard"; Layout = "_AccountantLayout"; }
-<div class="container-fluid">
-    <h1 class="mb-2">Accountant Dashboard</h1>
-    <p class="lead">Welcome, @Context.Session.GetString("UserFullName").</p>
-    <div class="row g-4 mt-2">
-        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><i class="fas fa-file-invoice fa-2x text-warning mb-3"></i><h2 class="h5">Invoices</h2><p>Review issued, outstanding, and paid invoices.</p><a class="btn btn-warning" href="/Billing/Invoices">Open invoices</a></div></div></div>
-        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><i class="fas fa-university fa-2x text-warning mb-3"></i><h2 class="h5">Trust accounts</h2><p>Monitor client funds and trust balances.</p><a class="btn btn-warning" href="/Billing/TrustAccounts">Open trust accounts</a></div></div></div>
-        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><i class="fas fa-clock fa-2x text-warning mb-3"></i><h2 class="h5">Time entries</h2><p>Review time captured for billing.</p><a class="btn btn-warning" href="/Billing/TimeEntries">Open time entries</a></div></div></div>
-    </div>
+@using SimplexLawFirm.Models
+@{ ViewData["Title"] = "Accountant Dashboard"; Layout = "_AccountantLayout"; var payments = ViewBag.RecentPayments as IEnumerable<Payment> ?? Enumerable.Empty<Payment>(); }
+<div class="page-hero compact"><div><span class="eyebrow">Accountant chamber</span><h1>Welcome, @Context.Session.GetString("UserFullName")</h1><p>Trust position, billing exposure, and reimbursement queue at a glance.</p></div></div>
+
+<div class="metric-grid">
+ <div class="metric-card"><span>Trust balance</span><strong>R @(((decimal)ViewBag.TrustBalance).ToString("N2"))</strong><small>@ViewBag.TrustAccountCount active account(s)</small></div>
+ <div class="metric-card"><span>Overdue invoices</span><strong>@ViewBag.OverdueInvoices</strong><small>Past due date, unpaid</small></div>
+ <div class="metric-card"><span>Pending reimbursements</span><strong>@ViewBag.PendingReimbursements</strong><small>Awaiting director decision</small></div>
+</div>
+
+<div class="workspace-grid">
+ <section class="surface"><div class="section-heading"><div><span class="eyebrow">Billing</span><h2>Recent payments</h2></div><a href="/Billing/Invoices">Open invoices →</a></div>
+  @foreach(var p in payments){<div class="record-row"><span><b>@p.Client?.FullName</b><small>@p.PaymentMethod · @p.TransactionReference</small></span><span class="status-pill">R @p.Amount.ToString("N2")</span></div>}
+  @if(!payments.Any()){<div class="empty-state">No payments recorded yet.</div>}
+ </section>
+ <section class="surface"><div class="section-heading"><div><span class="eyebrow">Quick actions</span><h2>Where to go next</h2></div></div>
+  <div class="d-flex flex-column gap-2">
+   <a class="btn-secondary-modern" href="/Billing/Invoices"><i class="fas fa-file-invoice me-2"></i>Review invoices</a>
+   <a class="btn-secondary-modern" href="/Billing/TrustAccounts"><i class="fas fa-university me-2"></i>Trust accounts</a>
+   <a class="btn-secondary-modern" href="/Billing/TimeEntries"><i class="fas fa-clock me-2"></i>Time entries</a>
+   <a class="btn-secondary-modern" href="/Reimbursement/DirectorQueue"><i class="fas fa-receipt me-2"></i>Reimbursement queue</a>
+  </div>
+ </section>
 </div>
