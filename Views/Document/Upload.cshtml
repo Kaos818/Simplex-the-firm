@@ -1,0 +1,264 @@
+﻿@model Document
+
+@{
+    ViewData["Title"] = "Upload Document";
+    var requirements = ViewBag.Requirements as IReadOnlyList<CaseDocumentRequirement> ?? [];
+}
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-cloud-upload-alt me-2"></i> Upload Document
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form asp-action="Upload" method="post" enctype="multipart/form-data" id="uploadForm">
+                        @Html.AntiForgeryToken()
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label asp-for="CaseId" class="form-label fw-bold">
+                                        <i class="fas fa-gavel me-1"></i> Related Case
+                                    </label>
+                                    <select asp-for="CaseId" asp-items="ViewBag.Cases" class="form-select">
+                                        <option value="">-- Select Case (Optional) --</option>
+                                    </select>
+                                    <span asp-validation-for="CaseId" class="text-danger"></span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label asp-for="ClientId" class="form-label fw-bold">
+                                        <i class="fas fa-user me-1"></i> Related Client
+                                    </label>
+                                    <select asp-for="ClientId" asp-items="ViewBag.Clients" class="form-select">
+                                        <option value="">-- Select Client (Optional) --</option>
+                                    </select>
+                                    <span asp-validation-for="ClientId" class="text-danger"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label asp-for="Category" class="form-label fw-bold">
+                                        <i class="fas fa-tag me-1"></i> Document Category
+                                    </label>
+                                    <select asp-for="Category" asp-items="ViewBag.Categories" class="form-select">
+                                        <option value="">-- Select Category --</option>
+                                    </select>
+                                    <span asp-validation-for="Category" class="text-danger"></span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label asp-for="ParentDocumentId" class="form-label fw-bold">
+                                        <i class="fas fa-code-branch me-1"></i> New Version Of
+                                    </label>
+                                    <select asp-for="ParentDocumentId" class="form-select">
+                                        <option value="">-- Original Document (Optional) --</option>
+                                    </select>
+                                    <span asp-validation-for="ParentDocumentId" class="text-danger"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-file me-1"></i> Select File <span class="text-danger">*</span>
+                            </label>
+                            <div class="dropzone-area border rounded p-4 text-center bg-light" id="dropzoneArea">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                <h5>Drag & Drop files here</h5>
+                                <p class="text-muted mb-2">or click to browse</p>
+                                <input type="file" name="file" id="fileInput" class="d-none" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.png,.txt,.msg,.eml" />
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="document.getElementById('fileInput').click()">
+                                    <i class="fas fa-folder-open me-1"></i> Browse Files
+                                </button>
+                                <div id="selectedFileInfo" class="mt-3 text-start" style="display: none;">
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-file-alt me-2"></i>
+                                        <strong>Selected File:</strong> <span id="fileName"></span>
+                                        <br />
+                                        <small class="text-muted">Maximum file size: 50MB</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <span id="fileError" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Description" class="form-label fw-bold">
+                                <i class="fas fa-align-left me-1"></i> Description
+                            </label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="Enter a brief description of this document..."></textarea>
+                            <span asp-validation-for="Description" class="text-danger"></span>
+                        </div>
+                        @if (requirements.Count > 0)
+                        {
+                            <div class="mb-3">
+                                <label asp-for="RequirementCode" class="form-label fw-bold">Readiness requirement satisfied</label>
+                                <select asp-for="RequirementCode" class="form-select">
+                                    <option value="">Other case document</option>
+                                    @foreach (var requirement in requirements) { <option value="@requirement.Code">@requirement.Name (@requirement.Importance)</option> }
+                                </select>
+                                <span asp-validation-for="RequirementCode" class="text-danger"></span>
+                            </div>
+                        }
+                        <div class="form-check mb-3">
+                            <input asp-for="RequiresSignature" class="form-check-input" />
+                            <label asp-for="RequiresSignature" class="form-check-label fw-bold">This document requires signature</label>
+                        </div>
+
+                        <hr />
+
+                        <div class="d-flex justify-content-between">
+                            <a asp-action="Index" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary" id="submitBtn">
+                                <i class="fas fa-upload me-1"></i> Upload Document
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow-sm border-0 bg-light">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3">
+                        <i class="fas fa-info-circle text-primary me-2"></i> Supported File Types
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <span class="badge bg-secondary m-1">PDF (.pdf)</span>
+                            <span class="badge bg-secondary m-1">Word (.doc, .docx)</span>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="badge bg-secondary m-1">Excel (.xls, .xlsx)</span>
+                            <span class="badge bg-secondary m-1">Images (.jpg, .png)</span>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="badge bg-secondary m-1">Text (.txt)</span>
+                            <span class="badge bg-secondary m-1">Email (.msg, .eml)</span>
+                        </div>
+                    </div>
+                    <hr class="my-3" />
+                    <div class="text-muted small">
+                        <i class="fas fa-shield-alt me-1"></i> Maximum file size: 50MB
+                        <br />
+                        <i class="fas fa-lock me-1"></i> All documents are securely stored and encrypted
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let selectedFile = null;
+
+        $(document).ready(function() {
+            // Load parent documents for versioning
+            $('#Category').change(function() {
+                if ($(this).val()) {
+                    $.ajax({
+                        url: '@Url.Action("GetDocumentsByCategory", "Document")',
+                        type: 'GET',
+                        data: { category: $(this).val() },
+                        success: function(data) {
+                            let select = $('#ParentDocumentId');
+                            select.empty();
+                            select.append('<option value="">-- Original Document (Optional) --</option>');
+                            $.each(data, function(i, doc) {
+                                select.append($('<option></option>').val(doc.id).text(doc.name));
+                            });
+                        }
+                    });
+                }
+            });
+
+            // File input change handler
+            $('#fileInput').change(function(e) {
+                if (this.files && this.files[0]) {
+                    selectedFile = this.files[0];
+                    validateAndDisplayFile(selectedFile);
+                }
+            });
+
+            // Drag and drop handlers
+            const dropzone = document.getElementById('dropzoneArea');
+            
+            dropzone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('border-primary', 'bg-primary-subtle');
+            });
+
+            dropzone.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                this.classList.remove('border-primary', 'bg-primary-subtle');
+            });
+
+            dropzone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('border-primary', 'bg-primary-subtle');
+                
+                const files = e.dataTransfer.files;
+                if (files && files[0]) {
+                    selectedFile = files[0];
+                    validateAndDisplayFile(selectedFile);
+                    document.getElementById('fileInput').files = files;
+                }
+            });
+        });
+
+        function validateAndDisplayFile(file) {
+            const allowedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.png', '.txt', '.msg', '.eml'];
+            const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+            const maxSize = 50 * 1024 * 1024; // 50MB
+
+            $('#fileError').text('');
+
+            if (!allowedExtensions.includes(fileExt)) {
+                $('#fileError').text('Invalid file type. Allowed: PDF, DOC, XLS, JPG, PNG, TXT, MSG, EML');
+                $('#selectedFileInfo').hide();
+                $('#submitBtn').prop('disabled', true);
+                return false;
+            }
+
+            if (file.size > maxSize) {
+                $('#fileError').text('File size exceeds 50MB limit.');
+                $('#selectedFileInfo').hide();
+                $('#submitBtn').prop('disabled', true);
+                return false;
+            }
+
+            $('#fileName').text(file.name);
+            $('#selectedFileInfo').show();
+            $('#submitBtn').prop('disabled', false);
+            return true;
+        }
+
+        // Form validation
+        $('#uploadForm').on('submit', function(e) {
+            if (!selectedFile) {
+                e.preventDefault();
+                showAlert('error', 'Please select a file to upload');
+                return false;
+            }
+            return true;
+        });
+    </script>
+}
+
+@await Html.PartialAsync("_AlertMessages")

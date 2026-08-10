@@ -1,0 +1,14 @@
+@model SimplexLawFirm.Models.KnowledgeArticle
+@using SimplexLawFirm.Models
+@{ ViewData["Title"]=Model.Id==0?"New knowledge article":"Edit knowledge article"; Layout="_AdminLayout"; var subjects=(IEnumerable<LegalSubject>)ViewBag.Subjects; }
+<div class="page-hero compact"><div><span class="eyebrow">Knowledge publishing</span><h1>@ViewData["Title"]</h1><p>Published, eligible content is classified, divided into passages and indexed. Drafts remain outside the library.</p></div></div>
+<form asp-action="SaveArticle" method="post" class="surface" style="max-width:960px">
+ @Html.AntiForgeryToken()<input asp-for="Id" type="hidden"/>
+ <div class="row g-3"><div class="col-md-8"><label class="form-label">Title</label><input asp-for="Title" class="form-control" required/></div>
+ <div class="col-md-4"><label class="form-label">Publishing state</label><select asp-for="Status" class="form-select" asp-items="Html.GetEnumSelectList<KnowledgeArticleStatus>()"></select></div>
+ <div class="col-md-12"><label class="form-label">Suggested subject <small class="text-muted">(the classifier also evaluates the text)</small></label><select asp-for="SuggestedSubjectId" class="form-select"><option value="">Classify automatically</option>@foreach(var s in subjects){<option value="@s.Id">@s.Name</option>}</select></div>
+ <div class="col-12"><label class="form-label">Article</label><textarea asp-for="Content" class="form-control" rows="16" required></textarea></div></div>
+ <div class="d-flex gap-4 my-3"><label><input asp-for="IsPrivileged"/> Privileged</label><label><input asp-for="IsConfidential"/> Confidential / index prohibited</label></div>
+ <div class="alert alert-info">Protected material is saved as source content but is never sent to the embedding service or added to the index.</div>
+ <button class="btn-primary-modern">Save article</button> <a asp-action="Index" class="btn btn-outline-secondary">Back to library</a>
+</form>

@@ -1,0 +1,27 @@
+@model SimplexLawFirm.Models.Beneficiaries.Beneficiary
+@using SimplexLawFirm.Models.Beneficiaries
+@{ var latest = ViewBag.LatestDocuments as Dictionary<int, BeneficiaryDocument> ?? []; }
+@{ var latestFace = ViewBag.LatestFace as FacialVerificationSession; }
+<h1>Seek access to assets</h1>
+<p>Provide the required documentation, then complete facial verification. This is an access request only; it does not create a client or member account.</p>
+@if (TempData["Error"] is string error) { <div class="alert alert-warning" role="alert">@error</div> }
+@if (TempData["Success"] is string success) { <div class="alert alert-success" role="status">@success</div> }
+<nav class="nav nav-tabs mb-3" aria-label="Beneficiary portal sections"><a class="nav-link" asp-action="Assets">Assets and terms</a><a class="nav-link active" asp-action="Documents">Seek access</a><a class="nav-link" asp-action="TrustRequests">Trust requests</a></nav>
+<form asp-action="UploadAll" enctype="multipart/form-data" method="post" class="document-drop-form">@Html.AntiForgeryToken()<section class="card p-3 mb-3"><h2 class="h5">Combined evidence pack</h2><p>Upload one clear PDF, JPG or PNG containing all required documents. It will be sent to the Director for review.</p><label class="document-drop-zone"><i class="fas fa-cloud-arrow-up fa-2x"></i><strong>Choose your combined evidence pack</strong><span>Drag a file here or click to browse</span><input type="file" name="files" accept=".pdf,.jpg,.jpeg,.png" required/></label><div class="selected-file text-muted mt-2"></div></section>
+@foreach (var item in Model.RequirementAssignments.OrderBy(x => x.Requirement.DisplayOrder)) {
+<section class="card p-3 mb-3"><h2 class="h5">@item.Requirement.DisplayName</h2><p>@item.Requirement.Description</p>
+@if (item.Requirement.RequiresCertifiedCopy) { <p><strong>A certified copy is required.</strong> Automated checks only look for visible certification signals; the Director makes the final decision.</p> }
+@if (latest.TryGetValue(item.RequirementId, out var document)) {
+<div class="alert @(document.PreScreenStatus == DocumentPreScreenStatus.ResubmissionRequired ? "alert-warning" : document.PreScreenStatus == DocumentPreScreenStatus.FailedTechnicalProcessing ? "alert-danger" : "alert-info")">
+    <strong>@document.PreScreenStatus:</strong> @(document.UserFacingReason ?? "The document is awaiting review.")
+</div> }
+</section> }
+<button class="btn btn-primary mt-2">Upload all documents</button></form>
+<script>document.querySelectorAll('.document-drop-form').forEach(form=>{const zone=form.querySelector('.document-drop-zone'),input=form.querySelector('input[type=file]'),name=form.querySelector('.selected-file');const show=()=>name.textContent=input.files?.[0]?.name||'';input.addEventListener('change',show);['dragenter','dragover'].forEach(event=>zone.addEventListener(event,e=>{e.preventDefault();zone.classList.add('drag-active')}));['dragleave','drop'].forEach(event=>zone.addEventListener(event,e=>{e.preventDefault();zone.classList.remove('drag-active')}));zone.addEventListener('drop',e=>{if(e.dataTransfer.files.length){input.files=e.dataTransfer.files;show()}})});</script>
+@if (Model.Status == BeneficiaryStatus.AwaitingFacialVerification) {
+<form asp-action="Consent" method="post">@Html.AntiForgeryToken()<label><input type="checkbox" name="consent" value="true" required/> I consent to one-to-one facial verification for this application.</label><button class="btn btn-primary d-block mt-2">Continue to live verification</button></form>
+} else { <p class="alert alert-secondary">Complete all required document uploads before live facial verification.</p> }
+@if (latestFace?.Status is FacialVerificationStatus.Verified or FacialVerificationStatus.ManualReviewRequired) {
+<div class="alert alert-success">Your identity step is complete. The Director will make the final decision.</div>
+<form asp-action="Submit" method="post">@Html.AntiForgeryToken()<button class="btn btn-success">Submit application for Director review</button></form>
+}

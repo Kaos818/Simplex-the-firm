@@ -1,0 +1,242 @@
+﻿@* Views/Shared/_LawyerLayout.cshtml *@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Simplex Lawyer Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+        body { background-color: #eef2f6; }
+        .sidebar { min-height: 100vh; background-color: #0d6efd; color: white; position: sticky; top: 0; }
+        .sidebar a { color: white; display: block; padding: 10px 15px; text-decoration: none; transition: all 0.3s ease; }
+        .sidebar a:hover { background-color: #084298; padding-left: 25px; }
+        .sidebar a i { margin-right: 10px; width: 20px; }
+        .sidebar .nav-divider { 
+            height: 1px; 
+            background-color: rgba(255,255,255,0.2); 
+            margin: 10px 0; 
+        }
+        .sidebar .nav-header {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 10px 15px 5px;
+            color: rgba(255,255,255,0.6);
+        }
+        .content { padding: 20px; min-height: 100vh; }
+        
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        @@keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .toast-notification.fade-out {
+            animation: slideOutRight 0.3s ease-out forwards;
+        }
+        
+        @@keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        .alert {
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        .badge-notification {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background-color: #ffc107;
+            color: #000;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .sidebar a { position: relative; }
+        
+        .stat-card {
+            transition: transform 0.2s ease;
+            cursor: pointer;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+    </style>
+</head>
+<body>
+    @{
+        var role = Context.Session.GetString("UserRole");
+        if (role != "Lawyer")
+        {
+            Context.Response.Redirect("/Home/AccessDenied");
+        }
+    }
+
+    <div class="d-flex">
+        <div class="sidebar p-3">
+        <h4 class="mb-3 sx-sidebar-brand"><img src="/images/brand/lady-justice.png" alt="Lady Justice" /><span><b>Simplex</b><small>Attorney chamber</small></span></h4>
+            
+        <!-- Dashboard -->
+            <div class="nav-header">DASHBOARD</div>
+            <a href="/Dashboard/Lawyer"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <a href="/Practice"><i class="fas fa-compass"></i> Practice Intelligence</a>
+            <a href="/Operational/CheckIn"><i class="fas fa-location-dot"></i> Off-site Safety</a>
+            
+            <div class="nav-divider"></div>
+            
+            <!-- Case Management -->
+            <div class="nav-header">CASE MANAGEMENT</div>
+            <a href="/Case/MyCases"><i class="fas fa-folder-open"></i> My Cases</a>
+            <a href="/Case/LawyerCreate"><i class="fas fa-plus-circle"></i> Open New Case</a>
+            
+            <div class="nav-divider"></div>
+            
+            <!-- Retainer Management -->
+            <div class="nav-header">RETAINER MANAGEMENT</div>
+            <a href="/Retainer/LawyerPendingApprovals" id="pendingApprovalsLink">
+                <i class="fas fa-check-double"></i> Pending Approvals
+                <span class="badge-notification" id="pendingCount" style="display:none;">0</span>
+            </a>
+            <a href="/Retainer/MyRetainers"><i class="fas fa-file-signature"></i> My Retainers</a>
+            <a href="/Retainer/PendingRequests"><i class="fas fa-inbox"></i> Client Requests</a>
+            
+            <div class="nav-divider"></div>
+            
+            <!-- Time & Billing -->
+            <div class="nav-header">TIME & BILLING</div>
+            <a href="/Billing/MyTimeEntries"><i class="fas fa-clock"></i> My Time Entries</a>
+            <a href="/Billing/Invoices"><i class="fas fa-file-invoice"></i> Invoices</a>
+            <a href="/Billing/LawyerTimeEntries"><i class="fas fa-file-invoice-dollar"></i> Billing Overview</a>
+            <a href="/Reimbursement"><i class="fas fa-receipt"></i> Reimbursements</a>
+            
+            <div class="nav-divider"></div>
+            
+            <!-- Documents & Calendar -->
+            <div class="nav-header">DOCUMENTS & SCHEDULE</div>
+            <a href="/Document/LawyerIndex"><i class="fas fa-folder"></i> My Documents</a>
+            <a href="/Calendar/LawyerIndex"><i class="fas fa-calendar-alt"></i> My Schedule</a>
+            <a href="/Calendar/Tasks"><i class="fas fa-tasks"></i> My Tasks</a>
+            
+            <div class="nav-divider"></div>
+            
+            <!-- Account -->
+            <div class="nav-header">ACCOUNT</div>
+            <a href="/Dashboard/Lawyer"><i class="fas fa-user-edit"></i> My Workspace</a>
+            <form action="/Home/Logout" method="post">@Html.AntiForgeryToken()<button type="submit" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</button></form>
+        </div>
+
+        <div class="content flex-grow-1">
+            <div id="toastContainer"></div>
+
+            @foreach (var key in new[] { "Success", "Error", "Warning", "Info" })
+            {
+                if (TempData[key] != null)
+                {
+                    var type = key == "Error" ? "danger" : key.ToLower();
+                    var icon = key == "Success" ? "fa-check-circle" :
+                               key == "Error" ? "fa-exclamation-circle" :
+                               key == "Warning" ? "fa-exclamation-triangle" :
+                               "fa-info-circle";
+
+                    <div class="alert alert-@type alert-dismissible fade show shadow-sm" role="alert">
+                        <i class="fas @icon me-2"></i> @TempData[key]
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                }
+            }
+
+            @RenderBody()
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            setTimeout(function () {
+                $('.alert').fadeOut(500, function () { $(this).remove(); });
+            }, 3000);
+
+            const currentUrl = window.location.pathname.toLowerCase();
+
+            $('.sidebar a').each(function () {
+                const link = $(this).attr('href').toLowerCase();
+
+                if (currentUrl.startsWith(link) && link !== "/home/logout") {
+                    $(this).css({
+                        'background-color': '#084298',
+                        'font-weight': 'bold'
+                    });
+                }
+            });
+
+            loadPendingCounts();
+        });
+
+        function loadPendingCounts() {
+            $.get('/Retainer/GetLawyerPendingCount', function (data) {
+                if (data && data.pendingCount > 0) {
+                    const el = $('#pendingApprovalsLink');
+
+                    if (el.find('.badge-notification').length === 0) {
+                        el.append(`<span class="badge-notification">${data.pendingCount}</span>`);
+                    } else {
+                        el.find('.badge-notification').text(data.pendingCount);
+                    }
+                }
+            }).fail(function() {
+                console.log('Could not load lawyer pending counts');
+            });
+        }
+
+        function showAlert(message, type = 'info') {
+            const icon = {
+                success: 'fa-check-circle',
+                danger: 'fa-exclamation-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle'
+            };
+
+            const alertHtml = `
+                <div class="alert alert-${type} shadow-lg position-fixed top-0 end-0 m-3 fade show" style="z-index:9999;">
+                    <i class="fas ${icon[type]} me-2"></i> ${message}
+                </div>
+            `;
+
+            $('#toastContainer').append(alertHtml);
+
+            setTimeout(() => {
+                $('.alert').last().fadeOut(500, function () { $(this).remove(); });
+            }, 3000);
+        }
+        
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(amount);
+        }
+        
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleDateString('en-ZA');
+        }
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

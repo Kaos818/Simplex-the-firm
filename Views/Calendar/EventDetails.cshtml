@@ -1,0 +1,288 @@
+﻿@model SimplexLawFirm.Models.CalendarEvent
+@Html.AntiForgeryToken()
+@{
+    ViewData["Title"] = "Event Details";
+    Layout = ViewBag.UserRole == "Admin" ? "_AdminLayout" : "_LawyerLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header @(Model.Type == EventType.CourtAppearance ? "bg-danger" :
+                                                                                  Model.Type == EventType.Deadline ? "bg-warning" :
+                                                                                  Model.Type == EventType.Meeting ? "bg-success" : "bg-primary") text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-calendar-alt fa-2x me-2"></i>
+                            <h3 class="d-inline-block mb-0">@Model.Title</h3>
+                        </div>
+                        <div>
+                            <span class="badge bg-light text-dark">
+                                @Model.Type.ToString()
+                            </span>
+                            <span class="badge @(Model.Status == EventStatus.Scheduled ? "bg-info" :
+                                                                                                                 Model.Status == EventStatus.Completed ? "bg-success" :
+                                                                                                                 Model.Status == EventStatus.Cancelled ? "bg-danger" : "bg-secondary") ms-2">
+                                @Model.Status.ToString()
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Event Information -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Start Time:</strong><br />
+                            @Model.StartDateTime.ToString("dddd, MMMM d, yyyy h:mm tt")
+                        </div>
+                        <div class="col-md-6">
+                            <strong>End Time:</strong><br />
+                            @Model.EndDateTime.ToString("dddd, MMMM d, yyyy h:mm tt")
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(Model.Location))
+                    {
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <strong>Location:</strong><br />
+                                <i class="fas fa-map-marker-alt me-1"></i> @Model.Location
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(Model.MeetingLink))
+                    {
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <strong>Meeting Link:</strong><br />
+                                <a href="@Model.MeetingLink" target="_blank">
+                                    <i class="fas fa-video me-1"></i> @Model.MeetingLink
+                                </a>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(Model.Description))
+                    {
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <strong>Description:</strong><br />
+                                <p class="mt-2">@Html.Raw(Model.Description.Replace("\n", "<br />"))</p>
+                            </div>
+                        </div>
+                    }
+                    @{
+                        var clientFlags = ViewBag.ClientFlags as IReadOnlyList<SimplexLawFirm.Models.VulnerableClientFlag> ?? [];
+                        var interpreter = ViewBag.Interpreter as SimplexLawFirm.Models.AppointmentInterpreterAssignment;
+                        var supportPerson = ViewBag.SupportPerson as SimplexLawFirm.Models.AppointmentSupportPersonAssignment;
+                    }
+                    @if(clientFlags.Any()){
+                    <div class="alert alert-warning"><h5><i class="fas fa-hands-helping me-2"></i>Appointment safeguards</h5>
+                    @foreach(var f in clientFlags){<span class="badge bg-dark me-2">@f.Safeguard</span><span class="me-3">@f.Reason</span>}
+                    </div>}
+                    @if(clientFlags.Any(x=>x.Safeguard==SimplexLawFirm.Models.ClientSafeguard.Interpreter)){
+                    <div class="card mb-3"><div class="card-body"><h5>Interpreter assignment</h5>
+                    @if(interpreter!=null){<p class="text-success"><b>@interpreter.InterpreterName</b> · @interpreter.Language · @interpreter.ContactDetails</p>}
+                    <form action="/Calendar/AssignInterpreter" method="post" class="row g-2">@Html.AntiForgeryToken()<input type="hidden" name="eventId" value="@Model.Id"/><div class="col-md-4"><input class="form-control" name="name" placeholder="Interpreter name" required/></div><div class="col-md-3"><input class="form-control" name="language" placeholder="Language" required/></div><div class="col-md-3"><input class="form-control" name="contact" placeholder="Contact details"/></div><div class="col-md-2"><button class="btn btn-dark">Assign</button></div></form></div></div>}
+                    @if(clientFlags.Any(x=>x.Safeguard==SimplexLawFirm.Models.ClientSafeguard.SupportPerson)){
+                    <div class="card mb-3"><div class="card-body"><h5>Required support person</h5>
+                    @if(supportPerson!=null){<p class="text-success"><b>@supportPerson.SupportPersonName</b> · @supportPerson.Relationship</p>}
+                    <form action="/Calendar/AssignSupportPerson" method="post" class="row g-2">@Html.AntiForgeryToken()<input type="hidden" name="eventId" value="@Model.Id"/><div class="col-md-5"><input class="form-control" name="name" placeholder="Support person name" required/></div><div class="col-md-5"><input class="form-control" name="relationship" placeholder="Relationship"/></div><div class="col-md-2"><button class="btn btn-dark">Record</button></div></form></div></div>}
+
+                    <!-- Actual Times (if completed) -->
+                    @if (Model.Status == EventStatus.Completed && (Model.ActualStartTime.HasValue || Model.ActualEndTime.HasValue))
+                    {
+                        <div class="alert alert-info mt-3">
+                            <strong><i class="fas fa-check-circle me-2"></i>Completed Event Details</strong>
+                            <div class="row mt-2">
+                                @if (Model.ActualStartTime.HasValue)
+                                {
+                                    <div class="col-md-6">
+                                        <strong>Actual Start:</strong><br />
+                                        @Model.ActualStartTime.Value.ToString("dddd, MMMM d, yyyy h:mm tt")
+                                    </div>
+                                }
+                                @if (Model.ActualEndTime.HasValue)
+                                {
+                                    <div class="col-md-6">
+                                        <strong>Actual End:</strong><br />
+                                        @Model.ActualEndTime.Value.ToString("dddd, MMMM d, yyyy h:mm tt")
+                                    </div>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(Model.CompletionNotes))
+                            {
+                                <div class="mt-2">
+                                    <strong>Completion Notes:</strong><br />
+                                    @Model.CompletionNotes
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <!-- Related Information -->
+                    @if (Model.Case != null)
+                    {
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <strong>Related Case:</strong><br />
+                                <a href="/Case/Details/@Model.CaseId">@Model.Case.Title</a>
+                            </div>
+                        </div>
+                    }
+
+                    @if (Model.AssignedToUser != null)
+                    {
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <strong>Assigned To:</strong><br />
+                                @Model.AssignedToUser.FullName
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Attendees -->
+                    @if (Model.Attendees != null && Model.Attendees.Any())
+                    {
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <strong>Attendees:</strong>
+                                <div class="mt-2">
+                                    @foreach (var attendee in Model.Attendees)
+                                    {
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="fas fa-user-circle fa-2x me-2 text-secondary"></i>
+                                            <div>
+                                                <div>@attendee.User.FullName</div>
+                                                <small class="text-muted">
+                                                    Status:
+                                                    @if (attendee.ResponseStatus == "Accepted")
+                                                    {
+                                                        <span class="text-success">Accepted</span>
+                                                    }
+                                                    else if (attendee.ResponseStatus == "Declined")
+                                                    {
+                                                        <span class="text-danger">Declined</span>
+                                                    }
+                                                    else if (attendee.ResponseStatus == "Tentative")
+                                                    {
+                                                        <span class="text-warning">Tentative</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-secondary">Pending</span>
+                                                    }
+                                                    @if (attendee.IsOptional)
+                                                    {
+                                                        <span class="badge bg-secondary ms-2">Optional</span>
+                                                    }
+                                                </small>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Action Buttons -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <hr />
+                            <div class="d-flex justify-content-between">
+                                <a href="/Calendar/Index" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left me-2"></i>Back to Calendar
+                                </a>
+                                <div>
+                                    @if (Model.Status != EventStatus.Completed && Model.Status != EventStatus.Cancelled)
+                                    {
+                                        <button type="button" class="btn btn-success" onclick="completeEvent(@Model.Id)">
+                                            <i class="fas fa-check me-2"></i>Mark Complete
+                                        </button>
+                                        <button type="button" class="btn btn-danger" onclick="cancelEvent(@Model.Id)">
+                                            <i class="fas fa-times me-2"></i>Cancel
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function completeEvent(id) {
+            var notes = prompt("Enter completion notes (optional):");
+            $.ajax({
+                url: '/Calendar/CompleteEvent',
+                type: 'POST',
+                data: JSON.stringify({ id: id, completionNotes: notes }),
+                contentType: 'application/json',
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function(response) {
+                    if (response.success) {
+                        showAlert('Event marked as completed!', 'success');
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        showAlert(response.error || 'Failed to complete event', 'danger');
+                    }
+                },
+                error: function() {
+                    showAlert('An error occurred', 'danger');
+                }
+            });
+        }
+
+        function cancelEvent(id) {
+            if (confirm('Are you sure you want to cancel this event?')) {
+                $.ajax({
+                    url: '/Calendar/DeleteEvent/' + id,
+                    type: 'DELETE',
+                    headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                    success: function(response) {
+                        if (response.success) {
+                            showAlert('Event cancelled successfully', 'success');
+                            setTimeout(function() {
+                                window.location.href = '/Calendar/Index';
+                            }, 1500);
+                        } else {
+                            showAlert('Failed to cancel event', 'danger');
+                        }
+                    },
+                    error: function() {
+                        showAlert('An error occurred', 'danger');
+                    }
+                });
+            }
+        }
+
+        function showAlert(message, type) {
+            const icon = type === 'success' ? 'fa-check-circle' :
+                        (type === 'danger' ? 'fa-exclamation-circle' : 'fa-info-circle');
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg" style="z-index: 9999; min-width: 300px;" role="alert">
+                    <div class="d-flex align-items-center">
+                        <i class="fas ${icon} fa-2x me-3"></i>
+                        <div>
+                            <strong>${type.charAt(0).toUpperCase() + type.slice(1)}!</strong>
+                            <div>${message}</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            $('body').append(alertHtml);
+            setTimeout(() => {
+                $('.alert').last().fadeOut(500, function() { $(this).remove(); });
+            }, 3000);
+        }
+    </script>
+}

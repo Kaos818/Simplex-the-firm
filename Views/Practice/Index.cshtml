@@ -1,0 +1,30 @@
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Practice cockpit";
+    Layout = ViewBag.Role == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    var forecasts = (IEnumerable<CaseForecast>)ViewBag.Forecasts;
+    var handovers = (IEnumerable<CaseHandover>)ViewBag.Handovers;
+    var complaints = (IEnumerable<ServiceComplaint>)ViewBag.Complaints;
+    var calibration = (IEnumerable<ForecastCalibration>)ViewBag.Calibration;
+}
+<div class="page-hero">
+  <div><span class="eyebrow">Practice intelligence</span><h1>Decisions you can defend.</h1><p>Forecast prospects, transfer responsibility safely, and resolve concerns with a complete audit trail.</p></div>
+  <div class="hero-mark">S.</div>
+</div>
+<div class="metric-grid">
+  <div class="metric-card"><span>Committed forecasts</span><strong>@forecasts.Count(x => x.Status != ForecastStatus.Refused)</strong><small>Immutable snapshots</small></div>
+  <div class="metric-card"><span>Active handovers</span><strong>@handovers.Count(x => x.Status is HandoverStatus.Preparing or HandoverStatus.Overdue)</strong><small>Responsibility protected</small></div>
+  <div class="metric-card"><span>Open complaints</span><strong>@complaints.Count(x => x.Status != ComplaintStatus.Resolved)</strong><small>Confidentially routed</small></div>
+</div>
+<div class="workspace-grid">
+  <section class="surface"><div class="section-heading"><div><span class="eyebrow">UC-01</span><h2>Outcome forecasts</h2></div><a href="/Case/Active">Choose matter →</a></div>
+    @foreach(var item in forecasts){<a class="record-row" href="/Practice/Forecast/@item.CaseId"><span><b>@item.Case.CaseNumber</b><small>@item.Case.Title</small></span><span class="status-pill">@item.Status</span></a>}
+    @if(!forecasts.Any()){<div class="empty-state">No forecasts yet. Open an active matter to begin.</div>}
+  </section>
+  <section class="surface"><div class="section-heading"><div><span class="eyebrow">UC-02</span><h2>Case handovers</h2></div></div>
+    @foreach(var item in handovers){<a class="record-row" href="/Practice/Handover/@item.Id"><span><b>@item.Case.CaseNumber</b><small>To @item.ReceivingAttorney.FullName</small></span><span class="status-pill">@item.Status</span></a>}
+    @if(!handovers.Any()){<div class="empty-state">Approved reassignments will appear here.</div>}
+  </section>
+</div>
+@if(complaints.Any()){<section class="surface"><div class="section-heading"><div><span class="eyebrow">UC-03</span><h2>Confidential complaints</h2></div></div>@foreach(var item in complaints){<a class="record-row" href="/Practice/Complaints/@item.Id"><span><b>@item.ReferenceNumber</b><small>@item.Case.Title · due @item.ResponseDueAtUtc.ToString("dd MMM")</small></span><span class="status-pill">@item.Status</span></a>}</section>}
+@if(calibration.Any()){<section class="surface calibration-panel"><div class="section-heading"><div><span class="eyebrow">Forecast governance</span><h2>Calibration record</h2></div></div><div class="table-responsive"><table class="table"><thead><tr><th>Record</th><th>Forecasts</th><th>Mean accuracy</th><th>Bias</th><th>Optimistic</th></tr></thead><tbody>@foreach(var row in calibration){<tr><td><b>@(row.Attorney?.FullName ?? "Firm-wide")</b></td><td>@row.ForecastCount</td><td>@row.MeanAccuracy.ToString("P0")</td><td>@row.MeanBias.ToString("+0.0%;-0.0%;0.0%")</td><td>@row.OptimisticForecastCount</td></tr>}</tbody></table></div></section>}

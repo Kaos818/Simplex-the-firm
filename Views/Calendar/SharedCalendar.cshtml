@@ -1,0 +1,238 @@
+﻿@using SimplexLawFirm.Models
+@Html.AntiForgeryToken()
+@{
+    ViewData["Title"] = "Shared Calendar";
+    Layout = "_AdminLayout";
+    var users = ViewBag.ActiveUsers as List<ApplicationUser> ?? new List<ApplicationUser>();
+}
+
+@section Styles {
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet" />
+    <style>
+        .user-selector {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .user-item {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+            .user-item:hover {
+                background-color: #f0f0f0;
+            }
+
+            .user-item.selected {
+                background-color: #0d6efd;
+                color: white;
+            }
+
+        .fc-event {
+            cursor: pointer;
+        }
+    </style>
+}
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-md-3">
+            <!-- Users Panel -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="fas fa-users"></i> Team Members</h5>
+                </div>
+                <div class="card-body p-0 user-selector">
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item user-item" data-user-id="all" onclick="selectAllUsers()">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="selectAll" checked>
+                                <label class="form-check-label fw-bold" for="selectAll">
+                                    <i class="fas fa-globe"></i> All Users
+                                </label>
+                            </div>
+                        </div>
+                        @foreach (var user in users)
+                        {
+                            <div class="list-group-item user-item" data-user-id="@user.Id" onclick="toggleUser(@user.Id, this)">
+                                <div class="form-check">
+                                    <input class="form-check-input user-checkbox" type="checkbox" value="@user.Id" id="user_@user.Id" checked>
+                                    <label class="form-check-label" for="user_@user.Id">
+                                        <i class="fas fa-user-circle"></i> @user.FullName
+                                        <br /><small class="text-muted">@user.Role</small>
+                                    </label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="card-footer bg-white">
+                    <button class="btn btn-sm btn-primary w-100" onclick="refreshCalendar()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Legend -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Event Types</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <span style="width: 20px; height: 20px; background-color: #28a745; border-radius: 3px; margin-right: 10px;"></span>
+                        <span>Meeting</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <span style="width: 20px; height: 20px; background-color: #dc3545; border-radius: 3px; margin-right: 10px;"></span>
+                        <span>Court Appearance</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <span style="width: 20px; height: 20px; background-color: #fd7e14; border-radius: 3px; margin-right: 10px;"></span>
+                        <span>Deadline</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <span style="width: 20px; height: 20px; background-color: #17a2b8; border-radius: 3px; margin-right: 10px;"></span>
+                        <span>Consultation</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span style="width: 20px; height: 20px; background-color: #6c757d; border-radius: 3px; margin-right: 10px;"></span>
+                        <span>Other</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-9">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> Team Calendar</h5>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="calendarView('timeGridDay')">Day</button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="calendarView('timeGridWeek')">Week</button>
+                            <button class="btn btn-sm btn-primary" onclick="calendarView('dayGridMonth')">Month</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="sharedCalendar"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+    <script>
+        let calendar;
+        let selectedUsers = [];
+        
+        $(document).ready(function() {
+        // Initialize with all users
+        $('.user-checkbox').each(function() {
+        selectedUsers.push($(this).val());
+        });
+        initCalendar();
+        });
+        
+        function initCalendar() {
+        var calendarEl = document.getElementById('sharedCalendar');
+        calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: false,
+        editable: false,
+        selectable: true,
+        events: function(info, successCallback, failureCallback) {
+        loadEvents(info.start, info.end, successCallback);
+        },
+        eventClick: function(info) {
+        viewEventDetails(info.event.id);
+        }
+        });
+        calendar.render();
+        }
+        
+        function loadEvents(start, end, callback) {
+        if (selectedUsers.length === 0) {
+        callback([]);
+        return;
+        }
+            
+        $.ajax({
+        url: '/Calendar/GetSharedEvents',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+        userIds: selectedUsers,
+        start: start.toISOString(),
+        end: end.toISOString()
+        }),
+        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+        success: function(events) {
+        var formattedEvents = events.map(function(e) {
+        return {
+        id: e.id,
+        title: e.title + ' - ' + e.assignedTo,
+        start: e.start,
+        end: e.end,
+        color: e.color,
+        allDay: e.allDay
+        };
+        });
+        callback(formattedEvents);
+        },
+        error: function() {
+        callback([]);
+        }
+        });
+        }
+        
+        function toggleUser(userId, element) {
+        var checkbox = $(element).find('.user-checkbox');
+        checkbox.prop('checked', !checkbox.prop('checked'));
+            
+        if (checkbox.prop('checked')) {
+        selectedUsers.push(userId);
+        $(element).addClass('selected');
+        } else {
+        selectedUsers = selectedUsers.filter(id => id != userId);
+        $(element).removeClass('selected');
+        $('#selectAll').prop('checked', false);
+        }
+            
+        refreshCalendar();
+        }
+        
+        function selectAllUsers() {
+        var isChecked = $('#selectAll').prop('checked');
+        $('.user-checkbox').each(function() {
+        $(this).prop('checked', isChecked);
+        var userId = $(this).val();
+        if (isChecked) {
+        if (!selectedUsers.includes(userId)) {
+        selectedUsers.push(userId);
+        }
+        $(this).closest('.user-item').addClass('selected');
+        } else {
+        selectedUsers = [];
+        $(this).closest('.user-item').removeClass('selected');
+        }
+        });
+        refreshCalendar();
+        }
+        
+        function refreshCalendar() {
+        calendar.refetchEvents();
+        }
+        
+        function calendarView(view) {
+        calendar.changeView(view);
+        }
+        
+        function viewEventDetails(eventId) {
+        window.location.href = '/Calendar/EventDetails/' + eventId;
+        }
+    </script>
+}

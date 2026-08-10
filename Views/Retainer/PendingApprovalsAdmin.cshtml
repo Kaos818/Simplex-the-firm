@@ -1,0 +1,188 @@
+﻿@model List<SimplexLawFirm.Models.Retainer>
+
+@{
+    ViewData["Title"] = "Pending Approvals - Admin";
+    Layout = "_AdminLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-clock text-warning"></i> Pending Approvals
+                    </h1>
+                    <p class="text-muted">All retainers awaiting lawyer review and approval</p>
+                </div>
+                <div>
+                    <a href="/Retainer/Index" class="btn btn-outline-secondary">
+                        <i class="fas fa-list"></i> All Retainers
+                    </a>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-check-circle fa-5x text-success mb-3"></i>
+            <h3 class="text-muted">No Pending Approvals</h3>
+            <p class="text-muted">All retainers have been reviewed or submitted for approval. Great job!</p>
+        </div>
+    }
+    else
+    {
+        <!-- Summary Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Total Pending</h6>
+                                <h2 class="mb-0">@Model.Count</h2>
+                            </div>
+                            <i class="fas fa-clock fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Assigned to Lawyers</h6>
+                                <h2 class="mb-0">@Model.Count(r => r.AssignedLawyerId != null)</h2>
+                            </div>
+                            <i class="fas fa-user-check fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-dark shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Unassigned</h6>
+                                <h2 class="mb-0">@Model.Count(r => r.AssignedLawyerId == null)</h2>
+                            </div>
+                            <i class="fas fa-user-plus fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Total Value</h6>
+                                <h2 class="mb-0">R @Model.Sum(r => r.Amount).ToString("N0")</h2>
+                            </div>
+                            <i class="fas fa-dollar-sign fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Retainers Table -->
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Client</th>
+                                <th>Assigned Lawyer</th>
+                                <th>Amount</th>
+                                <th>Submitted</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var retainer in Model)
+                            {
+                                <tr>
+                                    <td>@retainer.Id</td>
+                                    <td>
+                                        <strong>@retainer.Title</strong>
+                                        @if (!string.IsNullOrEmpty(retainer.ClientChangeRequest))
+                                        {
+                                            <span class="badge bg-info ms-2">Changes Requested</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <i class="fas fa-user-circle text-primary"></i>
+                                        @retainer.Client?.FullName
+                                    </td>
+                                    <td>
+                                        @if (retainer.AssignedLawyer != null)
+                                        {
+                                            <span class="badge bg-primary">
+                                                <i class="fas fa-user-graduate"></i> @retainer.AssignedLawyer.FullName
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <select class="form-select form-select-sm assign-lawyer" data-id="@retainer.Id" style="width: 150px;">
+                                                <option value="">-- Assign Lawyer --</option>
+                                                @foreach (var lawyer in ViewBag.Lawyers as List<ApplicationUser> ?? new List<ApplicationUser>())
+                                                {
+                                                    <option value="@lawyer.Id">@lawyer.FullName</option>
+                                                }
+                                            </select>
+                                        }
+                                    </td>
+                                    <td class="fw-bold text-primary">R @retainer.Amount.ToString("N2")</td>
+                                    <td>
+                                        <i class="fas fa-calendar-alt me-1"></i>
+                                        @retainer.SubmittedForApprovalDate?.ToString("MMM dd, yyyy")
+                                    </td>
+                                    <td>
+                                        <a href="/Retainer/Review/@retainer.Id" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-gavel"></i> Review
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('.assign-lawyer').change(function() {
+                var retainerId = $(this).data('id');
+                var lawyerId = $(this).val();
+                
+                if (lawyerId) {
+                    $.ajax({
+                        url: '/Retainer/AssignLawyer',
+                        type: 'POST',
+                        data: { id: retainerId, lawyerId: lawyerId },
+                        success: function(response) {
+                            if (response.success) {
+                                location.reload();
+                            } else {
+                                alert(response.message);
+                            }
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+}

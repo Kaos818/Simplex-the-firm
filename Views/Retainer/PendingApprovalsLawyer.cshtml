@@ -1,0 +1,222 @@
+﻿@model List<SimplexLawFirm.Models.Retainer>
+
+@{
+    ViewData["Title"] = "My Pending Approvals";
+    Layout = "_LawyerLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-clock text-warning"></i> My Pending Approvals
+                    </h1>
+                    <p class="text-muted">
+                        Retainers assigned to you awaiting your review
+                    </p>
+                </div>
+                <div>
+                    <a href="/Dashboard/Lawyer" class="btn btn-outline-secondary">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </a>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-check-circle fa-5x text-success mb-3"></i>
+            <h3 class="text-muted">No Pending Approvals</h3>
+            <p class="text-muted">All retainers assigned to you have been reviewed. Great job, counselor!</p>
+            <a href="/Dashboard/Lawyer" class="btn btn-primary mt-3">
+                <i class="fas fa-tachometer-alt"></i> Go to Dashboard
+            </a>
+        </div>
+    }
+    else
+    {
+        <!-- Summary Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-primary text-white shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Assigned to You</h6>
+                                <h2 class="mb-0" id="assignedCount">@Model.Count(r => r.AssignedLawyerId != null)</h2>
+                            </div>
+                            <i class="fas fa-user-check fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-info text-white shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Available to Claim</h6>
+                                <h2 class="mb-0" id="unassignedCount">@Model.Count(r => r.AssignedLawyerId == null)</h2>
+                            </div>
+                            <i class="fas fa-user-plus fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Total Value</h6>
+                                <h2 class="mb-0">R @Model.Sum(r => r.Amount).ToString("N0")</h2>
+                            </div>
+                            <i class="fas fa-dollar-sign fa-2x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Retainers Table -->
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Client</th>
+                                <th>Amount</th>
+                                <th>Submitted</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var retainer in Model)
+                            {
+                                <tr>
+                                    <td>@retainer.Id</td>
+                                    <td>
+                                        <strong>@retainer.Title</strong>
+                                        @if (!string.IsNullOrEmpty(retainer.ClientChangeRequest))
+                                        {
+                                            <span class="badge bg-info ms-2">Changes Requested</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <i class="fas fa-user-circle text-primary"></i>
+                                        @retainer.Client?.FullName
+                                    </td>
+                                    <td class="fw-bold text-primary">R @retainer.Amount.ToString("N2")</td>
+                                    <td>
+                                        <i class="fas fa-calendar-alt me-1"></i>
+                                        @retainer.SubmittedForApprovalDate?.ToString("MMM dd, yyyy")
+                                    </td>
+                                    <td>
+                                        @if (retainer.AssignedLawyerId == null)
+                                        {
+                                            <span class="badge bg-warning text-dark">Available</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-primary">Assigned to You</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (retainer.AssignedLawyerId == null)
+                                        {
+                                            <button class="btn btn-sm btn-success claim-retainer" data-id="@retainer.Id">
+                                                <i class="fas fa-hand-paper"></i> Claim
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <a href="/Retainer/Review/@retainer.Id" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-gavel"></i> Review
+                                            </a>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('.claim-retainer').click(function() {
+                var btn = $(this);
+                var retainerId = btn.data('id');
+                
+                if (confirm('Claim this retainer? You will be responsible for reviewing and approving it.')) {
+                    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Claiming...');
+                    
+                    $.ajax({
+                        url: '/Retainer/ClaimRetainer',
+                        type: 'POST',
+                        data: { id: retainerId },
+                        headers: {
+                            'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // Update counts
+                                var assignedCount = parseInt($('#assignedCount').text());
+                                var unassignedCount = parseInt($('#unassignedCount').text());
+                                $('#assignedCount').text(assignedCount + 1);
+                                $('#unassignedCount').text(unassignedCount - 1);
+                                
+                                // Update button
+                                btn.removeClass('btn-success claim-retainer')
+                                   .addClass('btn-primary')
+                                   .html('<i class="fas fa-gavel"></i> Review')
+                                   .off('click')
+                                   .click(function() {
+                                       window.location.href = '/Retainer/Review/' + retainerId;
+                                   });
+                                
+                                // Update status badge
+                                btn.closest('tr').find('td:eq(5)').html('<span class="badge bg-primary">Assigned to You</span>');
+                                
+                                showAlert(response.message, 'success');
+                            } else {
+                                showAlert(response.message, 'danger');
+                                btn.prop('disabled', false).html('<i class="fas fa-hand-paper"></i> Claim');
+                            }
+                        },
+                        error: function() {
+                            showAlert('An error occurred. Please try again.', 'danger');
+                            btn.prop('disabled', false).html('<i class="fas fa-hand-paper"></i> Claim');
+                        }
+                    });
+                }
+            });
+        });
+        
+        function showAlert(message, type) {
+            var alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3" style="z-index: 9999;">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            $('body').append(alertHtml);
+            setTimeout(function() {
+                $('.alert').fadeOut(500, function() { $(this).remove(); });
+            }, 3000);
+        }
+    </script>
+}

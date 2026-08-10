@@ -1,0 +1,331 @@
+﻿@model SimplexLawFirm.Models.Case
+@{
+    ViewData["Title"] = "Case Details";
+    Layout = Context.Session.GetString("UserRole") == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    var retainers = ViewBag.Retainers as List<SimplexLawFirm.Models.Retainer>;
+    var upcomingEvents = ViewBag.UpcomingEvents as List<SimplexLawFirm.Models.CalendarEvent>;
+    var recentDocuments = ViewBag.RecentDocuments as List<SimplexLawFirm.Models.Document>;
+    var safeguards = ViewBag.ClientSafeguards as IReadOnlyList<SimplexLawFirm.Models.VulnerableClientFlag> ?? [];
+}
+
+<div class="container-fluid py-4">
+    @if(safeguards.Any()){<div class="alert alert-warning"><h4><i class="fas fa-hands-helping me-2"></i>Client safeguards acknowledged</h4>@foreach(var flag in safeguards){<span class="badge bg-dark me-2">@flag.Safeguard</span><span class="me-3">@flag.Reason</span>}</div>}
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">
+                <i class="fas fa-folder-open text-primary me-2"></i>@Model.Title
+            </h1>
+            <p class="text-muted">Case #@Model.CaseNumber</p>
+        </div>
+        <div>
+            @if(Context.Session.GetString("UserRole") == "Lawyer" && Context.Session.GetInt32("UserId") == Model.LawyerId)
+            {
+                @if (Model.Status == CaseStatus.Active)
+                {
+                    <a href="@Url.Action("Strategy", "CaseGovernance", new { caseId = Model.Id })" class="btn btn-primary"><i class="fas fa-route me-2"></i>Litigation strategy</a>
+                }
+                <a href="@Url.Action("Readiness", "CaseGovernance", new { caseId = Model.Id })" class="btn btn-outline-danger"><i class="fas fa-clipboard-check me-2"></i>Court readiness</a>
+                <a href="@Url.Action("Create", "LegalCostRecovery", new { caseId = Model.Id })" class="btn btn-danger">
+                    <i class="fas fa-scale-balanced me-2"></i>Claim wasted costs
+                </a>
+                @if (Model.Status == CaseStatus.Active)
+                {
+                    <a href="@Url.Action("Create", "Reimbursement", new { caseId = Model.Id })" class="btn btn-primary">
+                        <i class="fas fa-receipt me-2"></i>Claim reimbursement
+                    </a>
+                }
+            }
+            @if(Context.Session.GetString("UserRole") == "Lawyer" && Context.Session.GetInt32("UserId") == Model.LawyerId && Model.Status == CaseStatus.Active)
+            {
+                <a class="btn btn-outline-primary" href="/Operational/Research?caseId=@Model.Id"><i class="fas fa-scale-balanced"></i> Research case law</a>
+                <a href="@Url.Action("RequestEvidence", "ExternalEvidence", new { caseId = Model.Id })" class="btn btn-outline-primary">
+                    <i class="fas fa-file-arrow-up me-2"></i>Request opposing documents
+                </a>
+            }
+            <a href="@Url.Action("Forecast", "Practice", new { id = Model.Id })" class="btn btn-success">
+                <i class="fas fa-chart-pie me-2"></i>Outcome forecast
+            </a>
+            <a href="@Url.Action("Correspondence", "Practice", new { id = Model.Id })" class="btn btn-outline-dark">
+                <i class="fas fa-comments me-2"></i>Correspondence
+            </a>
+            @if(Context.Session.GetString("UserRole") == "Admin" && Model.LawyerId.HasValue && Model.Status != CaseStatus.Closed && Model.Status != CaseStatus.Archived)
+            {
+                <a href="@Url.Action("Reassign", "Practice", new { id = Model.Id })" class="btn btn-dark">
+                    <i class="fas fa-people-arrows me-2"></i>Approve reassignment
+                </a>
+            }
+            <a href="@Url.Action("Edit", new { id = Model.Id })" class="btn btn-warning">
+                <i class="fas fa-edit me-2"></i>Edit
+            </a>
+            <a href="@Url.Action("AssignLawyer", new { id = Model.Id })" class="btn btn-info">
+                <i class="fas fa-user-plus me-2"></i>Assign Lawyer
+            </a>
+            <a href="@Url.Action("Index")" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back
+            </a>
+        </div>
+    </div>
+
+    <div class="alert alert-light border d-flex justify-content-between align-items-center mb-4">
+        <span><i class="fas fa-scale-balanced me-2"></i>Legal cost recovery awarded on this matter</span>
+        <strong>R @Model.CostRecoveryAwardedTotal.ToString("N2")</strong>
+    </div>
+
+    <div class="row">
+        <!-- Main Info -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Case Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Status</label>
+                            <div>
+                                <span class="badge @GetStatusBadgeClass(Model.Status) fs-6">@Model.Status</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Created</label>
+                            <div>@Model.CreatedAt.ToString("dd MMM yyyy HH:mm")</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Last Updated</label>
+                            <div>@(Model.UpdatedAt?.ToString("dd MMM yyyy HH:mm") ?? "Never")</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Assigned Lawyer</label>
+                            <div>@(Model.Lawyer?.FullName ?? "<span class='text-muted'>Unassigned</span>")</div>
+                        </div>
+                        <div class="col-md-6 mb-3"><label class="text-muted small">Case type</label><div>@Model.CaseType</div></div>
+                        <div class="col-md-6 mb-3"><label class="text-muted small">Evidence profile</label><div>@Model.EvidenceStrength.ToString("P0")</div></div>
+                        <div class="col-12">
+                            <label class="text-muted small">Description</label>
+                            <p class="mt-1">@Model.Description</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Client Information -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Client Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <strong>Name:</strong> @Model.Client?.FullName
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <strong>Email:</strong> @Model.Client?.Email
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <strong>Phone:</strong> @Model.Client?.Phone
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <strong>Type:</strong> @(Model.Client?.IsBusiness == true ? "Business" : "Individual")
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <a href="@Url.Action("Details", "Client", new { id = Model.ClientId })" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-external-link-alt me-1"></i>View Client Profile
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Retainers -->
+            @if (retainers != null && retainers.Any())
+            {
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="fas fa-file-signature me-2"></i>Associated Retainers</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var retainer in retainers)
+                                    {
+                                        <tr>
+                                            <td>@retainer.Title</td>
+                                            <td>R @retainer.Amount.ToString("N2")</td>
+                                            <td><span class="badge bg-success">@retainer.Status</span></td>
+                                            <td>
+                                                <a href="@Url.Action("Details", "Retainer", new { id = retainer.Id })" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Recent Documents -->
+            @if (recentDocuments != null && recentDocuments.Any())
+            {
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="fas fa-folder me-2"></i>Recent Documents</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>File Name</th>
+                                        <th>Category</th>
+                                        <th>Uploaded</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var doc in recentDocuments)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <i class="fas fa-file-pdf text-danger me-2"></i>@doc.FileName
+                                            </td>
+                                            <td>@doc.Category</td>
+                                            <td>@doc.UploadedAt.ToString("dd MMM yyyy")</td>
+                                            <td>
+                                                <a href="@Url.Action("Download", "Document", new { id = doc.Id })" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white">
+                        <a href="@Url.Action("Upload", "Document", new { caseId = Model.Id })" class="btn btn-sm btn-primary">
+                            <i class="fas fa-upload me-1"></i>Upload Document
+                        </a>
+                        <a href="@Url.Action("Index", "Document", new { caseId = Model.Id })" class="btn btn-sm btn-secondary">
+                            <i class="fas fa-folder-open me-1"></i>View All
+                        </a>
+                    </div>
+                </div>
+            }
+
+            <!-- Upcoming Events -->
+            @if (upcomingEvents != null && upcomingEvents.Any())
+            {
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Upcoming Events</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            @foreach (var evt in upcomingEvents)
+                            {
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="fas @GetEventIcon(evt.Type) me-2"></i>
+                                            <strong>@evt.Title</strong>
+                                            <br />
+                                            <small class="text-muted">
+                                                @evt.StartDateTime.ToString("dd MMM yyyy HH:mm") - @evt.EndDateTime.ToString("HH:mm")
+                                            </small>
+                                        </div>
+                                        <a href="@Url.Action("EventDetails", "Calendar", new { id = evt.Id })" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white">
+                        <a href="@Url.Action("Create", "Calendar")" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus me-1"></i>Add Event
+                        </a>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Quick Actions -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="@Url.Action("AddNote", new { id = Model.Id })" class="btn btn-outline-primary">
+                            <i class="fas fa-sticky-note me-2"></i>Add Case Note
+                        </a>
+                        <a href="@Url.Action("Upload", "Document", new { caseId = Model.Id })" class="btn btn-outline-primary">
+                            <i class="fas fa-upload me-2"></i>Upload Document
+                        </a>
+                        <a href="@Url.Action("Create", "Calendar", new { caseId = Model.Id })" class="btn btn-outline-primary">
+                            <i class="fas fa-calendar-plus me-2"></i>Schedule Event
+                        </a>
+                        <a href="@Url.Action("Create", "Retainer", new { caseId = Model.Id, clientId = Model.ClientId })" class="btn btn-outline-primary">
+                            <i class="fas fa-file-signature me-2"></i>Create Retainer
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Case History Link -->
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Case History</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">View all activities, notes, and changes for this case.</p>
+                    <a href="@Url.Action("CaseHistory", new { id = Model.Id })" class="btn btn-outline-secondary w-100">
+                        <i class="fas fa-timeline me-2"></i>View Full History
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    string GetStatusBadgeClass(CaseStatus status)
+    {
+        return status switch
+        {
+            CaseStatus.Active => "bg-success",
+            CaseStatus.Pending => "bg-warning text-dark",
+            CaseStatus.Closed => "bg-secondary",
+            CaseStatus.Archived => "bg-dark",
+            _ => "bg-info"
+        };
+    }
+
+    string GetEventIcon(EventType type)
+    {
+        return type switch
+        {
+            EventType.Meeting => "fa-handshake",
+            EventType.Deadline => "fa-hourglass-half",
+            EventType.CourtAppearance => "fa-gavel",
+            EventType.Appointment => "fa-calendar-check",
+            _ => "fa-calendar"
+        };
+    }
+}

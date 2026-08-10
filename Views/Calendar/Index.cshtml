@@ -1,0 +1,429 @@
+﻿@{
+    ViewData["Title"] = "Calendar";
+    Layout = "_AdminLayout";
+    var userRole = Context.Session.GetString("UserRole");
+}
+
+@section Styles {
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet" />
+    <style>
+        .fc-event {
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 0 !important;
+            border-left: 5px solid rgba(0,0,0,.28) !important;
+            border-radius: 7px !important;
+            box-shadow: 0 2px 6px rgba(16,24,40,.24);
+            color: #fff !important;
+            font-weight: 700;
+            padding: 3px 5px !important;
+        }
+
+            .fc-event:hover {
+                transform: scale(1.02);
+                filter: brightness(0.95);
+            }
+
+        .fc-day-today {
+            background-color: rgba(13, 110, 253, 0.05) !important;
+        }
+
+        .calendar-toolbar {
+            margin-bottom: 20px;
+        }
+
+        #calendar { background: #fff; border: 1px solid #d0d5dd; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px rgba(16,24,40,.08); }
+        .fc .fc-daygrid-day-frame { min-height: 118px; }
+        .fc .fc-daygrid-day-number { color: #101828; font-weight: 700; text-decoration: none; }
+        .fc .fc-col-header-cell-cushion { color: #344054; font-weight: 800; text-decoration: none; padding: 10px 4px; }
+        .simplex-event { overflow: hidden; line-height: 1.25; }
+        .simplex-event-time { display: block; font-size: .72rem; opacity: .92; }
+        .simplex-event-title { display: block; white-space: normal; overflow-wrap: anywhere; }
+        .simplex-event-meta { display: block; font-size: .68rem; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .view-buttons .btn {
+            margin-right: 5px;
+        }
+
+        .fc .fc-button-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+
+            .fc .fc-button-primary:hover {
+                background-color: #0b5ed7;
+            }
+
+            .fc .fc-button-primary:disabled {
+                background-color: #0d6efd;
+            }
+    </style>
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-calendar-alt text-primary"></i> Calendar
+                    </h1>
+                    <p class="text-muted">Manage events, appointments, and deadlines</p>
+                    @if (userRole is "Director" or "Admin") { <span class="badge bg-dark"><i class="fas fa-eye"></i> Firm-wide calendar · all client and staff events</span> }
+                </div>
+                <div>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#eventModal" onclick="resetEventForm()">
+                        <i class="fas fa-plus-circle"></i> Add Event
+                    </button>
+                    <a href="/Calendar/Tasks" class="btn btn-outline-info">
+                        <i class="fas fa-tasks"></i> Tasks
+                    </a>
+                    <a href="/Calendar/ExportCalendar" class="btn btn-outline-success">
+                        <i class="fas fa-download"></i> Export
+                    </a>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <!-- View Toggle -->
+    <div class="calendar-toolbar">
+        <div class="btn-group view-buttons" role="group">
+            <button type="button" class="btn btn-outline-primary" id="viewDay">Day</button>
+            <button type="button" class="btn btn-outline-primary" id="viewWeek">Week</button>
+            <button type="button" class="btn btn-primary" id="viewMonth">Month</button>
+        </div>
+        <button type="button" class="btn btn-outline-secondary ms-2" id="todayBtn">Today</button>
+    </div>
+
+    <!-- Calendar Container -->
+    <div id="calendar"></div>
+</div>
+
+<!-- Event Modal -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-calendar-plus"></i> <span id="modalTitle">Add Event</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="eventForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="eventId" name="Id" value="0" />
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label fw-bold">Title <span class="text-danger">*</span></label>
+                            <input type="text" id="eventTitle" name="Title" class="form-control" required />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Event Type</label>
+                            <select id="eventType" name="Type" class="form-select">
+                                <option value="0">Meeting</option>
+                                <option value="1">Court Appearance</option>
+                                <option value="2">Deadline</option>
+                                <option value="8">Consultation</option>
+                                <option value="10">Hearing</option>
+                                <option value="5">Appointment</option>
+                                <option value="11">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Start Date & Time</label>
+                            <input type="datetime-local" id="eventStart" name="StartDateTime" class="form-control" required />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">End Date & Time</label>
+                            <input type="datetime-local" id="eventEnd" name="EndDateTime" class="form-control" required />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Location</label>
+                        <input type="text" id="eventLocation" name="Location" class="form-control" placeholder="Office, Zoom link, Court room..." />
+                    </div>
+                    <div id="clientAppointmentFields" class="border rounded p-3 mb-3" hidden>
+                        <h6>Client appointment and billing</h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-3"><label class="form-label">Client</label><select id="eventClientId" class="form-select"><option value="">-- Select client --</option>@foreach (var client in ViewBag.Clients as List<Client> ?? []) { <option value="@client.Id">@client.FirstName @client.LastName</option> }</select></div>
+                            <div class="col-md-6 mb-3"><label class="form-label">Active retainer (optional)</label><select id="eventRetainerId" class="form-select"><option value="">-- No retainer --</option>@foreach (var retainer in ViewBag.Retainers as List<Retainer> ?? []) { <option value="@retainer.Id">@retainer.Title</option> }</select></div>
+                            <div class="col-md-4 mb-3"><label class="form-label">Fee (R)</label><input id="eventFee" type="number" min="0.01" step="0.01" class="form-control"></div>
+                            <div class="col-md-4 mb-3"><label class="form-label">Payment due (days)</label><input id="eventPaymentDays" type="number" min="1" value="7" class="form-control"></div>
+                            <div class="col-md-4 mb-3"><label class="form-label">Meeting link</label><input id="eventMeetingLink" type="url" class="form-control"></div>
+                            <div class="col-md-4 mb-3"><label class="form-label">Late penalty</label><select id="eventPenaltyType" class="form-select"><option value="0">None</option><option value="1">Fixed amount</option><option value="2">Percentage</option></select></div>
+                            <div class="col-md-4 mb-3"><label class="form-label">Penalty value</label><input id="eventPenaltyValue" type="number" min="0" step="0.01" value="0" class="form-control"></div>
+                            <div class="col-md-4 mb-3"><label class="form-label">Grace days</label><input id="eventPenaltyGrace" type="number" min="0" value="0" class="form-control"></div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description</label>
+                        <textarea id="eventDescription" name="Description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Assigned To</label>
+                            <select id="eventAssignedTo" name="AssignedToUserId" class="form-select">
+                                <option value="">-- Select User --</option>
+                                @foreach (var user in ViewBag.ActiveUsers as List<ApplicationUser> ?? new List<ApplicationUser>())
+                                {
+                                    <option value="@user.Id">@user.FullName (@user.Role)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Related Case</label>
+                            <select id="eventCaseId" name="CaseId" class="form-select">
+                                <option value="">-- Select Case --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input type="checkbox" id="eventAllDay" name="IsAllDay" class="form-check-input" />
+                        <label class="form-check-label" for="eventAllDay">All Day Event</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="deleteEventBtn" style="display:none;">Delete</button>
+                    <button type="submit" class="btn btn-primary">Save Event</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+    <script>
+        let calendar;
+        let currentView = 'dayGridMonth';
+        
+        // Initialize calendar
+        document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: false,
+        editable: true,
+        selectable: true,
+        droppable: true,
+        eventClick: function(info) {
+        editEvent(info.event.id);
+        },
+        eventContent: function(arg) {
+            const wrapper=document.createElement('div'); wrapper.className='simplex-event';
+            const time=document.createElement('span'); time.className='simplex-event-time'; time.textContent=arg.timeText || (arg.event.allDay ? 'All day' : '');
+            const title=document.createElement('span'); title.className='simplex-event-title'; title.textContent=arg.event.title;
+            const meta=document.createElement('span'); meta.className='simplex-event-meta';
+            const details=[arg.event.extendedProps.type,arg.event.extendedProps.clientName,arg.event.extendedProps.assignedTo].filter(Boolean);
+            meta.textContent=details.join(' · '); wrapper.append(time,title,meta); return { domNodes:[wrapper] };
+        },
+        eventDidMount: function(info) {
+            const details=[info.event.title,info.event.extendedProps.type,info.event.extendedProps.clientName,info.event.extendedProps.assignedTo,info.event.extendedProps.location].filter(Boolean);
+            info.el.setAttribute('title',details.join(' | '));
+            info.el.setAttribute('aria-label',details.join(', '));
+        },
+        dayMaxEvents: 4,
+        moreLinkText: function(count) { return '+' + count + ' more events'; },
+        eventDrop: function(info) {
+        moveEvent(info.event.id, info.event.start, info.event.end);
+        },
+        eventResize: function(info) {
+        resizeEvent(info.event.id, info.event.end);
+        },
+        select: function(info) {
+        resetEventForm();
+        document.getElementById('eventStart').value = formatDateTimeLocal(info.start);
+        document.getElementById('eventEnd').value = formatDateTimeLocal(info.end);
+        $('#eventModal').modal('show');
+        },
+        events: @Html.Raw(ViewBag.EventsJson ?? "[]")
+        });
+        calendar.render();
+        const typeSelect=document.getElementById('eventType');
+        const toggleClientFields=()=>document.getElementById('clientAppointmentFields').hidden=!['5','8'].includes(typeSelect.value);
+        typeSelect.addEventListener('change',toggleClientFields); toggleClientFields();
+            
+        // View buttons
+        document.getElementById('viewDay').addEventListener('click', () => calendar.changeView('timeGridDay'));
+        document.getElementById('viewWeek').addEventListener('click', () => calendar.changeView('timeGridWeek'));
+        document.getElementById('viewMonth').addEventListener('click', () => calendar.changeView('dayGridMonth'));
+        document.getElementById('todayBtn').addEventListener('click', () => calendar.today());
+        });
+        
+        // Format date for datetime-local input
+        function formatDateTimeLocal(date) {
+        return new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
+        .toISOString()
+        .slice(0, 16);
+        }
+        
+        // Reset form for new event
+        function resetEventForm() {
+        document.getElementById('eventId').value = '0';
+        document.getElementById('modalTitle').innerText = 'Add Event';
+        document.getElementById('eventForm').reset();
+        document.getElementById('deleteEventBtn').style.display = 'none';
+        document.getElementById('eventStart').value = formatDateTimeLocal(new Date());
+        var endDate = new Date();
+        endDate.setHours(endDate.getHours() + 1);
+        document.getElementById('eventEnd').value = formatDateTimeLocal(endDate);
+        }
+        
+        // Edit existing event
+        function editEvent(eventId) {
+        $.ajax({
+        url: '/Calendar/GetEvent/' + eventId,
+        type: 'GET',
+        success: function(event) {
+        document.getElementById('eventId').value = event.id;
+        document.getElementById('modalTitle').innerText = 'Edit Event';
+        document.getElementById('eventTitle').value = event.title;
+        document.getElementById('eventType').value = event.type;
+        document.getElementById('eventStart').value = formatDateTimeLocal(new Date(event.start));
+        document.getElementById('eventEnd').value = formatDateTimeLocal(new Date(event.end));
+        document.getElementById('eventLocation').value = event.location || '';
+        document.getElementById('eventDescription').value = event.description || '';
+        document.getElementById('eventAssignedTo').value = event.assignedToUserId || '';
+        document.getElementById('eventAllDay').checked = event.allDay || false;
+        document.getElementById('deleteEventBtn').style.display = 'block';
+        $('#eventModal').modal('show');
+        },
+        error: function() {
+        showAlert('Error loading event details', 'danger');
+        }
+        });
+        }
+        
+        // Save event (Create/Update)
+        document.getElementById('eventForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var eventId = document.getElementById('eventId').value;
+        var url = eventId == '0' ? '/Calendar/CreateEvent' : '/Calendar/UpdateEvent/' + eventId;
+        var method = eventId == '0' ? 'POST' : 'PUT';
+    
+        // Get datetime values and ensure they're valid
+        var startDate = new Date(document.getElementById('eventStart').value);
+        var endDate = new Date(document.getElementById('eventEnd').value);
+    
+        if (isNaN(startDate) || isNaN(endDate)) {
+        showAlert('Invalid date values', 'danger');
+        return;
+        }
+    
+        var eventData = {
+        Title: document.getElementById('eventTitle').value,
+        Type: parseInt(document.getElementById('eventType').value) || 0,
+        StartLocal: startDate.toISOString(),
+        EndLocal: endDate.toISOString(),
+        Location: document.getElementById('eventLocation').value || '',
+        Description: document.getElementById('eventDescription').value || '',
+        AssignedToUserId: document.getElementById('eventAssignedTo').value || null,
+        CaseId: document.getElementById('eventCaseId').value || null,
+        ClientId: document.getElementById('eventClientId').value || null,
+        RetainerId: document.getElementById('eventRetainerId').value || null,
+        AppointmentFee: document.getElementById('eventFee').value || null,
+        PaymentDueDays: parseInt(document.getElementById('eventPaymentDays').value) || 7,
+        MeetingLink: document.getElementById('eventMeetingLink').value || '',
+        LatePenaltyType: parseInt(document.getElementById('eventPenaltyType').value) || 0,
+        LatePenaltyValue: parseFloat(document.getElementById('eventPenaltyValue').value) || 0,
+        LatePenaltyGraceDays: parseInt(document.getElementById('eventPenaltyGrace').value) || 0,
+        IsAllDay: document.getElementById('eventAllDay').checked
+        };
+    
+        $.ajax({
+        url: url,
+        type: method,
+        contentType: 'application/json',
+        data: JSON.stringify(eventData),
+        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+        success: function(response) {
+        if (response.success) {
+        $('#eventModal').modal('hide');
+        calendar.refetchEvents();
+        showAlert(eventId == '0' ? 'Event created successfully!' : 'Event updated successfully!', 'success');
+        } else {
+        showAlert(response.error || 'Error saving event', 'danger');
+        }
+        },
+        error: function(xhr) {
+        var error = xhr.responseJSON?.error || 'Error saving event';
+        showAlert(error, 'danger');
+        }
+        });
+        });
+        
+        // Delete event
+        document.getElementById('deleteEventBtn').addEventListener('click', function() {
+        var eventId = document.getElementById('eventId').value;
+        if (confirm('Are you sure you want to delete this event?')) {
+        $.ajax({
+        url: '/Calendar/DeleteEvent/' + eventId,
+        type: 'DELETE',
+        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+        success: function(response) {
+        if (response.success) {
+        $('#eventModal').modal('hide');
+        calendar.refetchEvents();
+        showAlert('Event deleted successfully!', 'success');
+        } else {
+        showAlert('Error deleting event', 'danger');
+        }
+        }
+        });
+        }
+        });
+        
+        // Move event (drag & drop)
+        function moveEvent(id, newStart, newEnd) {
+        $.ajax({
+        url: '/Calendar/MoveEvent/' + id,
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ newStart: newStart, newEnd: newEnd }),
+        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+        success: function(response) {
+        if (!response.success) {
+        calendar.refetchEvents();
+        showAlert('Error moving event', 'danger');
+        }
+        }
+        });
+        }
+        
+        // Resize event
+        function resizeEvent(id, newEnd) {
+        $.ajax({
+        url: '/Calendar/ResizeEvent/' + id,
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ newEnd: newEnd }),
+        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+        success: function(response) {
+        if (!response.success) {
+        calendar.refetchEvents();
+        showAlert('Error resizing event', 'danger');
+        }
+        }
+        });
+        }
+        
+        // Alert function
+        function showAlert(message, type) {
+        var alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3" style="z-index: 9999; min-width: 300px;">
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        `;
+        $('body').append(alertHtml);
+        setTimeout(function() {
+        $('.alert').fadeOut(500, function() { $(this).remove(); });
+        }, 3000);
+        }
+    </script>
+}

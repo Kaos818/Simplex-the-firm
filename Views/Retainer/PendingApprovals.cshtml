@@ -1,0 +1,236 @@
+﻿@model List<SimplexLawFirm.Models.Retainer>
+
+@{
+    ViewData["Title"] = "Pending Approvals";
+    
+    // Dynamically set layout based on user role
+    var userRole = Context.Session.GetString("UserRole");
+    if (userRole == "Lawyer")
+    {
+        Layout = "_LawyerLayout";
+    }
+    else if (userRole == "Admin")
+    {
+        Layout = "_AdminLayout";
+    }
+    else
+    {
+        Layout = "_Layout";
+    }
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-clock text-warning"></i> Pending Approvals
+                    </h1>
+                    <p class="text-muted">
+                        @if (userRole == "Lawyer")
+                        {
+                            <span>Retainers assigned to you awaiting your review and approval</span>
+                        }
+                        else
+                        {
+                            <span>Retainers awaiting lawyer review and approval</span>
+                        }
+                    </p>
+                </div>
+                <div>
+                    <a href="/Retainer/Index" class="btn btn-outline-secondary">
+                        <i class="fas fa-list"></i> All Retainers
+                    </a>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-check-circle fa-5x text-success mb-3"></i>
+            <h3 class="text-muted">No Pending Approvals</h3>
+            @if (userRole == "Lawyer")
+            {
+                <p class="text-muted">All retainers assigned to you have been reviewed. Great job, counselor!</p>
+            }
+            else
+            {
+                <p class="text-muted">All retainers have been reviewed or submitted for approval. Great job!</p>
+            }
+            <a href="/Retainer/Index" class="btn btn-primary mt-3">
+                <i class="fas fa-list"></i> View All Retainers
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <!-- Summary Statistics -->
+            <div class="col-12 mb-4">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-0">Total Pending</h6>
+                                        <h2 class="mb-0">@Model.Count</h2>
+                                    </div>
+                                    <i class="fas fa-clock fa-2x opacity-50"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-0">Total Value</h6>
+                                        <h2 class="mb-0">R @Model.Sum(r => r.Amount).ToString("N0")</h2>
+                                    </div>
+                                    <i class="fas fa-dollar-sign fa-2x opacity-50"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-dark shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-0">This Week</h6>
+                                        <h2 class="mb-0">@Model.Count(r => r.SubmittedForApprovalDate >= DateTime.Now.AddDays(-7))</h2>
+                                    </div>
+                                    <i class="fas fa-calendar-week fa-2x opacity-50"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-0">Avg. Amount</h6>
+                                        <h2 class="mb-0">R @(Model.Average(r => r.Amount).ToString("N0"))</h2>
+                                    </div>
+                                    <i class="fas fa-chart-line fa-2x opacity-50"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pending Retainers Cards -->
+            @foreach (var retainer in Model)
+            {
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card shadow-lg border-0 h-100 hover-shadow transition-all">
+                        <div class="card-header bg-warning text-dark">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge bg-dark">
+                                    <i class="fas fa-clock"></i> Pending Review
+                                </span>
+                                <small>
+                                    <i class="fas fa-calendar-alt"></i>
+                                    @retainer.SubmittedForApprovalDate?.ToString("dd MMM yyyy")
+                                </small>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title text-truncate" title="@retainer.Title">
+                                @retainer.Title
+                            </h5>
+                            
+                            <div class="mb-3">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-user-circle text-primary me-2"></i>
+                                    <strong>@retainer.Client?.FullName</strong>
+                                </div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-tag text-info me-2"></i>
+                                    <span>@retainer.Type</span>
+                                </div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-money-bill-wave text-success me-2"></i>
+                                    <span class="fw-bold">R @retainer.Amount.ToString("N2")</span>
+                                </div>
+                                @if (retainer.AssignedLawyer != null)
+                                {
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-user-graduate text-secondary me-2"></i>
+                                        <small class="text-muted">Assigned: @retainer.AssignedLawyer.FullName</small>
+                                    </div>
+                                }
+                            </div>
+                            
+                            <hr />
+                            
+                            <p class="card-text small text-muted">
+                                <strong>Scope of Work:</strong><br />
+                                @(retainer.ScopeOfWork?.Length > 80 ? retainer.ScopeOfWork.Substring(0, 80) + "..." : retainer.ScopeOfWork)
+                            </p>
+                            
+                            @if (!string.IsNullOrEmpty(retainer.ClientChangeRequest))
+                            {
+                                <div class="alert alert-info alert-sm py-1 mb-0 mt-2">
+                                    <i class="fas fa-edit"></i>
+                                    <small>Client requested changes</small>
+                                </div>
+                            }
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <a href="/Retainer/Review/@retainer.Id" class="btn btn-primary w-100">
+                                <i class="fas fa-gavel me-2"></i> Review & Approve
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+        
+    }
+</div>
+
+<style>
+    .hover-shadow {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+        .hover-shadow:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 1rem 2rem rgba(0,0,0,.15) !important;
+        }
+    
+    .transition-all {
+        transition: all 0.3s ease;
+    }
+    
+    .text-truncate {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        // Optional: Add real-time refresh functionality
+        function refreshPendingApprovals() {
+            location.reload();
+        }
+        
+        // Auto-refresh every 60 seconds (optional)
+        // setTimeout(refreshPendingApprovals, 60000);
+        
+        console.log('Pending Approvals page loaded');
+        console.log('User Role: @Context.Session.GetString("UserRole")');
+        console.log('Total Pending: @Model.Count');
+    </script>
+}

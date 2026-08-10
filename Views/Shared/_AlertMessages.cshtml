@@ -1,0 +1,72 @@
+﻿@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg" style="z-index: 9999; min-width: 300px; max-width: 450px;" role="alert" id="successAlert">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-check-circle fa-2x me-3"></i>
+            <div class="flex-grow-1">
+                <strong>Success!</strong>
+                <div>@TempData["Success"]</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg" style="z-index: 9999; min-width: 300px; max-width: 450px;" role="alert" id="errorAlert">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-circle fa-2x me-3"></i>
+            <div class="flex-grow-1">
+                <strong>Error!</strong>
+                <div>@TempData["Error"]</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+}
+
+@if (TempData["Warning"] != null)
+{
+    <div class="alert alert-warning alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg" style="z-index: 9999; min-width: 300px; max-width: 450px;" role="alert" id="warningAlert">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+            <div class="flex-grow-1">
+                <strong>Warning!</strong>
+                <div>@TempData["Warning"]</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+}
+
+@if (TempData["Info"] != null)
+{
+    <div class="alert alert-info alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg" style="z-index: 9999; min-width: 300px; max-width: 450px;" role="alert" id="infoAlert">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-info-circle fa-2x me-3"></i>
+            <div class="flex-grow-1">
+                <strong>Information!</strong>
+                <div>@TempData["Info"]</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+}
+
+<script>
+    // Auto-dismiss alerts after 3 seconds
+    document.addEventListener('DOMContentLoaded', function() {
+        const alerts = ['successAlert', 'errorAlert', 'warningAlert', 'infoAlert'];
+        alerts.forEach(alertId => {
+            const alert = document.getElementById(alertId);
+            if (alert) {
+                setTimeout(() => {
+                    alert.style.transition = 'opacity 0.5s ease';
+                    alert.style.opacity = '0';
+                    setTimeout(() => alert.remove(), 500);
+                }, 3000);
+            }
+        });
+    });
+</script>

@@ -1,0 +1,6 @@
+@model IReadOnlyList<SimplexLawFirm.Models.VulnerableClientFlag>
+@{ ViewData["Title"]="Acknowledge client safeguards"; Layout=Context.Session.GetString("UserRole")=="Admin"?"_AdminLayout":"_LawyerLayout"; var matter=(SimplexLawFirm.Models.Case)ViewBag.Case; }
+<div class="page-hero compact"><div><span class="eyebrow">Required before access</span><h1>Acknowledge client safeguards</h1><p>@matter.CaseNumber · @matter.Client.FullName</p></div></div>
+<section class="surface"><div class="alert alert-warning">You cannot continue into this matter until every active accommodation has been read and acknowledged.</div>
+@foreach(var f in Model){<div class="record-row"><span><b>@f.Safeguard</b><small>@f.Reason</small>@if(!string.IsNullOrWhiteSpace(f.LanguageRequired)){<small>Language: @f.LanguageRequired</small>}</span><span class="status-pill">@f.Status</span></div>}
+<form method="post" class="mt-3">@Html.AntiForgeryToken()<input type="hidden" name="caseId" value="@matter.Id"/><label><input type="checkbox" name="understood" value="true" required/> I have read these safeguards and will comply with them.</label><br/><button class="btn btn-warning mt-3">Acknowledge and open matter</button></form></section>

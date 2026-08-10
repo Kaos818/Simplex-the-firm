@@ -1,0 +1,440 @@
+﻿@using SimplexLawFirm.Models
+@using TaskStatusEnum = SimplexLawFirm.Models.TaskStatus
+@model List<SimplexLawFirm.Models.TaskItem>
+
+@{
+    ViewData["Title"] = "Tasks";
+    Layout = "_AdminLayout";
+    var userRole = Context.Session.GetString("UserRole");
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-tasks text-primary"></i> Task Management
+                    </h1>
+                    <p class="text-muted">Manage and track all tasks</p>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#taskModal" onclick="resetTaskForm()">
+                        <i class="fas fa-plus-circle"></i> Create Task
+                    </button>
+                    <a href="/Calendar/Index" class="btn btn-outline-secondary">
+                        <i class="fas fa-calendar-alt"></i> Calendar
+                    </a>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4" id="taskStats">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Tasks</h6>
+                            <h2 class="mb-0" id="totalTasks">0</h2>
+                        </div>
+                        <i class="fas fa-list fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">In Progress</h6>
+                            <h2 class="mb-0" id="inProgressTasks">0</h2>
+                        </div>
+                        <i class="fas fa-spinner fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Completed</h6>
+                            <h2 class="mb-0" id="completedTasks">0</h2>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-danger text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Overdue</h6>
+                            <h2 class="mb-0" id="overdueTasks">0</h2>
+                        </div>
+                        <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Filter by Status</label>
+                    <select id="statusFilter" class="form-select">
+                        <option value="">All Status</option>
+                        <option value="NotStarted">Not Started</option>
+                        <option value="InProgress">In Progress</option>
+                        <option value="Completed">Completed</option>
+                        <option value="OnHold">On Hold</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Filter by Priority</label>
+                    <select id="priorityFilter" class="form-select">
+                        <option value="">All Priorities</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Assigned To</label>
+                    <select id="assignedFilter" class="form-select">
+                        <option value="">All Users</option>
+                        @if (ViewBag.ActiveUsers != null)
+                        {
+                            foreach (var user in ViewBag.ActiveUsers as List<ApplicationUser> ?? new List<ApplicationUser>())
+                            {
+                                <option value="@user.Id">@user.FullName</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button id="clearFilters" class="btn btn-outline-secondary w-100">
+                        <i class="fas fa-undo"></i> Clear Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tasks Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-list"></i> Task List</h5>
+                <input type="text" id="searchTasks" class="form-control form-control-sm" placeholder="Search tasks..." style="width: 200px;" />
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="tasksTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Title</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Assigned To</th>
+                            <th>Due Date</th>
+                            <th>Case</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var task in Model.OrderByDescending(t => t.Priority).ThenBy(t => t.DueDate))
+                        {
+                            <tr data-id="@task.Id">
+                                <td>
+                                    <strong>@task.Title</strong>
+                                    @if (!string.IsNullOrEmpty(task.Description))
+                                    {
+                                        <br />
+                                        <small class="text-muted">@(task.Description.Length > 50 ? task.Description.Substring(0, 50) + "..." : task.Description)</small>
+                                    }
+                                </td>
+                                <td>
+                                    @{
+                                        var priorityClass = task.Priority.ToString().ToLower();
+                                        if (priorityClass == "urgent") { priorityClass = "danger"; }
+                                        else if (priorityClass == "high") { priorityClass = "warning"; }
+                                        else if (priorityClass == "medium") { priorityClass = "info"; }
+                                        else { priorityClass = "secondary"; }
+                                        <span class="badge bg-@priorityClass">
+                                            @task.Priority
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    @{
+                                        var statusClass = task.Status.ToString().ToLower();
+                                        if (statusClass == "completed") { statusClass = "success"; }
+                                        else if (statusClass == "inprogress") { statusClass = "primary"; }
+                                        else if (statusClass == "onhold") { statusClass = "warning"; }
+                                        else { statusClass = "secondary"; }
+                                        <span class="badge bg-@statusClass">
+                                            @task.Status
+                                        </span>
+                                    }
+                                </td>
+                                <td>@task.AssignedTo?.FullName</td>
+                                <td class="@(task.DueDate < DateTime.Now && task.Status != TaskStatusEnum.Completed ? "text-danger fw-bold" : "")">
+                                    @task.DueDate?.ToString("MMM dd, yyyy")
+                                    @if (task.DueDate < DateTime.Now && task.Status != TaskStatusEnum.Completed)
+                                    {
+                                        <br /><span class="badge bg-danger">Overdue</span>
+                                    }
+                                </td>
+                                <td>@task.Case?.Title</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="/Calendar/TaskDetails/@task.Id" class="btn btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <button class="btn btn-outline-success update-status" data-id="@task.Id" data-status="@task.Status">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Modal -->
+<div class="modal fade" id="taskModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-tasks"></i> <span id="taskModalTitle">Create Task</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="taskForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="taskId" value="0" />
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label fw-bold">Title <span class="text-danger">*</span></label>
+                            <input type="text" id="taskTitle" class="form-control" required />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Priority</label>
+                            <select id="taskPriority" class="form-select">
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                                <option value="Urgent">Urgent</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description</label>
+                        <textarea id="taskDescription" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Assigned To</label>
+                            <select id="taskAssignedTo" class="form-select">
+                                <option value="">-- Select User --</option>
+                                @if (ViewBag.ActiveUsers != null)
+                                {
+                                    foreach (var user in ViewBag.ActiveUsers as List<ApplicationUser> ?? new List<ApplicationUser>())
+                                    {
+                                        <option value="@user.Id">@user.FullName (@user.Role)</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Due Date</label>
+                            <input type="date" id="taskDueDate" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Related Case</label>
+                            <select id="taskCaseId" class="form-select">
+                                <option value="">-- Select Case --</option>
+                                @if (ViewBag.Cases != null)
+                                {
+                                    foreach (var caseItem in ViewBag.Cases as SelectList ?? new SelectList(new List<object>()))
+                                    {
+                                        <option value="@caseItem.Value">@caseItem.Text</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Estimated Hours</label>
+                            <input type="number" id="taskEstimatedHours" class="form-control" step="0.5" min="0" />
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input type="checkbox" id="taskIsBillable" class="form-check-input" />
+                        <label class="form-check-label" for="taskIsBillable">Billable Task</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            loadTaskStats();
+            
+            // Filter functionality
+            $('#statusFilter, #priorityFilter, #assignedFilter').change(function() {
+                filterTable();
+            });
+            
+            $('#searchTasks').on('keyup', function() {
+                filterTable();
+            });
+            
+            $('#clearFilters').click(function() {
+                $('#statusFilter').val('');
+                $('#priorityFilter').val('');
+                $('#assignedFilter').val('');
+                $('#searchTasks').val('');
+                filterTable();
+            });
+            
+            // Update task status
+            $('.update-status').click(function() {
+                var id = $(this).data('id');
+                var currentStatus = $(this).data('status');
+                var newStatus = currentStatus === 'Completed' ? 'InProgress' : 'Completed';
+                
+                $.ajax({
+                    url: '/Calendar/UpdateTaskStatus',
+                    type: 'POST',
+                    data: { id: id, status: newStatus },
+                    headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                    success: function(response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            showAlert('Error updating task', 'danger');
+                        }
+                    }
+                });
+            });
+            
+            // Task form submission
+            $('#taskForm').submit(function(e) {
+                e.preventDefault();
+                var taskId = $('#taskId').val();
+                var url = '/Calendar/CreateTask';
+                var method = 'POST';
+                
+                var taskData = {
+                    Title: $('#taskTitle').val(),
+                    Description: $('#taskDescription').val(),
+                    Priority: $('#taskPriority').val(),
+                    AssignedToId: $('#taskAssignedTo').val() || null,
+                    DueDate: $('#taskDueDate').val(),
+                    CaseId: $('#taskCaseId').val() || null,
+                    EstimatedHours: $('#taskEstimatedHours').val(),
+                    IsBillable: $('#taskIsBillable').is(':checked')
+                };
+                
+                $.ajax({
+                    url: url,
+                    type: method,
+                    contentType: 'application/json',
+                    data: JSON.stringify(taskData),
+                    headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                    success: function(response) {
+                        if (response.success) {
+                            $('#taskModal').modal('hide');
+                            location.reload();
+                            showAlert('Task created successfully!', 'success');
+                        } else {
+                            showAlert(response.error || 'Error saving task', 'danger');
+                        }
+                    },
+                    error: function() {
+                        showAlert('Error saving task', 'danger');
+                    }
+                });
+            });
+        });
+        
+        function filterTable() {
+            var status = $('#statusFilter').val();
+            var priority = $('#priorityFilter').val();
+            var assigned = $('#assignedFilter').val();
+            var search = $('#searchTasks').val().toLowerCase();
+            
+            $('#tasksTable tbody tr').each(function() {
+                var show = true;
+                var rowStatus = $(this).find('td:eq(2)').text().trim();
+                var rowPriority = $(this).find('td:eq(1)').text().trim();
+                var rowAssigned = $(this).find('td:eq(3)').text().trim();
+                var rowText = $(this).text().toLowerCase();
+                
+                if (status && rowStatus !== status) show = false;
+                if (priority && rowPriority !== priority) show = false;
+                if (assigned && rowAssigned !== assigned) show = false;
+                if (search && !rowText.includes(search)) show = false;
+                
+                $(this).toggle(show);
+            });
+        }
+        
+        function loadTaskStats() {
+            $.get('/Calendar/GetTaskSummary', function(data) {
+                $('#totalTasks').text(data.total);
+                $('#inProgressTasks').text(data.inProgress);
+                $('#completedTasks').text(data.completed);
+                $('#overdueTasks').text(data.overdue);
+            });
+        }
+        
+        function resetTaskForm() {
+            $('#taskId').val('0');
+            $('#taskModalTitle').text('Create Task');
+            $('#taskForm')[0].reset();
+        }
+        
+        function showAlert(message, type) {
+            var alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3" style="z-index: 9999; min-width: 300px;">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            $('body').append(alertHtml);
+            setTimeout(function() {
+                $('.alert').fadeOut(500, function() { $(this).remove(); });
+            }, 3000);
+        }
+    </script>
+}

@@ -1,0 +1,33 @@
+@{ ViewData["Title"] = "Sign in"; Layout = null; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+ <title>Sign in - Simplex Law</title>
+ <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+ <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+ <link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/>
+</head>
+<body class="auth-page">
+ <main class="auth-shell">
+  <section class="auth-story">
+   <a href="/" class="brand-lockup"><span class="brand-mark"><img src="/images/brand/lady-justice.png" alt="Lady Justice" /></span><span><b>Simplex</b><small>Legal workspace</small></span></a>
+   <div><span class="eyebrow">Secure client & practice portal</span><h1>Legal work,<br/>made beautifully clear.</h1><p>One calm, secure space for matters, documents, appointments, billing and communication.</p></div>
+   <div class="trust-notes"><span><i class="fas fa-shield-halved"></i> Protected access</span><span><i class="fas fa-scale-balanced"></i> Built for legal work</span><span><i class="fas fa-circle-check"></i> Always auditable</span></div>
+  </section>
+  <section class="auth-panel">
+   <div class="auth-card">
+    <span class="eyebrow">Welcome back</span><h2>Sign in to Simplex</h2><p class="muted">Enter your account details to continue.</p>
+    @if(TempData["Success"] != null){<div class="alert alert-success">@TempData["Success"]</div>}
+    @if(TempData["Error"] != null){<div class="alert alert-danger">@TempData["Error"]</div>}
+    <form method="post" action="/Home/Login" class="stack-form">@Html.AntiForgeryToken()
+     <label>Email address<div class="input-icon"><i class="fas fa-envelope"></i><input type="email" name="emailAddress" autocomplete="email" required autofocus/></div></label>
+     <label>Password<div class="input-icon"><i class="fas fa-lock"></i><input type="password" name="password" autocomplete="current-password" required/></div></label>
+     <div class="auth-options"><label class="check-line"><input type="checkbox" name="rememberMe"/> Keep me signed in</label><a href="/Home/ForgotPassword">Forgot password?</a></div>
+     <button type="submit" class="btn-primary-modern auth-submit">Sign in securely <i class="fas fa-arrow-right"></i></button>
+    </form>
+    <p class="auth-footer">New to Simplex? <a href="/Home/Register">Request an account</a></p>
+   </div>
+  </section>
+ </main>
+</body></html>

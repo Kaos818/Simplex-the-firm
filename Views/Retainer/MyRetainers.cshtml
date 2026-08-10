@@ -1,0 +1,160 @@
+﻿@model List<SimplexLawFirm.Models.Retainer>
+
+@{
+    ViewData["Title"] = "My Retainers";
+    Layout = "_ClientLayout";
+}
+
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-file-signature text-primary"></i> My Retainers
+                    </h1>
+                    <p class="text-muted">Manage your legal service agreements</p>
+                </div>
+                <div>
+                    <a href="/Retainer/ServiceCatalog" class="btn btn-primary btn-lg">
+                        <i class="fas fa-plus-circle"></i> Request New Service
+                    </a>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Active Retainers</h6>
+                            <h2 class="mb-0">@ViewBag.ActiveCount</h2>
+                        </div>
+                        <i class="fas fa-check-circle fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Pending Review</h6>
+                            <h2 class="mb-0">@ViewBag.PendingCount</h2>
+                        </div>
+                        <i class="fas fa-clock fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Awaiting Payment</h6>
+                            <h2 class="mb-0">@ViewBag.AwaitingPaymentCount</h2>
+                        </div>
+                        <i class="fas fa-credit-card fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-secondary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Completed</h6>
+                            <h2 class="mb-0">@ViewBag.CompletedCount</h2>
+                        </div>
+                        <i class="fas fa-check-double fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-file-contract fa-5x text-muted mb-3"></i>
+            <h3 class="text-muted">No Retainers Found</h3>
+            <p class="text-muted">You haven't created any retainers yet.</p>
+            <a href="/Retainer/ServiceCatalog" class="btn btn-primary btn-lg">
+                <i class="fas fa-plus-circle"></i> Request Your First Service
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var retainer in Model)
+            {
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-header bg-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge @(retainer.Status == RetainerStatus.Active ? "bg-success" :
+                                                                                                                             (retainer.Status == RetainerStatus.PendingApproval ? "bg-warning" :
+                                                                                                                             (retainer.Status == RetainerStatus.AwaitingPayment ? "bg-info" : "bg-secondary")))">
+                                    @retainer.Status
+                                </span>
+                                <small class="text-muted">@retainer.CreatedDate.ToString("dd MMM yyyy")</small>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title">@retainer.Title</h5>
+                            <p class="card-text text-muted small">
+                                <i class="fas fa-tag"></i> @retainer.Type<br />
+                                <i class="fas fa-money-bill-wave text-success"></i> R @retainer.Amount.ToString("N2")
+                            </p>
+                            @if (retainer.Status == RetainerStatus.Active)
+                            {
+                                <div class="alert alert-success py-1 small">
+                                    <i class="fas fa-check-circle"></i> Active until @(retainer.EndDate?.ToString("dd MMM yyyy") ?? "Ongoing")
+                                </div>
+                                <div class="fw-semibold text-primary mb-2">Available: R @retainer.AvailableBalance.ToString("N2")</div>
+                            }
+                            else if (retainer.Status == RetainerStatus.AwaitingPayment && retainer.SignatureToken != null)
+                            {
+                                <div class="alert alert-warning py-1 small">
+                                    <i class="fas fa-credit-card"></i> Payment required to activate
+                                </div>
+                            }
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="btn-group w-100" role="group">
+                                <a href="/Retainer/ClientRetainerDetails/@retainer.Id" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                                @if (retainer.Status == RetainerStatus.AwaitingPayment && retainer.SignatureToken != null)
+                                {
+                                    <a href="/Retainer/MakePayment?id=@retainer.Id&token=@retainer.SignatureToken" class="btn btn-success btn-sm">
+                                        <i class="fas fa-credit-card"></i> Pay Now
+                                    </a>
+                                }
+                                @if (retainer.Status == RetainerStatus.Active)
+                                {
+                                    <a href="/Retainer/DepositToRetainer/@retainer.Id" class="btn btn-success btn-sm"><i class="fas fa-wallet"></i> Top Up</a>
+                                }
+                                @if (retainer.PdfPath != null)
+                                {
+                                    <a href="/Retainer/DownloadRetainerPdf/@retainer.Id" class="btn btn-outline-secondary btn-sm" target="_blank">
+                                        <i class="fas fa-download"></i> PDF
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

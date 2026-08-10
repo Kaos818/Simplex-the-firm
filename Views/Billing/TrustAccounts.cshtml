@@ -1,0 +1,386 @@
+﻿@model List<SimplexLawFirm.Models.TrustAccount>
+
+@{
+    ViewData["Title"] = "Trust Accounts";
+    // The same ledger is available to authorised staff, but accountants work
+    // from the dedicated Accounts Chamber rather than the director menu.
+    Layout = Context.Session.GetString("UserRole") == nameof(UserRole.Accountant)
+        ? "_AccountantLayout"
+        : "_AdminLayout";
+    
+    var totalBalance = Model.Sum(t => t.Balance);
+    var totalDeposited = Model.Sum(t => t.TotalDeposited);
+    var totalWithdrawn = Model.Sum(t => t.TotalWithdrawn);
+    var activeAccounts = Model.Count(t => t.Balance > 0);
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-bank text-primary"></i> Trust Accounts
+                    </h1>
+                    <p class="text-muted">Manage client trust accounts and monitor balances</p>
+                </div>
+                <div>
+                    <button class="btn btn-success" onclick="exportToCSV()">
+                        <i class="fas fa-file-excel"></i> Export Report
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="window.print()">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Accounts</h6>
+                            <h2 class="mb-0">@Model.Count</h2>
+                        </div>
+                        <i class="fas fa-users fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Balance</h6>
+                            <h2 class="mb-0">R @totalBalance.ToString("N0")</h2>
+                        </div>
+                        <i class="fas fa-dollar-sign fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Deposited</h6>
+                            <h2 class="mb-0">R @totalDeposited.ToString("N0")</h2>
+                        </div>
+                        <i class="fas fa-arrow-down fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Active Accounts</h6>
+                            <h2 class="mb-0">@activeAccounts</h2>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fas fa-filter"></i> Filter Accounts</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Search Client</label>
+                    <input type="text" id="searchInput" class="form-control" placeholder="Client name or email..." />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Min Balance</label>
+                    <input type="number" id="minBalance" class="form-control" placeholder="0" step="1000" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Max Balance</label>
+                    <input type="number" id="maxBalance" class="form-control" placeholder="Any" step="1000" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <button id="clearFilters" class="btn btn-outline-secondary w-100">
+                        <i class="fas fa-undo"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-bank fa-5x text-muted mb-3"></i>
+            <h3 class="text-muted">No Trust Accounts</h3>
+            <p class="text-muted">No trust accounts have been created yet.</p>
+            <p class="text-muted small">Trust accounts are automatically created when clients make their first deposit.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> Trust Account List
+                        <span class="badge bg-secondary ms-2" id="accountCount">@Model.Count accounts</span>
+                    </h5>
+                    <div>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="sortTable('name')">
+                                <i class="fas fa-sort-alpha-down"></i> Sort by Name
+                            </button>
+                            <button class="btn btn-outline-success" onclick="sortTable('balance')">
+                                <i class="fas fa-sort-numeric-down"></i> Sort by Balance
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="trustAccountsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Client Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Current Balance</th>
+                                <th>Total Deposited</th>
+                                <th>Total Withdrawn</th>
+                                <th>Last Updated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var account in Model.OrderByDescending(a => a.Balance))
+                            {
+                                <tr data-balance="@account.Balance">
+                                    <td>
+                                        <strong>@($"{account.Client?.FirstName} {account.Client?.LastName}".Trim())</strong>
+                                    </td>
+                                    <td>@account.Client?.Email</td>
+                                    <td>@account.Client?.Phone</td>
+                                    <td>
+                                        <span class="fw-bold @(account.Balance > 0 ? "text-success" : "text-muted")">
+                                            R @account.Balance.ToString("N2")
+                                        </span>
+                                        @if (account.Balance == 0)
+                                        {
+                                            <br />
+                                            <span class="badge bg-secondary">Zero Balance</span>
+                                        }
+                                        else if (account.Balance > 10000)
+                                        {
+                                            <br />
+                                            <span class="badge bg-info">High Balance</span>
+                                        }
+                                    </td>
+                                    <td>R @account.TotalDeposited.ToString("N2")</td>
+                                    <td>R @account.TotalWithdrawn.ToString("N2")</td>
+                                    <td>@account.LastUpdated.ToString("MMM dd, yyyy")</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="/Retainer/AdminTrustDetails/@account.Id" class="btn btn-outline-primary" title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="/Client/Details/@account.ClientId" class="btn btn-outline-info" title="View Client">
+                                                <i class="fas fa-user"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="3" class="text-end">Totals:</th>
+                                <th class="text-success">R @totalBalance.ToString("N2")</th>
+                                <th>R @totalDeposited.ToString("N2")</th>
+                                <th>R @totalWithdrawn.ToString("N2")</th>
+                                <th colspan="2"></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white">
+                <div class="row">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            Showing trust accounts with total balance of <strong>R @totalBalance.ToString("N2")</strong>
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small class="text-muted">
+                            <i class="fas fa-lock"></i> All funds are held in regulated trust accounts
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .stat-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        cursor: pointer;
+    }
+    
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+        }
+    
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+        cursor: pointer;
+    }
+    
+    .btn-group .btn {
+        padding: 0.25rem 0.5rem;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        let currentSort = { column: 'balance', direction: 'desc' };
+        
+        $(document).ready(function() {
+            // Search functionality
+            $('#searchInput').on('keyup', function() {
+                filterTable();
+            });
+            
+            // Balance filters
+            $('#minBalance, #maxBalance').on('keyup change', function() {
+                filterTable();
+            });
+            
+            // Clear filters
+            $('#clearFilters').click(function() {
+                $('#searchInput').val('');
+                $('#minBalance').val('');
+                $('#maxBalance').val('');
+                filterTable();
+            });
+            
+            // Row click to view details
+            $('#trustAccountsTable tbody tr').click(function(e) {
+                if (!$(e.target).closest('.btn-group').length && !$(e.target).closest('a').length) {
+                    var viewLink = $(this).find('.btn-outline-primary').attr('href');
+                    if (viewLink) {
+                        window.location.href = viewLink;
+                    }
+                }
+            });
+            
+            function filterTable() {
+                var searchTerm = $('#searchInput').val().toLowerCase();
+                var minBalance = parseFloat($('#minBalance').val()) || 0;
+                var maxBalance = parseFloat($('#maxBalance').val()) || Infinity;
+                var visibleCount = 0;
+                
+                $('#trustAccountsTable tbody tr').each(function() {
+                    var row = $(this);
+                    var name = row.find('td:first').text().toLowerCase();
+                    var email = row.find('td:eq(1)').text().toLowerCase();
+                    var balance = parseFloat(row.data('balance')) || 0;
+                    
+                    var matchesSearch = searchTerm === '' || name.includes(searchTerm) || email.includes(searchTerm);
+                    var matchesMinBalance = balance >= minBalance;
+                    var matchesMaxBalance = balance <= maxBalance;
+                    
+                    if (matchesSearch && matchesMinBalance && matchesMaxBalance) {
+                        row.show();
+                        visibleCount++;
+                    } else {
+                        row.hide();
+                    }
+                });
+                
+                $('#accountCount').text(visibleCount + ' account' + (visibleCount !== 1 ? 's' : ''));
+            }
+        });
+        
+        function sortTable(column) {
+            var table = document.getElementById('trustAccountsTable');
+            var tbody = table.querySelector('tbody');
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc';
+            }
+            
+            rows.sort(function(a, b) {
+                var aVal, bVal;
+                
+                if (column === 'name') {
+                    aVal = a.querySelector('td:first-child').innerText.trim();
+                    bVal = b.querySelector('td:first-child').innerText.trim();
+                } else if (column === 'balance') {
+                    aVal = parseFloat(a.querySelector('td:nth-child(4)').innerText.replace('R', '').replace(',', '')) || 0;
+                    bVal = parseFloat(b.querySelector('td:nth-child(4)').innerText.replace('R', '').replace(',', '')) || 0;
+                }
+                
+                if (currentSort.direction === 'asc') {
+                    return aVal > bVal ? 1 : -1;
+                } else {
+                    return aVal < bVal ? 1 : -1;
+                }
+            });
+            
+            rows.forEach(function(row) {
+                tbody.appendChild(row);
+            });
+        }
+        
+        function exportToCSV() {
+            var csv = [];
+            var rows = document.querySelectorAll('#trustAccountsTable tr');
+            
+            rows.forEach(function(row) {
+                var rowData = [];
+                var cells = row.querySelectorAll('th, td');
+                cells.forEach(function(cell, index) {
+                    // Skip actions column (last column)
+                    if (index < cells.length - 1 || row.tagName === 'THEAD') {
+                        var text = cell.innerText.trim();
+                        rowData.push('"' + text.replace(/"/g, '""') + '"');
+                    }
+                });
+                csv.push(rowData.join(','));
+            });
+            
+            var blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = `TrustAccounts_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+    </script>
+}

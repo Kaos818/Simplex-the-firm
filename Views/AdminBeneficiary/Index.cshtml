@@ -1,0 +1,2 @@
+@model IEnumerable<SimplexLawFirm.Models.Beneficiaries.Beneficiary>
+<h1>Beneficiary review</h1><table class="table">@foreach(var item in Model){<tr><td>@item.FirstName @item.LastName</td><td>@item.Status</td><td><a asp-action="Details" asp-route-id="@item.Id">Review</a></td></tr>}</table>

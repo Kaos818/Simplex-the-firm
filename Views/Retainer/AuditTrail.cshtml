@@ -1,0 +1,132 @@
+﻿@model List<SimplexLawFirm.Models.RetainerActionLog>
+
+@{
+    ViewData["Title"] = "Audit Trail";
+    Layout = "_AdminLayout";
+    var retainer = ViewBag.Retainer as SimplexLawFirm.Models.Retainer;
+}
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-history fa-2x me-2"></i>
+                            <h2 class="d-inline-block mb-0">Audit Trail</h2>
+                        </div>
+                        <a href="/Retainer/Details/@retainer?.Id" class="btn btn-light">
+                            <i class="fas fa-arrow-left"></i> Back to Retainer
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-4">
+                        <strong>Retainer:</strong> @retainer?.Title<br />
+                        <strong>Client:</strong> @retainer?.Client?.FullName<br />
+                        <strong>Current Status:</strong> <span class="badge bg-primary">@retainer?.Status</span>
+                    </div>
+
+                    @if (!Model.Any())
+                    {
+                        <div class="text-center py-5">
+                            <i class="fas fa-history fa-4x text-muted mb-3"></i>
+                            <p class="text-muted">No actions have been recorded for this retainer yet.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="timeline">
+                            @foreach (var log in Model)
+                            {
+                                <div class="timeline-item mb-4">
+                                    <div class="d-flex">
+                                        <div class="flex-shrink-0">
+                                            <div class="timeline-icon bg-@(GetIconColor(log.Action)) rounded-circle p-2 text-white text-center" style="width: 40px;">
+                                                <i class="fas @GetIcon(log.Action)"></i>
+                                            </div>
+                                        </div>
+                                        <div class="flex-grow-1 ms-3">
+                                            <div class="card">
+                                                <div class="card-header bg-light">
+                                                    <div class="d-flex justify-content-between">
+                                                        <strong>@log.Action</strong>
+                                                        <small class="text-muted">@log.CreatedAt.ToString("dd MMM yyyy HH:mm:ss")</small>
+                                                    </div>
+                                                </div>
+                                                <div class="card-body">
+                                                    <p class="mb-1">@log.Details</p>
+                                                    <small class="text-muted">By: @(log.User?.FullName ?? "System")</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .timeline-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+    }
+    .bg-success-custom { background-color: #28a745; }
+    .bg-warning-custom { background-color: #ffc107; }
+    .bg-danger-custom { background-color: #dc3545; }
+    .bg-info-custom { background-color: #17a2b8; }
+    .bg-secondary-custom { background-color: #6c757d; }
+</style>
+
+@functions {
+    string GetIcon(string action)
+    {
+        return action switch
+        {
+            "Created" => "fa-plus-circle",
+            "SubmittedForApproval" => "fa-paper-plane",
+            "Approved" => "fa-check-circle",
+            "Rejected" => "fa-times-circle",
+            "ChangesRequested" => "fa-edit",
+            "ChangesRequestedByClient" => "fa-user-edit",
+            "Signed" => "fa-signature",
+            "Activated" => "fa-play-circle",
+            "Cancelled" => "fa-ban",
+            "Edited" => "fa-pen",
+            "Renewed" => "fa-sync-alt",
+            "BillingGenerated" => "fa-file-invoice-dollar",
+            "PartialPayment" => "fa-money-bill-wave",
+            _ => "fa-info-circle"
+        };
+    }
+
+    string GetIconColor(string action)
+    {
+        return action switch
+        {
+            "Created" => "success",
+            "SubmittedForApproval" => "warning",
+            "Approved" => "success",
+            "Rejected" => "danger",
+            "ChangesRequested" => "warning",
+            "ChangesRequestedByClient" => "info",
+            "Signed" => "primary",
+            "Activated" => "success",
+            "Cancelled" => "danger",
+            "Edited" => "secondary",
+            "Renewed" => "info",
+            "BillingGenerated" => "primary",
+            "PartialPayment" => "success",
+            _ => "secondary"
+        };
+    }
+}

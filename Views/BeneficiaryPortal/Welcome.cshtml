@@ -1,0 +1,23 @@
+@model SimplexLawFirm.Models.Beneficiaries.Beneficiary
+<h1>Welcome, @Model.FirstName</h1>
+<p>Your limited beneficiary portal lets you review the recorded assets and access terms, then submit an access request.</p>
+<nav class="nav nav-tabs mb-3" aria-label="Beneficiary portal sections"><a class="nav-link active" asp-action="Assets">Assets and terms</a><a class="nav-link" asp-action="Documents">Seek access</a><a class="nav-link" asp-action="TrustRequests">Trust requests</a></nav>
+<section class="card p-4 mb-3">
+<h2 class="h4">Your potential entitlement</h2>
+<p style="white-space:pre-wrap">@Model.EntitlementDescription</p>
+@if(Model.EntitlementAmountLimit is > 0){<p><strong>Your maximum recorded cash entitlement:</strong> R @Model.EntitlementAmountLimit.Value.ToString("N2")</p>}
+else{<p class="text-muted">No cash entitlement is recorded for you. No client or trust balance is disclosed.</p>}
+<h2 class="h4">When access may be available</h2>
+<p>
+@if (Model.AccessEligibleFromUtc is not null) { <span>From @(Model.AccessEligibleFromUtc.Value.ToString("dd MMMM yyyy")).</span> }
+else { <span>No automatic start date is recorded; authorised review is required.</span> }
+@if (Model.AccessEligibleUntilUtc is not null) { <span> Access eligibility ends @(Model.AccessEligibleUntilUtc.Value.ToString("dd MMMM yyyy")).</span> }
+</p>
+<h2 class="h4">Permitted purposes</h2>
+<p style="white-space:pre-wrap">@(string.IsNullOrWhiteSpace(Model.PermittedAssetPurposes) ? "Subject to the trust terms and authorised review." : Model.PermittedAssetPurposes)</p>
+<h2 class="h4">Terms and conditions</h2>
+<p style="white-space:pre-wrap">@Model.AssetAccessTerms</p>
+</section>
+<div class="alert alert-info">Identity verification and portal access do not release assets automatically. The Director or authorised trust official must approve any later access or payment request.</div>
+@if (Model.Status == SimplexLawFirm.Models.Beneficiaries.BeneficiaryStatus.Approved) { <a asp-action="BankDetails" class="btn btn-outline-primary me-2">Add payout bank details</a> }
+<a asp-action="Documents" class="btn btn-primary">I have reviewed the terms — continue</a>

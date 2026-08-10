@@ -1,0 +1,274 @@
+﻿@model SimplexLawFirm.Models.LawyerReviewViewModel
+
+@{
+    ViewData["Title"] = "Review Retainer";
+    Layout = "_LawyerLayout";
+    var retainer = Model.Retainer;
+}
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-lg border-0 mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-gavel fa-2x me-2"></i>
+                            <h2 class="d-inline-block mb-0">Lawyer Review</h2>
+                        </div>
+                        <span class="badge bg-dark fs-6">Pending Your Review</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Retainer Details -->
+                    <div class="mb-4">
+                        <h4 class="border-bottom pb-2">@retainer.Title</h4>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <strong>Client:</strong> @retainer.Client?.FullName<br />
+                                <strong>Case:</strong> @(retainer.Case?.Title ?? "Not linked")<br />
+                                <strong>Template:</strong> @(retainer.Template?.Name ?? "Custom")
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Created:</strong> @retainer.CreatedDate.ToString("dd MMM yyyy")<br />
+                                <strong>Submitted:</strong> @(retainer.SubmittedForApprovalDate?.ToString("dd MMM yyyy") ?? "N/A")<br />
+                                <strong>Amount:</strong> <span class="text-success fw-bold">R @retainer.Amount.ToString("N2")</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scope of Work -->
+                    <div class="mb-4">
+                        <h5><i class="fas fa-file-alt text-primary"></i> Scope of Work</h5>
+                        <div class="p-3 bg-light rounded">
+                            @Html.Raw(retainer.ScopeOfWork?.Replace("\n", "<br />"))
+                        </div>
+                    </div>
+
+                    <!-- Special Terms -->
+                    @if (!string.IsNullOrEmpty(retainer.SpecialTerms))
+                    {
+                        <div class="mb-4">
+                            <h5><i class="fas fa-exclamation-triangle text-warning"></i> Special Terms</h5>
+                            <div class="p-3 bg-light rounded">
+                                @Html.Raw(retainer.SpecialTerms?.Replace("\n", "<br />"))
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Fee Structure -->
+                    <div class="mb-4">
+                        <h5><i class="fas fa-money-bill-wave text-success"></i> Fee Structure</h5>
+                        <table class="table table-sm table-bordered">
+                            <tr>
+                                <th style="width: 200px">Retainer Type:</th>
+                                <td>@retainer.Type</td>
+                            </tr>
+                            <tr>
+                                <th>Total Amount:</th>
+                                <td class="fw-bold text-success">R @retainer.Amount.ToString("N2")</td>
+                            </tr>
+                            <tr>
+                                <th>Billing Cycle:</th>
+                                <td>@retainer.BillingCycle</td>
+                            </tr>
+                            @if (retainer.IncludedHours > 0)
+                            {
+                                <tr>
+                                    <th>Included Hours:</th>
+                                    <td>@retainer.IncludedHours hours</td>
+                                </tr>
+                            }
+                            @if (retainer.OverageRate > 0)
+                            {
+                                <tr>
+                                    <th>Overage Rate:</th>
+                                    <td>R @retainer.OverageRate.ToString("N2")/hour</td>
+                                </tr>
+                            }
+                            <tr>
+                                <th>Upfront Payment Required:</th>
+                                <td>@(retainer.RequiresUpfrontPayment ? "Yes" : "No")</td>
+                            </tr>
+                            @if (retainer.RequiresUpfrontPayment)
+                            {
+                                <tr>
+                                    <th>Payment Due Days:</th>
+                                    <td>@retainer.PaymentDueDays days after approval</td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+
+                    <!-- Dates -->
+                    <div class="mb-4">
+                        <h5><i class="fas fa-calendar-alt text-info"></i> Effective Dates</h5>
+                        <table class="table table-sm table-bordered">
+                            <tr>
+                                <th style="width: 200px">Start Date:</th>
+                                <td>@retainer.StartDate.ToString("dd MMM yyyy")</td>
+                            </tr>
+                            @if (retainer.EndDate.HasValue)
+                            {
+                                <tr>
+                                    <th>End Date:</th>
+                                    <td>@retainer.EndDate.Value.ToString("dd MMM yyyy")</td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+
+                    <!-- Admin Notes -->
+                    @if (!string.IsNullOrEmpty(retainer.AdminNotes))
+                    {
+                        <div class="mb-4">
+                            <h5><i class="fas fa-sticky-note text-secondary"></i> Admin Notes</h5>
+                            <div class="p-3 bg-light rounded">
+                                @Html.Raw(retainer.AdminNotes?.Replace("\n", "<br />"))
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Audit Trail -->
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-history"></i> Audit Trail</h5>
+                </div>
+                <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                    @if (Model.ActionLogs.Any())
+                    {
+                        <ul class="list-group list-group-flush">
+                            @foreach (var log in Model.ActionLogs)
+                            {
+                                <li class="list-group-item">
+                                    <div class="d-flex justify-content-between">
+                                        <strong>@log.Action</strong>
+                                        <small class="text-muted">@log.CreatedAt.ToString("dd MMM yyyy HH:mm")</small>
+                                    </div>
+                                    <div class="text-muted small">@log.Details</div>
+                                    <div class="text-muted smaller">By: @(log.User?.FullName ?? "System")</div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center">No actions recorded yet.</p>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Review Actions Card -->
+            <div class="card shadow-lg border-0 mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-double"></i> Review Actions</h5>
+                </div>
+                <div class="card-body">
+                    <form id="approveForm" method="post" action="/Retainer/Approve">
+                        <input type="hidden" name="id" value="@retainer.Id" />
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Lawyer Notes (Optional)</label>
+                            <textarea name="lawyerNotes" class="form-control" rows="3" placeholder="Add any notes or conditions..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" name="requiresUpfrontPayment" id="requiresUpfrontPayment" value="true" checked="@retainer.RequiresUpfrontPayment" />
+                                <label class="form-check-label" for="requiresUpfrontPayment">Requires Upfront Payment</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Payment Due Days</label>
+                            <input type="number" name="paymentDueDays" class="form-control" value="@retainer.PaymentDueDays" min="1" max="90" />
+                        </div>
+                        <button type="submit" class="btn btn-success w-100 mb-2" onclick="return confirm('Approve this retainer? The client will be notified to sign and pay.');">
+                            <i class="fas fa-check-circle"></i> Approve Retainer
+                        </button>
+                    </form>
+
+                    <button type="button" class="btn btn-warning w-100 mb-2" data-bs-toggle="modal" data-bs-target="#requestChangesModal">
+                        <i class="fas fa-edit"></i> Request Changes
+                    </button>
+
+                    <button type="button" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                        <i class="fas fa-times-circle"></i> Reject
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status Info Card -->
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Status Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <strong>Current Status:</strong>
+                        <span class="badge bg-warning ms-2">@retainer.Status</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Submitted By:</strong> @(retainer.SubmittedByUser?.FullName ?? "Unknown")
+                    </div>
+                    <div class="mb-2">
+                        <strong>Submitted On:</strong> @(retainer.SubmittedForApprovalDate?.ToString("dd MMM yyyy HH:mm") ?? "N/A")
+                    </div>
+                    <hr />
+                    <div class="small text-muted">
+                        <i class="fas fa-shield-alt"></i> As the reviewing lawyer, you have the authority to approve, request changes, or reject this retainer. All actions will be logged for accountability.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Request Changes Modal -->
+<div class="modal fade" id="requestChangesModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> Request Changes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="/Retainer/RequestChanges">
+                <input type="hidden" name="id" value="@retainer.Id" />
+                <div class="modal-body">
+                    <p>Please specify what changes are needed for this retainer:</p>
+                    <textarea name="requestedChanges" class="form-control" rows="5" required placeholder="Describe the changes required..."></textarea>
+                    <p class="text-muted small mt-2">The retainer will be sent back to draft status for editing.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Request Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-times-circle"></i> Reject Retainer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="/Retainer/Reject">
+                <input type="hidden" name="id" value="@retainer.Id" />
+                <div class="modal-body">
+                    <p>Please provide a reason for rejection:</p>
+                    <textarea name="rejectionReason" class="form-control" rows="5" required placeholder="Explain why this retainer is being rejected..."></textarea>
+                    <p class="text-muted small mt-2">The retainer will be marked as rejected and sent back for revision.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Reject Retainer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

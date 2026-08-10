@@ -1,0 +1,5 @@
+@model SimplexLawFirm.Models.VulnerableClientFlag
+@{ ViewData["Title"]="Review client safeguard"; Layout="_AdminLayout"; }
+<div class="page-hero compact"><div><span class="eyebrow">Director decision</span><h1>@Model.Safeguard safeguard</h1><p>@Model.Client.FullName · @Model.Status</p></div></div>
+<section class="surface"><h3>Reason recorded by @Model.RaisedByAttorney.FullName</h3><p>@Model.Reason</p>@if(!string.IsNullOrWhiteSpace(Model.LanguageRequired)){<p><b>Language:</b> @Model.LanguageRequired</p>}
+<form method="post">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Id"/><label class="form-label">Director's reasons</label><textarea name="note" class="form-control" rows="5" required></textarea><div class="d-flex gap-2 mt-3"><button name="confirm" value="true" class="btn btn-success">Confirm safeguard</button><button name="confirm" value="false" class="btn btn-danger">Remove safeguard</button></div></form></section>

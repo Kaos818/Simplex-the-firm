@@ -1,0 +1,351 @@
+﻿@using Microsoft.AspNetCore.Http
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Simplex Law Firm</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+        /* Toast Notification Styles */
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        @@keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @@keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+        
+        .toast-notification.fade-out {
+            animation: slideOutRight 0.3s ease-out forwards;
+        }
+        
+        /* Sidebar Styles */
+        .wrapper {
+            display: flex;
+            width: 100%;
+            align-items: stretch;
+        }
+        
+        .sidebar {
+            min-width: 250px;
+            max-width: 250px;
+            background: #2c3e50;
+            color: #fff;
+            transition: all 0.3s;
+            min-height: 100vh;
+        }
+        
+        .sidebar.active {
+            margin-left: -250px;
+        }
+        
+        .sidebar .sidebar-header {
+            padding: 20px;
+            background: #1a252f;
+        }
+        
+        .sidebar ul.components {
+            padding: 20px 0;
+        }
+        
+        .sidebar ul li a {
+            padding: 10px 20px;
+            font-size: 1.1em;
+            display: block;
+            color: #fff;
+            text-decoration: none;
+        }
+        
+        .sidebar ul li a:hover {
+            background: #34495e;
+        }
+        
+        .sidebar ul li.active > a {
+            background: #3498db;
+        }
+        
+        .content {
+            width: 100%;
+            padding: 20px;
+            min-height: 100vh;
+            transition: all 0.3s;
+        }
+        
+        .navbar-custom {
+            background: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .user-dropdown {
+            cursor: pointer;
+        }
+        
+        /* Loading Spinner */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 99999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @@keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+@{ var isBeneficiaryPortal = string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "BeneficiaryPortal", StringComparison.OrdinalIgnoreCase); }
+<body class="@(isBeneficiaryPortal ? "beneficiary-shell" : null)">
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+    </div>
+    
+    <div class="wrapper">
+        @if (User.Identity.IsAuthenticated || Context.Session.GetString("UserRole") != null)
+        {
+            <!-- Sidebar based on role -->
+            var role = Context.Session.GetString("UserRole");
+            <nav id="sidebar" class="sidebar">
+                <div class="sidebar-header">
+                    <h3 class="sx-sidebar-brand"><img src="/images/brand/lady-justice.png" alt="Lady Justice" /><span><b>Simplex</b><small>Legal workspace</small></span></h3>
+                </div>
+                <ul class="list-unstyled components">
+                    <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Dashboard" ? "active" : "")">
+                        <a href="/Dashboard/@role"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                    </li>
+                    
+                    @if (role == "Admin")
+                    {
+                        <li><a href="/Users"><i class="fas fa-users"></i> Manage Users</a></li>
+                        <li><a href="/Client"><i class="fas fa-user-friends"></i> Clients</a></li>
+                        <li><a href="/Case"><i class="fas fa-folder-open"></i> Cases</a></li>
+                        <li><a href="/Retainer"><i class="fas fa-file-signature"></i> Retainers</a></li>
+                        <li><a href="/Retainer/PendingRequests"><i class="fas fa-clock"></i> Client Requests</a></li>
+                        <li><a href="/Billing/Invoices"><i class="fas fa-file-invoice-dollar"></i> Invoices</a></li>
+                        <li><a href="/Document"><i class="fas fa-folder"></i> Documents</a></li>
+                        <li><a href="/Calendar"><i class="fas fa-calendar-alt"></i> Calendar</a></li>
+                        <li><a href="/AdminBeneficiary"><i class="fas fa-user-shield"></i> Beneficiary Review</a></li>
+                        <li><a href="/Billing/AdminInvoices"><i class="fas fa-receipt"></i> Appointment Billing</a></li>
+                        <li><a href="/Notification/Outbox"><i class="fas fa-envelope"></i> Email Outbox</a></li>
+                        <li><a href="/Notification"><i class="fas fa-bell"></i> Notifications</a></li>
+                    }
+                    else if (role == "Lawyer")
+                    {
+                        <li><a href="/Case/MyCases"><i class="fas fa-gavel"></i> My Cases</a></li>
+                        <li><a href="/Retainer/PendingApprovals"><i class="fas fa-check-double"></i> Pending Approvals</a></li>
+                        <li><a href="/Billing/TimeEntries"><i class="fas fa-hourglass-half"></i> Time Tracking</a></li>
+                        <li><a href="/Document"><i class="fas fa-folder"></i> Documents</a></li>
+                        <li><a href="/Calendar"><i class="fas fa-calendar-alt"></i> My Schedule</a></li>
+                        <li><a href="/Calendar/Tasks"><i class="fas fa-tasks"></i> Tasks</a></li>
+                    }
+                    else if (role == "Client")
+                    {
+                        <li><a href="/Case/MyCases"><i class="fas fa-folder-open"></i> My Cases</a></li>
+                        <li><a href="/Retainer/MyRetainers"><i class="fas fa-file-signature"></i> My Retainers</a></li>
+                        <li><a href="/Retainer/ServiceCatalog"><i class="fas fa-store"></i> Legal Services</a></li>
+                        <li><a href="/Retainer/MyRequests"><i class="fas fa-clock"></i> My Requests</a></li>
+                        <li><a href="/Billing/MyInvoices"><i class="fas fa-file-invoice"></i> My Invoices</a></li>
+                        <li><a href="/Document"><i class="fas fa-folder"></i> My Documents</a></li>
+                        <li><a href="/ConsultationBooking"><i class="fas fa-calendar-alt"></i> Book a Consultation</a></li>
+                        <li><a href="/Beneficiary"><i class="fas fa-people-roof"></i> My Beneficiaries</a></li>
+                        <li><a href="/Notification"><i class="fas fa-calendar-check"></i> Appointment Responses</a></li>
+                        <li><a href="/Notification"><i class="fas fa-bell"></i> Notifications</a></li>
+                    }
+                    else if (role == "Accountant")
+                    {
+                        <li><a href="/Billing/Invoices"><i class="fas fa-file-invoice-dollar"></i> All Invoices</a></li>
+                        <li><a href="/Billing/TrustAccounts"><i class="fas fa-university"></i> Trust Accounts</a></li>
+                        <li><a href="/Billing/TimeEntries"><i class="fas fa-clock"></i> Time Entries</a></li>
+                        <li><a href="/Billing/Invoices"><i class="fas fa-credit-card"></i> Payments</a></li>
+                    }
+                    else if (role == "Paralegal")
+                    {
+                        <li><a href="/Calendar/Tasks"><i class="fas fa-tasks"></i> Tasks</a></li>
+                        <li><a href="/Document"><i class="fas fa-folder"></i> Document Management</a></li>
+                        <li><a href="/Case/Index"><i class="fas fa-sticky-note"></i> Case Notes</a></li>
+                    }
+                    
+                    <li><form action="/Home/Logout" method="post">@Html.AntiForgeryToken()<button type="submit" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</button></form></li>
+                </ul>
+            </nav>
+        }
+
+        <!-- Page Content -->
+        <div id="content" class="content">
+            @if (isBeneficiaryPortal)
+            {
+                <header class="beneficiary-brandbar">
+                    <a href="/" class="beneficiary-brand">
+                        <img src="/images/brand/lady-justice.png" alt="Lady Justice" />
+                        <span><b>Simplex Attorneys</b><small>Beneficiary chamber</small></span>
+                    </a>
+                    <span class="beneficiary-access"><i class="fas fa-shield-halved"></i> Private entitlement access</span>
+                </header>
+            }
+            @if (User.Identity.IsAuthenticated || Context.Session.GetString("UserRole") != null)
+            {
+                <nav class="navbar navbar-custom">
+                    <div class="container-fluid">
+                        <button type="button" id="sidebarCollapse" class="btn btn-info">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <div class="ms-auto">
+                            <div class="dropdown user-dropdown">
+                                <button type="button" class="dropdown-toggle text-dark text-decoration-none border-0 bg-transparent" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-user-circle fa-2x"></i>
+                                    <span>@Context.Session.GetString("UserFullName")</span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="/Users/Profile"><i class="fas fa-user"></i> Profile</a></li>
+                                    <li><a class="dropdown-item" href="/Users/Profile"><i class="fas fa-cog"></i> Settings</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><form action="/Home/Logout" method="post">@Html.AntiForgeryToken()<button type="submit" class="dropdown-item"><i class="fas fa-sign-out-alt"></i> Logout</button></form></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            }
+
+            @RenderBody()
+        </div>
+    </div>
+
+    <!-- Toast Container for Alerts -->
+    <div id="toastContainer"></div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Auto-disappearing alerts
+        function showAlert(message, type) {
+            const toastContainer = $('#toastContainer');
+            const toastId = 'toast_' + Date.now();
+            const icon = type === 'success' ? 'fa-check-circle' : 
+                        (type === 'danger' ? 'fa-exclamation-circle' : 
+                        (type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'));
+            const bgColor = type === 'success' ? '#28a745' : 
+                           (type === 'danger' ? '#dc3545' : 
+                           (type === 'warning' ? '#ffc107' : '#17a2b8'));
+            
+            const toast = $(`
+                <div id="${toastId}" class="toast-notification shadow-lg" style="background: ${bgColor}; color: white; border-radius: 10px;">
+                    <div class="d-flex align-items-center p-3">
+                        <i class="fas ${icon} fa-2x me-3"></i>
+                        <div class="flex-grow-1">
+                            <strong>${type.toUpperCase()}</strong>
+                            <div>${message}</div>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" onclick="closeToast('${toastId}')"></button>
+                    </div>
+                </div>
+            `);
+            
+            toastContainer.append(toast);
+            
+            // Auto remove after 3 seconds
+            setTimeout(() => {
+                closeToast(toastId);
+            }, 3000);
+        }
+        
+        function closeToast(toastId) {
+            $(`#${toastId}`).addClass('fade-out');
+            setTimeout(() => {
+                $(`#${toastId}`).remove();
+            }, 300);
+        }
+        
+        // Check for TempData on page load
+        $(document).ready(function() {
+            @if (TempData["Success"] != null)
+            {
+                <text>showAlert('@Html.Raw(TempData["Success"])', 'success');</text>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <text>showAlert('@Html.Raw(TempData["Error"])', 'danger');</text>
+            }
+            @if (TempData["Warning"] != null)
+            {
+                <text>showAlert('@Html.Raw(TempData["Warning"])', 'warning');</text>
+            }
+            @if (TempData["Info"] != null)
+            {
+                <text>showAlert('@Html.Raw(TempData["Info"])', 'info');</text>
+            }
+            
+            // Sidebar toggle
+            $('#sidebarCollapse').on('click', function() {
+                $('#sidebar').toggleClass('active');
+            });
+            
+            // Auto-hide any bootstrap alerts after 3 seconds
+            $('.alert').delay(3000).fadeOut(300);
+        });
+        
+        // Show loading spinner
+        function showLoading() {
+            $('#loadingOverlay').css('display', 'flex');
+        }
+        
+        function hideLoading() {
+            $('#loadingOverlay').hide();
+        }
+        
+        // AJAX global settings
+        $(document).ajaxStart(function() {
+            showLoading();
+        });
+        
+        $(document).ajaxStop(function() {
+            hideLoading();
+        });
+    </script>
+    
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

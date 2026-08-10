@@ -1,0 +1,7 @@
+@model SimplexLawFirm.ViewModels.StartCostEstimateViewModel
+@{ ViewData["Title"]="Matter cost estimator"; Layout="_Layout"; }
+<div class="public-estimator">
+<div class="page-hero"><div><span class="eyebrow">Transparent legal costs</span><h1>Plan before you instruct.</h1><p>Get an evidence-based cost range built from current Simplex rates and comparable closed matters.</p></div><div class="hero-mark">R.</div></div>
+<div class="estimator-step surface"><div class="step-count">01</div><div><span class="eyebrow">Start with the matter</span><h2>What kind of legal help do you need?</h2><p class="muted">We only estimate where our closed-matter history provides an adequate basis.</p></div><form method="post" action="/CostEstimate/Begin" class="stack-form">@Html.AntiForgeryToken()<div asp-validation-summary="All" class="validation-summary"></div><label>Matter type<input asp-for="MatterType" list="matterTypes" placeholder="e.g. Commercial litigation" required autocomplete="off"/><datalist id="matterTypes">@foreach(var type in ViewBag.MatterTypes){<option value="@type"></option>}</datalist></label><button type="submit" class="btn-primary-modern">Check estimation basis →</button></form></div>
+<div class="trust-strip"><span>Live charge-out rates</span><span>Closed-matter evidence</span><span>Locked assumptions</span><span>Invoice variance control</span></div>
+</div>

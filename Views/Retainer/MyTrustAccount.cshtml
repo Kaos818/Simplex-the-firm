@@ -1,0 +1,164 @@
+﻿@model SimplexLawFirm.Models.ClientTrustViewModel
+@{
+    ViewData["Title"] = "My Trust Account";
+    Layout = "_ClientLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-6 mb-0">
+                        <i class="fas fa-piggy-bank text-primary me-2"></i>My Trust Account
+                    </h1>
+                    <p class="text-muted">Manage your trust account funds and transactions</p>
+                </div>
+                <a href="@Url.Action("DepositToTrust")" class="btn btn-success btn-lg">
+                    <i class="fas fa-plus-circle me-2"></i>Deposit Funds
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Current Balance</h6>
+                            <h2 class="mb-0">R @Model.TrustAccount.Balance.ToString("N2")</h2>
+                        </div>
+                        <i class="fas fa-wallet fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-info text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Total Deposited</h6>
+                            <h2 class="mb-0">R @Model.TrustAccount.TotalDeposited.ToString("N2")</h2>
+                        </div>
+                        <i class="fas fa-arrow-down fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-secondary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Total Withdrawn</h6>
+                            <h2 class="mb-0">R @Model.TrustAccount.TotalWithdrawn.ToString("N2")</h2>
+                        </div>
+                        <i class="fas fa-arrow-up fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-0">
+            <h5 class="mb-0">
+                <i class="fas fa-history me-2"></i>Recent Transactions
+            </h5>
+        </div>
+        <div class="card-body">
+            @if (!Model.RecentTransactions.Any())
+            {
+                <div class="text-center py-4">
+                    <i class="fas fa-receipt fa-4x text-muted mb-3"></i>
+                    <p class="text-muted mb-0">No transactions yet. Make a deposit to get started.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                                <th class="text-end">Amount</th>
+                                <th class="text-end">Balance After</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                decimal runningBalance = 0;
+                                var orderedTransactions = Model.RecentTransactions.OrderBy(t => t.TransactionDate).ToList();
+                            }
+                            @foreach (var transaction in orderedTransactions)
+                            {
+                                runningBalance += transaction.Type == TransactionType.Deposit ? transaction.Amount : -transaction.Amount;
+                                <tr>
+                                    <td>@transaction.TransactionDate.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td>
+                                        @if (transaction.Type == TransactionType.Deposit)
+                                        {
+                                            <span class="badge bg-success">Deposit</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">Withdrawal</span>
+                                        }
+                                    </td>
+                                    <td>@transaction.Description</td>
+                                    <td class="text-end @(transaction.Type == TransactionType.Deposit ? "text-success" : "text-danger")">
+                                        @(transaction.Type == TransactionType.Deposit ? "+" : "-") R @transaction.Amount.ToString("N2")
+                                    </td>
+                                    <td class="text-end">R @runningBalance.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+        <div class="card-footer bg-white border-0">
+            <a href="@Url.Action("TrustTransactionHistory")" class="btn btn-link">
+                View All Transactions <i class="fas fa-arrow-right ms-1"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- Trust Account Information -->
+    <div class="card shadow-sm border-0 mt-4">
+        <div class="card-header bg-white border-0">
+            <h5 class="mb-0">
+                <i class="fas fa-info-circle me-2"></i>About Your Trust Account
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <h6><i class="fas fa-gavel me-2"></i>What is a Trust Account?</h6>
+                <p class="mb-0">A trust account is a separate bank account where your funds are held securely by the law firm. Funds are only used for legal services you have authorized, and you can request a statement at any time.</p>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="border rounded p-3">
+                        <i class="fas fa-shield-alt text-primary mb-2"></i>
+                        <h6>Your Funds Are Protected</h6>
+                        <small class="text-muted">All trust funds are held in accordance with legal regulations and are fully accounted for.</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="border rounded p-3">
+                        <i class="fas fa-chart-line text-primary mb-2"></i>
+                        <h6>Track Every Transaction</h6>
+                        <small class="text-muted">Every deposit and withdrawal is recorded and available for your review at any time.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

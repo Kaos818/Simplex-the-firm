@@ -1,0 +1,277 @@
+﻿@model SimplexLawFirm.Models.ApplicationUser
+@{
+    ViewData["Title"] = "User Details";
+    Layout = "_AdminLayout";
+    var lawyerProfile = ViewBag.LawyerProfile as SimplexLawFirm.Models.LawyerProfile;
+    var client = ViewBag.Client as SimplexLawFirm.Models.Client;
+    var assignedCases = ViewBag.AssignedCases as List<SimplexLawFirm.Models.Case>;
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">
+                <i class="fas @GetUserIcon(Model.Role) text-primary me-2"></i>@Model.FullName
+            </h1>
+            <p class="text-muted">@Model.Role | User ID: @Model.Id</p>
+        </div>
+        <div>
+            <a href="@Url.Action("Edit", new { id = Model.Id })" class="btn btn-warning">
+                <i class="fas fa-edit me-2"></i>Edit
+            </a>
+            <a href="@Url.Action("Index")" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-4">
+            <!-- User Card -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body text-center">
+                    <div class="avatar-circle mx-auto mb-3 bg-primary text-white d-flex align-items-center justify-content-center rounded-circle" style="width: 100px; height: 100px; font-size: 40px;">
+                        <i class="fas @GetUserIcon(Model.Role)"></i>
+                    </div>
+                    <h4>@Model.FullName</h4>
+                    <p class="text-muted">@Model.Role</p>
+                    <hr />
+                    <div class="text-start">
+                        <div class="mb-2">
+                            <i class="fas fa-envelope me-2 text-muted"></i> @Model.Email
+                        </div>
+                        <div class="mb-2">
+                            <i class="fas fa-calendar me-2 text-muted"></i> Joined: @Model.CreatedAt.ToString("dd MMM yyyy")
+                        </div>
+                        <div class="mb-2">
+                            <i class="fas fa-clock me-2 text-muted"></i> Last Login: @(Model.LastLoginAt?.ToString("dd MMM yyyy HH:mm") ?? "Never")
+                        </div>
+                        <div>
+                            <i class="fas @(Model.IsActive ? "fa-check-circle text-success" : "fa-times-circle text-danger") me-2"></i>
+                            Status: @(Model.IsActive ? "Active" : "Inactive")
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-primary" onclick="resetPassword(@Model.Id)">
+                            <i class="fas fa-key me-2"></i>Reset Password
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" onclick="toggleUserStatus(@Model.Id, @Model.IsActive.ToString().ToLower())">
+                            <i class="fas @(Model.IsActive ? "fa-user-slash" : "fa-user-check") me-2"></i>
+                            @(Model.IsActive ? "Deactivate Account" : "Activate Account")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <!-- Role-specific Information -->
+            @if (Model.Role == UserRole.Lawyer && lawyerProfile != null)
+            {
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="fas fa-gavel me-2"></i>Lawyer Profile</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Bar Number</label>
+                                <div>@lawyerProfile.BarNumber</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Hourly Rate</label>
+                                <div class="fw-bold text-success">R @lawyerProfile.HourlyRate.ToString("N2")</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Years of Experience</label>
+                                <div>@lawyerProfile.YearsOfExperience years</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Office Location</label>
+                                <div>@lawyerProfile.OfficeLocation</div>
+                            </div>
+                            <div class="col-12">
+                                <label class="text-muted small">Bio</label>
+                                <p class="mt-1">@lawyerProfile.Bio</p>
+                            </div>
+                        </div>
+                        @if (lawyerProfile.Specializations != null && lawyerProfile.Specializations.Any())
+                        {
+                            <hr />
+                            <label class="text-muted small">Specializations</label>
+                            <div class="mt-2">
+                                @foreach (var spec in lawyerProfile.Specializations)
+                                {
+                                    <span class="badge bg-info me-1">@spec.Name</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (Model.Role == UserRole.Client && client != null)
+            {
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="fas fa-user me-2"></i>Client Profile</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Client Type</label>
+                                <div>@(client.IsBusiness ? "Business" : "Individual")</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Phone</label>
+                                <div>@client.Phone</div>
+                            </div>
+                            @if (client.IsBusiness)
+                            {
+                                <div class="col-md-6 mb-3">
+                                    <label class="text-muted small">Company Name</label>
+                                    <div>@client.CompanyName</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="text-muted small">Registration Number</label>
+                                    <div>@client.RegistrationNumber</div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="col-md-6 mb-3">
+                                    <label class="text-muted small">First Name</label>
+                                    <div>@client.FirstName</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="text-muted small">Last Name</label>
+                                    <div>@client.LastName</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="text-muted small">SA ID Number</label>
+                                    <div>@client.SAIDNumber</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white">
+                        <a href="@Url.Action("Details", "Client", new { id = client.Id })" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-external-link-alt me-1"></i>View Full Client Profile
+                        </a>
+                    </div>
+                </div>
+            }
+
+            <!-- Assigned Cases (for Lawyers) -->
+            @if (assignedCases != null && assignedCases.Any())
+            {
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="fas fa-folder-open me-2"></i>Assigned Cases (@assignedCases.Count)</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Case Number</th>
+                                        <th>Title</th>
+                                        <th>Client</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var caseItem in assignedCases)
+                                    {
+                                        <tr>
+                                            <td>@caseItem.CaseNumber</td>
+                                            <td>@caseItem.Title</td>
+                                            <td>@caseItem.Client?.FullName</td>
+                                            <td><span class="badge bg-secondary">@caseItem.Status</span></td>
+                                            <td>@caseItem.CreatedAt.ToString("dd MMM yyyy")</td>
+                                            <td>
+                                                <a href="@Url.Action("Details", "Case", new { id = caseItem.Id })" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@functions {
+    string GetUserIcon(UserRole role)
+    {
+        return role switch
+        {
+            UserRole.Admin => "fa-shield-alt",
+            UserRole.Lawyer => "fa-gavel",
+            UserRole.Paralegal => "fa-file-alt",
+            UserRole.Accountant => "fa-calculator",
+            UserRole.Client => "fa-user",
+            _ => "fa-user"
+        };
+    }
+}
+
+@section Scripts {
+    <script>
+        function resetPassword(id) {
+            if (confirm('Are you sure you want to reset the password for this user?')) {
+                $.ajax({
+                    url: '/Users/ResetPassword/' + id,
+                    type: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            showAlert(response.message, 'success');
+                        } else {
+                            showAlert(response.message, 'danger');
+                        }
+                    },
+                    error: function() {
+                        showAlert('An error occurred', 'danger');
+                    }
+                });
+            }
+        }
+
+        function toggleUserStatus(id, isActive) {
+            var action = isActive ? 'deactivate' : 'activate';
+            if (confirm(`Are you sure you want to ${action} this user?`)) {
+                $.ajax({
+                    url: '/Users/ToggleStatus/' + id,
+                    type: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            showAlert(response.message, 'success');
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            showAlert(response.message, 'danger');
+                        }
+                    },
+                    error: function() {
+                        showAlert('An error occurred', 'danger');
+                    }
+                });
+            }
+        }
+    </script>
+}

@@ -1,0 +1,12 @@
+@model SimplexLawFirm.Models.CaseNote
+@{ ViewData["Title"] = "Add case note"; Layout = Context.Session.GetString("UserRole") == "Admin" ? "_AdminLayout" : "_LawyerLayout"; }
+<div class="page-hero compact"><div><span class="eyebrow">Matter knowledge</span><h1>Add case note</h1><p>Eligible notes help build the firm's precedent library. Protected notes are automatically withheld.</p></div></div>
+<form asp-action="AddNote" method="post" class="surface" style="max-width:850px">
+ @Html.AntiForgeryToken()
+ <input asp-for="CaseId" type="hidden"/>
+ <label class="form-label">Note</label><textarea asp-for="Content" class="form-control" rows="10" required></textarea>
+ <div class="row mt-3"><div class="col-md-6"><label class="form-check"><input asp-for="IsPrivileged" class="form-check-input"/> <span class="form-check-label">Legally privileged</span></label></div>
+ <div class="col-md-6"><label class="form-check"><input asp-for="IsConfidential" class="form-check-input"/> <span class="form-check-label">Confidential / index prohibited</span></label></div></div>
+ <p class="text-muted mt-2">Privileged, confidential, or archived-matter content is never embedded or stored in the precedent index.</p>
+ <button class="btn-primary-modern">Save note</button> <a asp-action="Details" asp-route-id="@Model.CaseId" class="btn btn-outline-secondary">Cancel</a>
+</form>

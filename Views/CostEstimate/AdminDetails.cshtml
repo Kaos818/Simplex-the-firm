@@ -1,0 +1,11 @@
+@model SimplexLawFirm.Models.MatterCostEstimate
+@{ ViewData["Title"]="Estimate enquiry"; Layout="_AdminLayout"; }
+<div class="breadcrumb-line"><a href="/CostEstimate/Admin">Cost estimates</a><span>/</span><span>#@Model.Id.ToString("000000")</span></div><div class="page-hero compact"><div><span class="eyebrow">Locked estimate</span><h1>@Model.Enquiry.MatterType</h1><p>@Model.Enquiry.ContactName · @Model.Enquiry.Email</p></div><span class="status-pill large">@Model.Status</span></div>
+@if (Model.Status == CostEstimateStatus.Declined)
+{
+    <section class="surface refusal"><span class="eyebrow">Quote declined</span><h2>No locked estimate is available</h2><p>@Model.DeclineReason</p><p class="muted">The client can request a consultation; this enquiry cannot be downloaded or linked to a matter.</p></section>
+}
+else
+{
+    <div class="workspace-grid"><section class="surface"><h2>R @Model.TotalLow.ToString("N0") - R @Model.TotalHigh.ToString("N0")</h2><p>@Model.ComparableMatterCount comparable matters · @Model.PermittedVarianceTolerance.ToString("P0") permitted invoice tolerance</p><a class="btn-primary-modern" href="/CostEstimate/Download?token=@Model.Enquiry.PublicToken">Download locked PDF</a></section><section class="surface"><h2>Link instructed matter</h2>@if(Model.LinkedCase!=null){<div class="responsibility-note">Linked to <b>@Model.LinkedCase.CaseNumber</b> on @Model.LinkedAtUtc?.ToString("dd MMM yyyy").</div>}else{<form method="post" action="/CostEstimate/Link" class="stack-form">@Html.AntiForgeryToken()<input type="hidden" name="estimateId" value="@Model.Id"/><label>Matching active matter<select name="caseId" required><option value="">Select active instructed matter</option>@foreach(var c in ViewBag.MatchingCases){<option value="@c.Id">@c.CaseNumber — @c.Title</option>}</select></label><button type="submit" class="btn-primary-modern">Link estimate</button></form>}</section></div>
+}

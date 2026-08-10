@@ -1,0 +1,55 @@
+﻿@model ApplicationUser
+
+<div class="container py-4">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-dark text-white">
+            <h4>Create Staff Member</h4>
+            <small>Add a new employee to the system</small>
+        </div>
+
+        <div class="card-body">
+
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger">@TempData["Error"]</div>
+            }
+
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success">@TempData["Success"]</div>
+            }
+
+            <div asp-validation-summary="All" class="alert alert-danger"></div>
+
+            <form asp-action="Create" method="post">
+
+                <div class="mb-3">
+                    <label>Full Name</label>
+                    <input asp-for="FullName" class="form-control" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Email</label>
+                    <input asp-for="Email" type="email" class="form-control" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Role</label>
+                    <select asp-for="Role" asp-items="ViewBag.Roles" class="form-select">
+                        <option value="">Select Role</option>
+                    </select>
+                    <small class="text-muted">Only staff roles are allowed here</small>
+                </div>
+
+                <div class="mb-3">
+                    <label>Password</label>
+                    <input type="password" name="password" class="form-control" />
+                    <small class="text-muted">Default: Password123!</small>
+                </div>
+
+                <button class="btn btn-success w-100">Create Staff Member</button>
+
+            </form>
+        </div>
+    </div>
+</div>

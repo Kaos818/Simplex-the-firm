@@ -1,0 +1,237 @@
+﻿@model SimplexLawFirm.Models.AdminTrustDetailsViewModel
+
+@{
+    ViewData["Title"] = $"Trust Account - {Model.TrustAccount?.Client?.FullName}";
+    var isAccountant = Context.Session.GetString("UserRole") == nameof(UserRole.Accountant);
+    Layout = isAccountant ? "_AccountantLayout" : "_AdminLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-bank text-primary"></i> Trust Account Details
+                    </h1>
+                    <p class="text-muted">
+                        @Model.TrustAccount?.Client?.FullName | @Model.TrustAccount?.Client?.Email
+                    </p>
+                </div>
+                <div>
+                    <a href="@(isAccountant ? "/Billing/TrustAccounts" : "/Retainer/AdminTrustAccounts")" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Accounts
+                    </a>
+                    <button class="btn btn-success" onclick="window.print()">
+                        <i class="fas fa-print"></i> Print Statement
+                    </button>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Account Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Current Balance</h6>
+                            <h2 class="mb-0">R @Model.CurrentBalance.ToString("N2")</h2>
+                        </div>
+                        <i class="fas fa-dollar-sign fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Deposited</h6>
+                            <h2 class="mb-0">R @Model.TotalDeposited.ToString("N2")</h2>
+                        </div>
+                        <i class="fas fa-arrow-down fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-warning text-dark shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Withdrawn</h6>
+                            <h2 class="mb-0">R @Model.TotalWithdrawn.ToString("N2")</h2>
+                        </div>
+                        <i class="fas fa-arrow-up fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client Information Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Client Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Full Name:</strong> @Model.TrustAccount?.Client?.FullName</p>
+                    <p><strong>Email:</strong> @Model.TrustAccount?.Client?.Email</p>
+                    <p><strong>Phone:</strong> @Model.TrustAccount?.Client?.Phone</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Account Created:</strong> @Model.TrustAccount?.LastUpdated.ToString("MMMM dd, yyyy")</p>
+                    <p><strong>Last Updated:</strong> @Model.TrustAccount?.LastUpdated.ToString("MMMM dd, yyyy HH:mm")</p>
+                    <p>
+                        <strong>Account Status:</strong>
+                        <span class="badge @(Model.CurrentBalance > 0 ? "bg-success" : "bg-secondary")">
+                            @(Model.CurrentBalance > 0 ? "Active" : "Inactive")
+                        </span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction History -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Transaction History</h5>
+                <div>
+                    <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search transactions..." style="width: 200px;" />
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            @if (!Model.Transactions.Any())
+            {
+                <div class="text-center py-5">
+                    <i class="fas fa-exchange-alt fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No transactions recorded yet.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="transactionsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Description</th>
+                                <th>Reference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var transaction in Model.Transactions)
+                            {
+                                <tr>
+                                    <td>@transaction.TransactionDate.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td>
+                                        @if (transaction.Type == TransactionType.Deposit)
+                                        {
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-arrow-down"></i> Deposit
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-arrow-up"></i> Withdrawal
+                                            </span>
+                                        }
+                                    </td>
+                                    <td class="@(transaction.Type == TransactionType.Deposit ? "text-success" : "text-danger") fw-bold">
+                                        @(transaction.Type == TransactionType.Deposit ? "+" : "-") R @transaction.Amount.ToString("N2")
+                                    </td>
+                                    <td>@transaction.Description</td>
+                                    <td>
+                                        <code>@transaction.Reference</code>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="2" class="text-end">Closing Balance:</th>
+                                <th class="text-success">R @Model.CurrentBalance.ToString("N2")</th>
+                                <th colspan="2"></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            }
+        </div>
+        <div class="card-footer bg-white">
+            <div class="row">
+                <div class="col-md-6">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        Showing @Model.Transactions.Count transaction@(Model.Transactions.Count != 1 ? "s" : "")
+                    </small>
+                </div>
+                <div class="col-md-6 text-end">
+                    <button id="exportBtn" class="btn btn-sm btn-success">
+                        <i class="fas fa-file-excel"></i> Export to CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+        cursor: pointer;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Search functionality
+            $('#searchInput').on('keyup', function() {
+                var value = $(this).val().toLowerCase();
+                $('#transactionsTable tbody tr').filter(function() {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+                });
+            });
+            
+            // Export to CSV
+            $('#exportBtn').click(function() {
+                var csv = [];
+                var rows = $('#transactionsTable tr');
+                var accountId = @(Model.TrustAccount?.Id ?? 0);
+                
+                rows.each(function() {
+                    var row = [];
+                    $(this).find('th, td').each(function() {
+                        var text = $(this).text().trim();
+                        row.push('"' + text.replace(/"/g, '""') + '"');
+                    });
+                    csv.push(row.join(','));
+                });
+                
+                var blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+                var url = window.URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'TrustAccount_' + accountId + '_' + new Date().toISOString().split('T')[0] + '.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            });
+        });
+    </script>
+}

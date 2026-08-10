@@ -1,0 +1,267 @@
+﻿@* Views/Shared/_ClientLayout.cshtml *@
+@inject SimplexLawFirm.Services.CurrentUser.ICurrentClientService CurrentClient
+@inject SimplexLawFirm.Services.IVulnerableClientService ClientSafeguards
+@{
+    var layoutClient = await CurrentClient.GetAsync();
+    var layoutFlags = layoutClient == null ? Array.Empty<SimplexLawFirm.Models.VulnerableClientFlag>() :
+        (await ClientSafeguards.ActiveFlagsAsync(layoutClient.Id)).ToArray();
+    var supportPersonRequired = layoutFlags.Any(x => x.Safeguard == SimplexLawFirm.Models.ClientSafeguard.SupportPerson);
+    var supportedSessionActive = layoutClient != null && await ClientSafeguards.HasActiveSupportSessionAsync(layoutClient.Id);
+    var selfServiceBlocked = supportPersonRequired && !supportedSessionActive;
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Simplex Client Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+        body { background-color: #e9f7ef; }
+        .sidebar { min-height: 100vh; background-color: #198754; color: white; position: sticky; top: 0; }
+        .sidebar a { color: white; display: block; padding: 10px 15px; text-decoration: none; transition: all 0.3s ease; }
+        .sidebar a:hover { background-color: #145c37; padding-left: 25px; }
+        .sidebar a i { margin-right: 10px; width: 20px; }
+        .sidebar .nav-divider { 
+            height: 1px; 
+            background-color: rgba(255,255,255,0.2); 
+            margin: 10px 0; 
+        }
+        .sidebar .nav-header {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 10px 15px 5px;
+            color: rgba(255,255,255,0.6);
+        }
+        .content { padding: 20px; min-height: 100vh; }
+        
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        @@keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .toast-notification.fade-out {
+            animation: slideOutRight 0.3s ease-out forwards;
+        }
+        
+        @@keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        .alert {
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        .badge-notification {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background-color: #ffc107;
+            color: #000;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .sidebar a { position: relative; }
+    </style>
+</head>
+<body>
+<div class="d-flex">
+    <div class="sidebar p-3">
+        <h4 class="mb-3 sx-sidebar-brand"><img src="/images/brand/lady-justice.png" alt="Lady Justice" /><span><b>Simplex</b><small>Client chamber</small></span></h4>
+        
+        <!-- Main Navigation -->
+        <div class="nav-header">MAIN</div>
+        <a href="/Dashboard/Client"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+        <a href="/Case/MyCases"><i class="fas fa-folder-open"></i> My Cases</a>
+        <a href="/Practice/Prospects"><i class="fas fa-chart-line"></i> Assessment of Prospects</a>
+        <a href="/CostEstimate"><i class="fas fa-calculator"></i> Cost Estimator</a>
+        <a href="/Practice/LodgeComplaint"><i class="fas fa-shield-alt"></i> Service Complaints</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- Retainers Section -->
+        <div class="nav-header">RETAINERS & SERVICES</div>
+        <a href="/Retainer/MyRetainers" id="myRetainersLink">
+            <i class="fas fa-file-signature"></i> My Retainers
+        </a>
+        <a href="/Retainer/ServiceCatalog"><i class="fas fa-store"></i> Legal Services</a>
+        <a href="/Retainer/PaymentHistory"><i class="fas fa-history"></i> Payment History</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- Financial Section -->
+        <div class="nav-header">FINANCIAL</div>
+        <a href="/Billing/MyInvoices"><i class="fas fa-file-invoice-dollar"></i> My Invoices</a>
+        <a href="/Retainer/MyTrustAccount"><i class="fas fa-piggy-bank"></i> Trust Account</a>
+        <a href="/Retainer/TrustTransactionHistory"><i class="fas fa-exchange-alt"></i> Trust Transactions</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- Documents & Calendar -->
+        <div class="nav-header">DOCUMENTS & SCHEDULE</div>
+        <a href="/Document/ClientIndex"><i class="fas fa-folder"></i> My Documents</a>
+        <a href="/ClientCalendar"><i class="fas fa-calendar-alt"></i> Appointments</a>
+        <a href="/Beneficiary"><i class="fas fa-people-roof"></i> My Beneficiaries</a>
+        <a href="/Notification"><i class="fas fa-calendar-check"></i> Appointment Responses</a>
+        <a href="/Notification"><i class="fas fa-bell"></i> Notifications</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- Account -->
+        <div class="nav-header">ACCOUNT</div>
+        <a href="/Client/EditProfile"><i class="fas fa-user-edit"></i> My Profile</a>
+        <form action="/Home/Logout" method="post">@Html.AntiForgeryToken()<button type="submit" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</button></form>
+    </div>
+    <div class="content flex-grow-1">
+        <div id="toastContainer"></div>
+        @if(selfServiceBlocked)
+        {
+            <div class="alert alert-warning" id="supportSafeguardBanner">
+                <h5><i class="fas fa-hands-helping me-2"></i>Supported action required</h5>
+                <p class="mb-0">Actions are disabled until firm staff records that your required support person is present. Viewing information remains available.</p>
+            </div>
+        }
+        else if(supportPersonRequired)
+        {
+            <div class="alert alert-success"><i class="fas fa-user-check me-2"></i>A staff-authorised supported session is active.</div>
+        }
+        
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle"></i> @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-circle"></i> @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Warning"] != null)
+        {
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle"></i> @TempData["Warning"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Info"] != null)
+        {
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <i class="fas fa-info-circle"></i> @TempData["Info"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        
+        @RenderBody()
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    $(document).ready(function() {
+        @if(selfServiceBlocked)
+        {
+            <text>
+            $('form').each(function() {
+                const action = ($(this).attr('action') || '').toLowerCase();
+                if (action.indexOf('/notification/') === 0) return;
+                $(this).find('button,input[type="submit"]').prop('disabled', true)
+                    .attr('title', 'A support person must be present for this action.');
+                $(this).on('submit', function(e) { e.preventDefault(); window.location.href='/VulnerableClient/SupportRequired'; });
+            });
+            </text>
+        }
+        setTimeout(function() {
+            $('.alert').fadeOut(500, function() { $(this).remove(); });
+        }, 3000);
+        
+        $('.sidebar a').each(function() {
+            var href = $(this).attr('href');
+            if (href && href !== '/Home/Logout' && window.location.href.indexOf(href) > -1) {
+                $(this).css('background-color', '#145c37');
+                $(this).css('font-weight', 'bold');
+            }
+        });
+        
+        checkPendingActions();
+    });
+    
+    function checkPendingActions() {
+        $.get('/Retainer/GetClientPendingCount', function(data) {
+            if (data && data.pendingPayments > 0) {
+                var retainersLink = $('#myRetainersLink');
+                if (retainersLink.find('.badge-notification').length === 0) {
+                    retainersLink.append('<span class="badge-notification">' + data.pendingPayments + '</span>');
+                }
+            }
+            if (data && data.pendingSignature > 0) {
+                var retainersLink = $('#myRetainersLink');
+                if (retainersLink.find('.badge-notification').length === 0) {
+                    retainersLink.append('<span class="badge-notification">' + data.pendingSignature + '</span>');
+                } else {
+                    var currentCount = parseInt(retainersLink.find('.badge-notification').text());
+                    retainersLink.find('.badge-notification').text(currentCount + data.pendingSignature);
+                }
+            }
+        }).fail(function() {
+            console.log('Could not load client pending counts');
+        });
+    }
+    
+    function showAlert(message, type) {
+        const icon = type === 'success' ? 'fa-check-circle' : 
+                    (type === 'danger' ? 'fa-exclamation-circle' : 
+                    (type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'));
+        const alertHtml = `
+            <div class="alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg" style="z-index: 9999; min-width: 300px;" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="fas ${icon} fa-2x me-3"></i>
+                    <div>
+                        <strong>${type.charAt(0).toUpperCase() + type.slice(1)}!</strong>
+                        <div>${message}</div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('#toastContainer').append(alertHtml);
+        setTimeout(() => {
+            $('.alert').last().fadeOut(500, function() { $(this).remove(); });
+        }, 3000);
+    }
+    
+    function formatCurrency(amount) {
+        return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(amount);
+    }
+    
+    function formatDate(dateString) {
+        return new Date(dateString).toLocaleDateString('en-ZA');
+    }
+</script>
+
+@await RenderSectionAsync("Scripts", required: false)
+
+</body>
+</html>

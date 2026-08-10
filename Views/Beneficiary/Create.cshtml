@@ -1,0 +1,25 @@
+@model SimplexLawFirm.Models.Beneficiaries.Beneficiary
+@{ ViewData["Title"] = "Add beneficiary"; }
+<h1>Add beneficiary</h1>
+<p>Saving this beneficiary sends a single-use secure portal invitation to their email address.</p>
+<form method="post">
+@Html.AntiForgeryToken()
+<div asp-validation-summary="All" class="text-danger"></div>
+<div class="row">
+@foreach (var name in new[] { "FirstName", "LastName", "Email", "Phone", "IdentificationNumber", "RelationshipToBenefactor" })
+{
+<div class="col-md-6 mb-3"><label class="form-label" for="@name">@name</label><input class="form-control" id="@name" name="@name" required /></div>
+}
+</div>
+<h2 class="h4">Asset entitlement and access terms</h2>
+<div class="mb-3"><label asp-for="EntitlementDescription" class="form-label">What the beneficiary may be entitled to</label><textarea asp-for="EntitlementDescription" class="form-control" rows="3" required></textarea></div>
+<div class="mb-3"><label asp-for="EntitlementAmountLimit" class="form-label">Maximum cash entitlement, if any</label><input asp-for="EntitlementAmountLimit" type="number" min="0" step="0.01" class="form-control"/><small class="text-muted">Leave blank when this beneficiary has no cash entitlement. This is never replaced by the client’s total trust balance.</small></div>
+<div class="mb-3"><label asp-for="AssetAccessTerms" class="form-label">Terms and conditions governing access</label><textarea asp-for="AssetAccessTerms" class="form-control" rows="5" required></textarea></div>
+<div class="mb-3"><label asp-for="PermittedAssetPurposes" class="form-label">Permitted purposes</label><textarea asp-for="PermittedAssetPurposes" class="form-control" rows="3"></textarea></div>
+<div class="row">
+<div class="col-md-6 mb-3"><label asp-for="AccessEligibleFromUtc" class="form-label">Access may begin</label><input asp-for="AccessEligibleFromUtc" type="date" class="form-control"></div>
+<div class="col-md-6 mb-3"><label asp-for="AccessEligibleUntilUtc" class="form-label">Access ends, if applicable</label><input asp-for="AccessEligibleUntilUtc" type="date" class="form-control"></div>
+</div>
+<div class="alert alert-warning">These terms explain eligibility only. They do not release trust money. Every payment or disbursement remains subject to the trust’s rules and authorised review.</div>
+<button class="btn btn-primary">Save and send secure invitation</button>
+</form>

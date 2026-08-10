@@ -1,0 +1,284 @@
+﻿@* Views/Shared/_AdminLayout.cshtml *@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Simplex Director</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+    <style>
+        body { background-color: #f4f6f9; }
+        .sidebar { min-height: 100vh; background-color: #343a40; color: white; position: sticky; top: 0; }
+        .sidebar a { color: white; display: block; padding: 10px 15px; text-decoration: none; transition: all 0.3s ease; }
+        .sidebar a:hover { background-color: #495057; padding-left: 25px; }
+        .sidebar a i { margin-right: 10px; width: 20px; }
+        .sidebar .nav-divider { 
+            height: 1px; 
+            background-color: rgba(255,255,255,0.1); 
+            margin: 10px 0; 
+        }
+        .sidebar .nav-header {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 10px 15px 5px;
+            color: rgba(255,255,255,0.5);
+        }
+        .content { padding: 20px; min-height: 100vh; }
+        
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        @@keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .toast-notification.fade-out {
+            animation: slideOutRight 0.3s ease-out forwards;
+        }
+        
+        @@keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        .stat-card {
+            transition: transform 0.2s ease;
+            cursor: pointer;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .badge-notification {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background-color: #dc3545;
+            color: white;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .sidebar a { position: relative; }
+    </style>
+</head>
+<body>
+<div class="d-flex">
+    <div class="sidebar p-3">
+        <h4 class="mb-3 sx-sidebar-brand"><img src="/images/brand/lady-justice.png" alt="Lady Justice" /><span><b>Simplex</b><small>Director chamber</small></span></h4>
+        
+        <!-- Dashboard -->
+        <div class="nav-header">DASHBOARD</div>
+        <a href="/Retainer/Dashboard"><i class="fas fa-tachometer-alt"></i> Retainer Dashboard</a>
+        <a href="/Dashboard/Admin"><i class="fas fa-chart-line"></i> System Dashboard</a>
+        <a href="/Practice"><i class="fas fa-compass"></i> Practice Intelligence</a>
+        <a href="/CostEstimate/Admin"><i class="fas fa-scale-balanced"></i> Estimate Governance</a>
+        <a href="/Precedent"><i class="fas fa-book-open"></i> Precedent Library</a>
+        <a href="/VulnerableClient/Queue"><i class="fas fa-hands-helping"></i> Client Safeguards</a>
+        <a href="/Operational/Whereabouts"><i class="fas fa-location-dot"></i> Attorney Safety</a>
+        <a href="/Operational/TrustRequests"><i class="fas fa-money-bill-transfer"></i> Trust Requests</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- User Management -->
+        <div class="nav-header">USER MANAGEMENT</div>
+        <a href="/Users/Index"><i class="fas fa-users"></i> Manage Users</a>
+        <a href="/Client/Index"><i class="fas fa-user-friends"></i> Manage Clients</a>
+        <a href="/Users/Index?role=Lawyer"><i class="fas fa-user-graduate"></i> Lawyers</a>
+        <a href="/Users/Profile"><i class="fas fa-user-circle"></i> My Profile</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- Case Management -->
+        <div class="nav-header">CASE MANAGEMENT</div>
+        <a href="/Case/Index"><i class="fas fa-folder-open"></i> All Cases</a>
+        <a href="/Case/Active"><i class="fas fa-play-circle"></i> Active Cases</a>
+        <a href="/Case/PerformanceReport"><i class="fas fa-chart-line"></i> Performance Report</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- Retainer Management -->
+        <div class="nav-header">RETAINER MANAGEMENT</div>
+        <a href="/Retainer/Index"><i class="fas fa-file-signature"></i> All Retainers</a>
+        <a href="/Retainer/Templates"><i class="fas fa-layer-group"></i> Retainer Templates</a>
+        <a href="/Retainer/AdminPendingApprovals" id="pendingApprovalsLink">
+            <i class="fas fa-clock"></i> Pending Approvals
+        </a>
+        <a href="/Retainer/PendingRequests" id="pendingRequestsLink">
+            <i class="fas fa-inbox"></i> Client Requests
+        </a>
+        <a href="/Retainer/Create"><i class="fas fa-plus-circle"></i> Create Retainer</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- Financial Management -->
+        <div class="nav-header">FINANCIAL</div>
+        <a href="/Billing/AdminInvoices"><i class="fas fa-file-invoice-dollar"></i> All Invoices</a>
+        <a href="/Billing/Invoices"><i class="fas fa-list"></i> Invoice List</a>
+        <a href="/Billing/CreateInvoice"><i class="fas fa-plus-circle"></i> Create Invoice</a>
+        <a href="/Billing/InvoiceAnalytics"><i class="fas fa-chart-line"></i> Analytics</a>
+        <a href="/Billing/TimeEntries"><i class="fas fa-clock"></i> Time Tracking</a>
+        <a href="/Reimbursement/DirectorQueue"><i class="fas fa-receipt"></i> Reimbursement Approvals</a>
+        <a href="/LegalCostRecovery/Queue"><i class="fas fa-scale-unbalanced"></i> Cost Recovery Claims</a>
+        <a href="/CaseGovernance/StrategyQueue"><i class="fas fa-route"></i> Strategy Approvals</a>
+        <a href="/CaseGovernance/WaiverQueue"><i class="fas fa-file-circle-exclamation"></i> Document Waivers</a>
+        <a href="/Reimbursement/Policies"><i class="fas fa-sliders"></i> Expense Policy</a>
+        <a href="/Billing/TrustAccounts"><i class="fas fa-bank"></i> Trust Accounts</a>
+        <a href="/AdminBeneficiary"><i class="fas fa-user-shield"></i> Beneficiary Review</a>
+        <a href="/AdminBeneficiary?status=DocumentsRequireResubmission"><i class="fas fa-file-circle-exclamation"></i> Document Review</a>
+        <a href="/AdminBeneficiary?status=UnderAdminReview"><i class="fas fa-face-viewfinder"></i> Facial Review</a>
+        <a href="/Billing/AdminInvoices"><i class="fas fa-receipt"></i> Appointment Billing</a>
+        <a href="/Notification/Outbox"><i class="fas fa-envelope-circle-check"></i> Email Outbox</a>
+        <a href="/Notification"><i class="fas fa-bell"></i> Notifications</a>
+        <a href="/Billing/Invoices"><i class="fas fa-credit-card"></i> Payments & Invoices</a>
+        <a href="/Retainer/AdminTrustAccounts"><i class="fas fa-piggy-bank"></i> Trust Accounts</a>
+        <a href="/Billing/InvoiceAnalytics"><i class="fas fa-chart-line"></i> Financial Reports</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- Document & Calendar -->
+        <div class="nav-header">DOCUMENTS & SCHEDULE</div>
+        <a href="/Document/Index"><i class="fas fa-folder"></i> Document Management</a>
+        <a href="/Document/SharedWithMe"><i class="fas fa-share-alt"></i> Shared With Me</a>
+        <a href="/Calendar/Index"><i class="fas fa-calendar-alt"></i> Calendar</a>
+        <a href="/Calendar/Tasks"><i class="fas fa-tasks"></i> Tasks</a>
+        <a href="/Calendar/SharedCalendar"><i class="fas fa-users"></i> Shared Calendar</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- System -->
+        <div class="nav-header">SYSTEM</div>
+        <a href="/Users/Profile"><i class="fas fa-cog"></i> Account Settings</a>
+        <a href="/Dashboard/Admin"><i class="fas fa-chart-bar"></i> Reports Overview</a>
+        <a href="/Users/GetAuditLogs"><i class="fas fa-history"></i> Audit Log</a>
+        
+        <div class="nav-divider"></div>
+        
+        <!-- Account -->
+        <form action="/Home/Logout" method="post">@Html.AntiForgeryToken()<button type="submit" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</button></form>
+    </div>
+    <div class="content flex-grow-1">
+        <div id="toastContainer"></div>
+        
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle"></i> @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-circle"></i> @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Warning"] != null)
+        {
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle"></i> @TempData["Warning"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Info"] != null)
+        {
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <i class="fas fa-info-circle"></i> @TempData["Info"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        
+        @RenderBody()
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        setTimeout(function() {
+            $('.alert').fadeOut(500, function() {
+                $(this).remove();
+            });
+        }, 3000);
+        
+        $('.sidebar a').each(function() {
+            var href = $(this).attr('href');
+            if (href && href !== '/Home/Logout' && window.location.href.indexOf(href) > -1) {
+                $(this).css('background-color', '#495057');
+                $(this).css('font-weight', 'bold');
+            }
+        });
+        
+        loadPendingCounts();
+    });
+    
+    function loadPendingCounts() {
+        $.get('/Retainer/GetAdminPendingCounts', function(data) {
+            if (data && data.pendingApprovals > 0) {
+                var approvalsLink = $('#pendingApprovalsLink');
+                if (approvalsLink.find('.badge-notification').length === 0) {
+                    approvalsLink.append('<span class="badge-notification">' + data.pendingApprovals + '</span>');
+                }
+            }
+            if (data && data.pendingRequests > 0) {
+                var requestsLink = $('#pendingRequestsLink');
+                if (requestsLink.find('.badge-notification').length === 0) {
+                    requestsLink.append('<span class="badge-notification">' + data.pendingRequests + '</span>');
+                }
+            }
+        }).fail(function() {
+            console.log('Could not load pending counts');
+        });
+    }
+    
+    function showAlert(message, type) {
+        const alertHtml = `
+            <div class="alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg" style="z-index: 9999; min-width: 300px;" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : (type === 'danger' ? 'fa-exclamation-circle' : 'fa-info-circle')} fa-2x me-3"></i>
+                    <div>
+                        <strong>${type.charAt(0).toUpperCase() + type.slice(1)}!</strong>
+                        <div>${message}</div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('#toastContainer').append(alertHtml);
+        setTimeout(() => {
+            $('.alert').last().fadeOut(500, function() { $(this).remove(); });
+        }, 3000);
+    }
+    
+    function formatCurrency(amount) {
+        return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(amount);
+    }
+    
+    function formatDate(dateString) {
+        return new Date(dateString).toLocaleDateString('en-ZA');
+    }
+</script>
+
+@await RenderSectionAsync("Scripts", required: false)
+
+</body>
+</html>

@@ -1,0 +1,205 @@
+﻿@model SimplexLawFirm.Models.RetainerPaymentViewModel
+
+@{
+    ViewData["Title"] = "Make Payment";
+    Layout = "_ClientLayout";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-credit-card fa-2x me-2"></i>
+                            <h2 class="d-inline-block mb-0">Make Payment</h2>
+                        </div>
+                        <span class="badge bg-light text-dark">Retainer #@Model.RetainerId</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading">@Model.RetainerTitle</h5>
+                        <hr />
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>Total Amount:</strong> R @Model.TotalAmount.ToString("N2")
+                            </div>
+                            <div class="col-6">
+                                <strong>Amount Paid:</strong> R @Model.AmountPaid.ToString("N2")
+                            </div>
+                            <div class="col-12 mt-2">
+                                <strong>Remaining Balance:</strong>
+                                <span class="text-danger fw-bold fs-4">R @Model.RemainingBalance.ToString("N2")</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (Model.PaymentSchedules.Any())
+                    {
+                        <div class="mb-4">
+                            <h5><i class="fas fa-calendar-alt"></i> Payment Schedule</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Installment</th>
+                                            <th>Due Date</th>
+                                            <th>Amount</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var schedule in Model.PaymentSchedules)
+                                        {
+                                            <tr>
+                                                <td>@schedule.InstallmentNumber</td>
+                                                <td>@schedule.DueDate.ToString("dd MMM yyyy")</td>
+                                                <td>R @schedule.AmountDue.ToString("N2")</td>
+                                                <td>
+                                                    @if (schedule.Status == SimplexLawFirm.Models.PaymentScheduleStatus.Pending)
+                                                    {
+                                                        <span class="badge bg-warning">Pending</span>
+                                                    }
+                                                    else if (schedule.Status == SimplexLawFirm.Models.PaymentScheduleStatus.Paid)
+                                                    {
+                                                        <span class="badge bg-success">Paid</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-danger">Overdue</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    }
+
+                    <form method="post" action="/Retainer/ProcessPayment" id="paymentForm">
+                        <input type="hidden" name="retainerId" value="@Model.RetainerId" />
+                        <input type="hidden" name="signatureToken" value="@Model.SignatureToken" />
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Payment Amount</label>
+                            <div class="input-group">
+                                <span class="input-group-text">R</span>
+                                <input type="number" name="amount" class="form-control form-control-lg"
+                                       value="@Model.RemainingBalance" step="0.01" min="0.01" max="@Model.RemainingBalance" required />
+                            </div>
+                            <small class="text-muted">Enter the amount you wish to pay (up to R @Model.RemainingBalance.ToString("N2"))</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Payment Method</label>
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input type="radio" name="paymentMethod" value="CreditCard" class="form-check-input" id="creditCard" required />
+                                        <label class="form-check-label" for="creditCard">
+                                            <i class="fab fa-cc-visa"></i> Credit/Debit Card
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input type="radio" name="paymentMethod" value="EFT" class="form-check-input" id="eft" />
+                                        <label class="form-check-label" for="eft">
+                                            <i class="fas fa-university"></i> EFT / Bank Transfer
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3" id="cardDetails" style="display: none;">
+                            <div class="card p-3 bg-light">
+                                <h6>Card Details</h6>
+                                <div class="mb-2">
+                                    <label class="form-label">Card Number</label>
+                                    <input type="text" class="form-control" placeholder="1234 5678 9012 3456" />
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <label class="form-label">Expiry Date</label>
+                                        <input type="text" class="form-control" placeholder="MM/YY" />
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">CVV</label>
+                                        <input type="text" class="form-control" placeholder="123" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Transaction Reference (Optional)</label>
+                            <input type="text" name="transactionReference" class="form-control" placeholder="Leave blank for auto-generation" />
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-lock"></i> Your payment is secure and encrypted. Upon successful payment, your retainer will be activated immediately.
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="/Retainer/Sign?token=@Model.SignatureToken" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-check-circle"></i> Pay Now
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Bank Details for EFT -->
+            <div class="card mt-3 shadow-lg border-0" id="bankDetails" style="display: none;">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-university"></i> Bank Transfer Details</h5>
+                </div>
+                <div class="card-body">
+                    <p>Please use the following bank details to make your payment:</p>
+                    <table class="table table-sm">
+                        <tr><th>Bank:</th><td>First National Bank (FNB)</td></tr>
+                        <tr><th>Account Name:</th><td>Simplex Law Firm Trust Account</td></tr>
+                        <tr><th>Account Number:</th><td>62849612345</td></tr>
+                        <tr><th>Branch Code:</th><td>250655</td></tr>
+                        <tr><th>Reference:</th><td><strong>RETAINER-@Model.RetainerId-@Model.SignatureToken?.Substring(0, 8)</strong></td></tr>
+                    </tr>
+                </table>
+                <div class="alert alert-success">
+                    <i class="fas fa-info-circle"></i> After making the transfer, please upload your proof of payment or contact us to confirm your payment.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('input[name="paymentMethod"]').change(function() {
+                if ($(this).val() === 'CreditCard') {
+                    $('#cardDetails').show();
+                    $('#bankDetails').hide();
+                } else if ($(this).val() === 'EFT') {
+                    $('#cardDetails').hide();
+                    $('#bankDetails').show();
+                } else {
+                    $('#cardDetails').hide();
+                    $('#bankDetails').hide();
+                }
+            });
+
+            // If EFT is selected by default
+            if ($('input[name="paymentMethod"]:checked').val() === 'EFT') {
+                $('#bankDetails').show();
+            }
+        });
+    </script>
+}

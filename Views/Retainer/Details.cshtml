@@ -1,0 +1,428 @@
+﻿@model SimplexLawFirm.Models.RetainerDetailsViewModel
+
+@{
+    ViewData["Title"] = $"Retainer Details - {Model.Retainer?.Title}";
+    Layout = "_AdminLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/Retainer/Index">Retainers</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">@Model.Retainer?.Title</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Main Content -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">
+                            <i class="fas fa-file-signature text-primary me-2"></i>
+                            @Model.Retainer?.Title
+                        </h4>
+                        <div>
+                            @if (Model.CanEdit)
+                            {
+                                <a href="/Retainer/Edit/@Model.Retainer?.Id" class="btn btn-warning btn-sm">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                            }
+                            @if (Model.CanSubmit)
+                            {
+                                <button type="button" class="btn btn-primary btn-sm" onclick="submitForApproval(@Model.Retainer?.Id)" id="submitBtn">
+                                    <i class="fas fa-paper-plane"></i> Submit for Approval
+                                </button>
+                            }
+                            @if (Model.CanApprove)
+                            {
+                                <a href="/Retainer/Review/@Model.Retainer?.Id" class="btn btn-success btn-sm">
+                                    <i class="fas fa-check-circle"></i> Review & Approve
+                                </a>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Status Badge -->
+                    <div class="mb-4">
+                        @{
+                            var statusClass = Model.Retainer?.Status switch
+                            {
+                                RetainerStatus.Draft => "bg-secondary",
+                                RetainerStatus.PendingApproval => "bg-warning",
+                                RetainerStatus.Approved => "bg-info",
+                                RetainerStatus.AwaitingPayment => "bg-primary",
+                                RetainerStatus.Active => "bg-success",
+                                RetainerStatus.Completed => "bg-success",
+                                RetainerStatus.Rejected => "bg-danger",
+                                RetainerStatus.Cancelled => "bg-dark",
+                                _ => "bg-secondary"
+                            };
+                        }
+                        <span class="badge @statusClass fs-6 px-3 py-2">
+                            <i class="fas fa-circle me-1"></i> @Model.Retainer?.Status
+                        </span>
+                    </div>
+
+                    <!-- Basic Info -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-2">Client Information</h6>
+                            <p class="mb-1">
+                                <strong>Name:</strong> 
+                                <a href="/Client/Details/@Model.Retainer?.ClientId">@Model.Retainer?.Client?.FullName</a>
+                            </p>
+                            <p class="mb-1"><strong>Email:</strong> @Model.Retainer?.Client?.Email</p>
+                            <p class="mb-1"><strong>Phone:</strong> @Model.Retainer?.Client?.Phone</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-2">Case Information</h6>
+                            @if (Model.Retainer?.CaseId != null)
+                            {
+                                <p class="mb-1">
+                                    <strong>Case:</strong> 
+                                    <a href="/Case/Details/@Model.Retainer?.CaseId">@Model.Retainer?.Case?.Title</a>
+                                </p>
+                                <p class="mb-1"><strong>Case Number:</strong> @Model.Retainer?.Case?.CaseNumber</p>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No case linked</p>
+                            }
+                            <p class="mb-1">
+                                <strong>Template:</strong> 
+                                @Model.Retainer?.Template?.Name ?? "Custom"
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Dates -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <h6 class="text-muted mb-2">Created</h6>
+                            <p>@Model.Retainer?.CreatedDate.ToString("MMMM dd, yyyy")</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-muted mb-2">Start Date</h6>
+                            <p>@Model.Retainer?.StartDate.ToString("MMMM dd, yyyy")</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-muted mb-2">End Date</h6>
+                            <p>@(Model.Retainer?.EndDate?.ToString("MMMM dd, yyyy") ?? "Ongoing")</p>
+                        </div>
+                    </div>
+
+                    <!-- Scope of Work -->
+                    <div class="mb-4">
+                        <h6 class="text-muted mb-2">Scope of Work</h6>
+                        <div class="p-3 bg-light rounded">
+                            @Html.Raw(Model.Retainer?.ScopeOfWork?.Replace("\n", "<br/>"))
+                        </div>
+                    </div>
+
+                    <!-- Special Terms -->
+                    @if (!string.IsNullOrEmpty(Model.Retainer?.SpecialTerms))
+                    {
+                        <div class="mb-4">
+                            <h6 class="text-muted mb-2">Special Terms</h6>
+                            <div class="p-3 bg-light rounded">
+                                @Html.Raw(Model.Retainer?.SpecialTerms?.Replace("\n", "<br/>"))
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Fee Structure -->
+                    <div class="mb-4">
+                        <h6 class="text-muted mb-2">Fee Structure</h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <p class="mb-0"><strong>Type:</strong></p>
+                                <p>@Model.Retainer?.Type</p>
+                            </div>
+                            <div class="col-md-3">
+                                <p class="mb-0"><strong>Amount:</strong></p>
+                                <p class="h5 text-primary">R @(Model.Retainer?.Amount.ToString("N2") ?? "0.00")</p>
+                            </div>
+                            <div class="col-md-3">
+                                <p class="mb-0"><strong>Included Hours:</strong></p>
+                                <p>@Model.Retainer?.IncludedHours</p>
+                            </div>
+                            <div class="col-md-3">
+                                <p class="mb-0"><strong>Average Rate:</strong></p>
+                                <p>R @(Model.Retainer?.OverageRate.ToString("N2") ?? "0.00")/hour</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Payment Information -->
+                    <div class="mb-4">
+                        <h6 class="text-muted mb-2">Payment Information</h6>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <p class="mb-0"><strong>Total Amount:</strong></p>
+                                <p>R @(Model.Retainer?.Amount.ToString("N2") ?? "0.00")</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p class="mb-0"><strong>Amount Paid:</strong></p>
+                                <p class="text-success">R @Model.TotalPaid.ToString("N2")</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p class="mb-0"><strong>Remaining:</strong></p>
+                                <p class="text-danger">R @((Model.Retainer?.Amount ?? 0 - Model.TotalPaid).ToString("N2"))</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lawyer Notes -->
+                    @if (!string.IsNullOrEmpty(Model.Retainer?.LawyerNotes))
+                    {
+                        <div class="mb-4">
+                            <h6 class="text-muted mb-2">Lawyer Notes</h6>
+                            <div class="p-3 bg-info bg-opacity-10 rounded">
+                                @Html.Raw(Model.Retainer?.LawyerNotes?.Replace("\n", "<br/>"))
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Admin Notes -->
+                    @if (!string.IsNullOrEmpty(Model.Retainer?.AdminNotes))
+                    {
+                        <div class="mb-4">
+                            <h6 class="text-muted mb-2">Admin Notes</h6>
+                            <div class="p-3 bg-secondary bg-opacity-10 rounded">
+                                @Html.Raw(Model.Retainer?.AdminNotes?.Replace("\n", "<br/>"))
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Payment Schedules -->
+                    @if (Model.PaymentSchedules.Any())
+                    {
+                        <div class="mb-4">
+                            <h6 class="text-muted mb-2">Payment Schedule</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Installment</th>
+                                            <th>Due Date</th>
+                                            <th>Amount</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var schedule in Model.PaymentSchedules)
+                                        {
+                                            <tr>
+                                                <td>@schedule.InstallmentNumber</td>
+                                                <td>@schedule.DueDate.ToString("MMM dd, yyyy")</td>
+                                                <td>R @schedule.AmountDue.ToString("N2")</td>
+                                                <td>
+                                                    <span class="badge @(schedule.Status == PaymentScheduleStatus.Paid ? "bg-success" : "bg-warning")">
+                                                        @schedule.Status
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Sidebar -->
+            
+            <!-- Invoice Card -->
+            @if (Model.Invoice != null)
+            {
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-file-invoice text-primary me-2"></i>
+                            Invoice @Model.Invoice.InvoiceNumber
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-1"><strong>Amount:</strong> R @Model.Invoice.TotalAmount.ToString("N2")</p>
+                        <p class="mb-1"><strong>Due Date:</strong> @Model.Invoice.DueDate.ToString("MMM dd, yyyy")</p>
+                        <p class="mb-1">
+                            <strong>Status:</strong>
+                            <span class="badge @(Model.Invoice.Status == InvoiceStatus.Paid ? "bg-success" : "bg-warning")">
+                                @Model.Invoice.Status
+                            </span>
+                        </p>
+                        <hr />
+                        <a href="/Billing/InvoiceDetails/@Model.Invoice.Id" class="btn btn-outline-primary btn-sm w-100">
+                            <i class="fas fa-eye"></i> View Invoice
+                        </a>
+                    </div>
+                </div>
+            }
+
+            <!-- Recent Payments -->
+            @if (Model.Payments.Any())
+            {
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-credit-card text-success me-2"></i>
+                            Recent Payments
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            @foreach (var payment in Model.Payments.Take(5))
+                            {
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <small class="text-muted">@payment.PaymentDate.ToString("MMM dd, yyyy")</small>
+                                            <div>R @payment.Amount.ToString("N2")</div>
+                                        </div>
+                                        <span class="badge bg-success">@payment.PaymentMethod</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Action Log / Audit Trail -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history text-info me-2"></i>
+                        Activity Log
+                    </h5>
+                </div>
+                <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                    @if (Model.ActionLogs.Any())
+                    {
+                        <div class="list-group list-group-flush">
+                            @foreach (var log in Model.ActionLogs.Take(10))
+                            {
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <strong>@log.Action</strong>
+                                            <div class="small text-muted">@log.Details</div>
+                                            <div class="small text-muted mt-1">
+                                                <i class="fas fa-user"></i> @(log.User?.FullName ?? "System")
+                                            </div>
+                                        </div>
+                                        <small class="text-muted">@log.CreatedAt.ToString("MMM dd, HH:mm")</small>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-inbox fa-2x mb-2"></i>
+                            <p>No activity recorded yet</p>
+                        </div>
+                    }
+                </div>
+                <div class="card-footer bg-white">
+                    <a href="/Retainer/AuditTrail/@Model.Retainer?.Id" class="btn btn-link btn-sm w-100">
+                        View Full Audit Trail <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function submitForApproval(id) {
+            console.log("Submit button clicked for retainer ID: " + id);
+            
+            // Check if a lawyer is assigned
+            var assignedLawyerId = @(Model.Retainer?.AssignedLawyerId ?? 0);
+            console.log("Assigned Lawyer ID: " + assignedLawyerId);
+            
+            if (assignedLawyerId === 0) {
+                var confirmAssign = confirm("No lawyer is assigned to this retainer.\n\nDo you want to assign a lawyer now?");
+                if (confirmAssign) {
+                    window.location.href = '/Retainer/Edit/' + id;
+                }
+                return;
+            }
+            
+            // Confirm submission
+            var confirmSubmit = confirm("Are you sure you want to submit this retainer for lawyer approval?");
+            
+            if (confirmSubmit) {
+                // Disable the button to prevent double submission
+                var btn = document.getElementById('submitBtn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+                }
+                
+                // Get anti-forgery token
+                var token = $('input[name="__RequestVerificationToken"]').val();
+                if (!token) {
+                    token = $('form').first().find('input[name="__RequestVerificationToken"]').val();
+                }
+                
+                console.log("Sending AJAX request...");
+                
+                $.ajax({
+                    url: '/Retainer/SubmitForApproval',
+                    type: 'POST',
+                    data: {
+                        id: id,
+                        assignedLawyerId: assignedLawyerId
+                    },
+                    headers: {
+                        'RequestVerificationToken': token
+                    },
+                    success: function(response) {
+                        console.log("Response received:", response);
+                        if (response.success) {
+                            alert(response.message);
+                            location.reload();
+                        } else {
+                            alert("Error: " + response.message);
+                            if (btn) {
+                                btn.disabled = false;
+                                btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit for Approval';
+                            }
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.log("AJAX Error:", status, error);
+                        console.log("Response:", xhr.responseText);
+                        alert("An error occurred: " + error + "\nPlease check the console for details.");
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit for Approval';
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Add debug log when page loads
+        console.log("Details page loaded");
+        console.log("CanSubmit: @(Model.CanSubmit.ToString().ToLower())");
+        console.log("Retainer ID: @Model.Retainer?.Id");
+        console.log("Assigned Lawyer: @(Model.Retainer?.AssignedLawyerId ?? 0)");
+    </script>
+}

@@ -1,0 +1,11 @@
+@using Microsoft.AspNetCore.Http
+@{ ViewData["Title"] = "Accountant Dashboard"; Layout = "_AccountantLayout"; }
+<div class="container-fluid">
+    <h1 class="mb-2">Accountant Dashboard</h1>
+    <p class="lead">Welcome, @Context.Session.GetString("UserFullName").</p>
+    <div class="row g-4 mt-2">
+        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><i class="fas fa-file-invoice fa-2x text-warning mb-3"></i><h2 class="h5">Invoices</h2><p>Review issued, outstanding, and paid invoices.</p><a class="btn btn-warning" href="/Billing/Invoices">Open invoices</a></div></div></div>
+        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><i class="fas fa-university fa-2x text-warning mb-3"></i><h2 class="h5">Trust accounts</h2><p>Monitor client funds and trust balances.</p><a class="btn btn-warning" href="/Billing/TrustAccounts">Open trust accounts</a></div></div></div>
+        <div class="col-md-4"><div class="card shadow-sm h-100"><div class="card-body"><i class="fas fa-clock fa-2x text-warning mb-3"></i><h2 class="h5">Time entries</h2><p>Review time captured for billing.</p><a class="btn btn-warning" href="/Billing/TimeEntries">Open time entries</a></div></div></div>
+    </div>
+</div>

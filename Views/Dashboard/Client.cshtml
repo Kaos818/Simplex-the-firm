@@ -1,0 +1,101 @@
+﻿@using Microsoft.AspNetCore.Http
+@{
+    ViewData["Title"] = "Client Dashboard";
+    Layout = "_ClientLayout";
+}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="display-4 mb-4">Client Dashboard</h1>
+            <p class="lead">Welcome back, @Context.Session.GetString("UserFullName")!</p>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-3 mb-4">
+            <div class="card bg-primary text-white shadow-lg">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">My Cases</h6>
+                            <h2 class="mb-0">@ViewBag.MyCases</h2>
+                        </div>
+                        <i class="fas fa-folder-open fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-success text-white shadow-lg">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Active Retainers</h6>
+                            <h2 class="mb-0">@ViewBag.ActiveRetainers</h2>
+                        </div>
+                        <i class="fas fa-file-signature fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-warning text-white shadow-lg">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Open Invoices</h6>
+                            <h2 class="mb-0">@ViewBag.OpenInvoices</h2>
+                        </div>
+                        <i class="fas fa-file-invoice-dollar fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-info text-white shadow-lg">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Upcoming Events</h6>
+                            <h2 class="mb-0">@ViewBag.UpcomingEvents</h2>
+                        </div>
+                        <i class="fas fa-calendar-alt fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-lg">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/Retainer/ServiceCatalog" class="btn btn-primary"><i class="fas fa-store"></i> Browse Legal Services</a>
+                        <a href="/Case/MyCases" class="btn btn-info"><i class="fas fa-folder-open"></i> View My Cases</a>
+                        <a href="/Billing/MyInvoices" class="btn btn-success"><i class="fas fa-file-invoice-dollar"></i> View Invoices</a>
+                        <a href="/ConsultationBooking" class="btn btn-outline-primary"><i class="fas fa-calendar-plus"></i> Book a Consultation</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-lg">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Recent Updates</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        <div class="list-group-item">
+                            <small class="text-muted">No recent updates</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

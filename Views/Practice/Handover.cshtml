@@ -1,0 +1,34 @@
+@model SimplexLawFirm.ViewModels.HandoverPageViewModel
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Case handover";
+    Layout = Context.Session.GetString("UserRole") == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    var userId = Context.Session.GetInt32("UserId");
+    var isOutgoing = userId == Model.Handover.OutgoingAttorneyId;
+    var isReceiving = userId == Model.Handover.ReceivingAttorneyId;
+    var editable = Model.Handover.Status is HandoverStatus.Preparing or HandoverStatus.Overdue;
+}
+<div class="breadcrumb-line"><a href="/Practice">Practice intelligence</a><span>/</span><span>Handover</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Safe transfer</span><h1>@Model.Handover.Case.Title</h1><p>@Model.Handover.OutgoingAttorney.FullName → @Model.Handover.ReceivingAttorney.FullName</p></div><span class="status-pill large">@Model.Handover.Status</span></div>
+
+@if (Model.BlockingItems.Count > 0) {
+    <div class="alert alert-warning"><strong>Handover is blocked.</strong> The outgoing attorney must record a position for each mandatory item below before it can be marked ready.</div>
+}
+<div class="workspace-grid">
+ <section class="surface"><div class="section-heading"><div><span class="eyebrow">Live checklist</span><h2>@Model.BlockingItems.Count blocker(s)</h2></div><small>Rechecked when readiness is submitted</small></div>
+ @foreach(var item in Model.Handover.Items){
+     @if (isOutgoing && editable) {
+         <form method="post" action="/Practice/ResolveItem" class="checklist-item @(item.IsResolved ? "done" : "")">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@item.Id"/><input type="hidden" name="handoverId" value="@Model.Handover.Id"/><input type="hidden" name="resolved" value="@(!item.IsResolved)"/><button type="submit" class="check-button" aria-label="@(item.IsResolved ? "Reopen checklist item" : "Record checklist item position")">@(item.IsResolved ? "✓" : "○")</button><div class="item-copy"><b>@item.Type</b><p>@item.Description</p><small>@(item.IsMandatory ? "Mandatory" : "Advisory")</small>@if(!item.IsResolved){<input name="resolutionNote" required="@item.IsMandatory" placeholder="Record the position taken…" aria-label="Resolution note"/>}else if(!string.IsNullOrWhiteSpace(item.ResolutionNote)){<em>@item.ResolutionNote</em>}</div></form>
+     } else {
+         <div class="checklist-item @(item.IsResolved ? "done" : "")"><span class="check-button" aria-hidden="true">@(item.IsResolved ? "✓" : "○")</span><div class="item-copy"><b>@item.Type</b><p>@item.Description</p><small>@(item.IsMandatory ? "Mandatory" : "Advisory")</small>@if(!string.IsNullOrWhiteSpace(item.ResolutionNote)){<em>@item.ResolutionNote</em>}</div></div>
+     }
+ }
+ </section>
+ @if (isOutgoing && editable) {
+ <section class="surface"><span class="eyebrow">Handover briefing</span><h2>Prepare the next attorney</h2><form method="post" action="/Practice/MarkReady" class="stack-form">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Handover.Id"/><label>Handover notes<textarea name="notes" rows="5">@Model.Handover.Notes</textarea></label><label>Urgent matters & imminent deadlines<textarea name="urgentMatters" rows="4">@Model.Handover.UrgentMatters</textarea></label><div class="responsibility-note">Responsibility remains with <b>@Model.Handover.OutgoingAttorney.FullName</b> until acceptance.</div><button type="submit" class="btn-primary-modern">Run live check & mark ready</button></form></section>
+ } else if (isReceiving && Model.Handover.Status == HandoverStatus.Ready) {
+ <section class="surface"><span class="eyebrow">Receiving attorney</span><h2>Accept responsibility</h2><p>The live checklist and briefing are complete. Acceptance transfers responsibility to you.</p><form method="post" action="/Practice/AcceptHandover">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Handover.Id"/><button type="submit" class="btn-primary-modern">Accept handover</button></form></section>
+ } else {
+ <section class="surface"><span class="eyebrow">Handover status</span><h2>Read-only for your role</h2><p>@(Model.Handover.Status == HandoverStatus.Ready ? "Waiting for the receiving attorney to accept responsibility." : "The outgoing attorney is preparing the handover pack.")</p></section>
+ }
+</div>

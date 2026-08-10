@@ -1,0 +1,350 @@
+﻿@model List<SimplexLawFirm.Models.Invoice>
+
+@{
+    ViewData["Title"] = "Invoice Management";
+    Layout = "_AdminLayout";
+    
+    var totalInvoices = ViewBag.TotalInvoices as int? ?? 0;
+    var totalRevenue = ViewBag.TotalRevenue as decimal? ?? 0;
+    var totalOutstanding = ViewBag.TotalOutstanding as decimal? ?? 0;
+    var overdueInvoices = ViewBag.OverdueInvoices as int? ?? 0;
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-file-invoice-dollar text-primary"></i> Invoice Management
+                    </h1>
+                    <p class="text-muted">Manage all business invoices</p>
+                </div>
+                <div>
+                    <a href="/Billing/CreateInvoice" class="btn btn-primary">
+                        <i class="fas fa-plus-circle"></i> Create Invoice
+                    </a>
+                    <a href="/Billing/InvoiceAnalytics" class="btn btn-info">
+                        <i class="fas fa-chart-line"></i> Analytics
+                    </a>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Invoices</h6>
+                            <h2 class="mb-0">@totalInvoices</h2>
+                        </div>
+                        <i class="fas fa-file-invoice fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Revenue</h6>
+                            <h2 class="mb-0">R @totalRevenue.ToString("N0")</h2>
+                        </div>
+                        <i class="fas fa-chart-line fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Outstanding</h6>
+                            <h2 class="mb-0">R @totalOutstanding.ToString("N0")</h2>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-danger text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Overdue</h6>
+                            <h2 class="mb-0">@overdueInvoices</h2>
+                        </div>
+                        <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Filter Bar -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fas fa-filter"></i> Filter Invoices</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select" id="statusFilter">
+                            <option value="">All</option>
+                            @foreach (InvoiceStatus status in ViewBag.StatusOptions)
+                            {
+                                <option value="@status" selected="@(ViewBag.CurrentStatus == status.ToString())">
+                                    @status
+                                </option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Client</label>
+                        <select name="clientId" class="form-select" id="clientFilter" asp-items="ViewBag.Clients">
+                            <option value="">All Clients</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">From Date</label>
+                        <input type="date" name="fromDate" class="form-control" id="fromDate" value="@ViewBag.FromDate" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">To Date</label>
+                        <input type="date" name="toDate" class="form-control" id="toDate" value="@ViewBag.ToDate" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Search</label>
+                        <input type="text" name="searchTerm" class="form-control" placeholder="Invoice #, Client, Description" value="@ViewBag.SearchTerm" />
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i> Apply Filters
+                        </button>
+                        <a href="/Billing/AdminInvoices" class="btn btn-outline-secondary">
+                            <i class="fas fa-undo"></i> Clear All
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Invoices Table -->
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-inbox fa-5x text-muted mb-3"></i>
+            <h3 class="text-muted">No Invoices Found</h3>
+            <p class="text-muted">Try adjusting your filters or create a new invoice.</p>
+            <a href="/Billing/CreateInvoice" class="btn btn-primary">
+                <i class="fas fa-plus-circle"></i> Create Invoice
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> Invoice List
+                        <span class="badge bg-secondary ms-2">@Model.Count invoices</span>
+                    </h5>
+                    <div>
+                        <input type="text" id="tableSearch" class="form-control form-control-sm" placeholder="Search table..." style="width: 200px;" />
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="invoicesTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Invoice #</th>
+                                <th>Client</th>
+                                <th>Date</th>
+                                <th>Due Date</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Paid</th>
+                                <th>Balance</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var invoice in Model)
+                            {
+                                var paidAmount = invoice.Payments?.Sum(p => p.Amount) ?? 0;
+                                var balanceDue = invoice.TotalAmount - paidAmount;
+                                var isOverdue = invoice.DueDate < DateTime.Now && invoice.Status != InvoiceStatus.Paid;
+                                
+                                <tr class="@(isOverdue ? "table-danger" : "")">
+                                    <td>
+                                        <strong>@invoice.InvoiceNumber</strong>
+                                        @if (invoice.RetainerId.HasValue)
+                                        {
+                                            <br />
+                                            <small class="text-muted">Retainer #@invoice.RetainerId</small>
+                                        }
+                                    </td>
+                                    <td>
+                                        <a href="/Client/Details/@invoice.ClientId">@invoice.Client?.FullName</a>
+                                    </td>
+                                    <td>@invoice.IssueDate.ToString("MMM dd, yyyy")</td>
+                                    <td class="@(isOverdue ? "text-danger fw-bold" : "")">
+                                        @invoice.DueDate.ToString("MMM dd, yyyy")
+                                    </td>
+                                    <td>@invoice.Description</td>
+                                    <td class="fw-bold">R @invoice.TotalAmount.ToString("N2")</td>
+                                    <td class="text-success">R @paidAmount.ToString("N2")</td>
+                                    <td class="text-danger">R @balanceDue.ToString("N2")</td>
+                                    <td>
+                                        @{
+                                            string statusClass = "bg-secondary";
+                                            if (invoice.Status == InvoiceStatus.Paid) statusClass = "bg-success";
+                                            else if (invoice.Status == InvoiceStatus.PartiallyPaid) statusClass = "bg-warning";
+                                            else if (invoice.Status == InvoiceStatus.Sent) statusClass = "bg-info";
+                                            else if (invoice.Status == InvoiceStatus.Overdue) statusClass = "bg-danger";
+                                        }
+                                        <span class="badge @statusClass">@invoice.Status</span>
+                                    </td>
+                                    <td>
+                                        <a href="/Billing/AdminInvoiceDetails/@invoice.Id" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="5" class="text-end">Totals:</th>
+                                <th class="fw-bold">R @Model.Sum(i => i.TotalAmount).ToString("N2")</th>
+                                <th class="text-success fw-bold">R @Model.Sum(i => i.Payments?.Sum(p => p.Amount) ?? 0).ToString("N2")</th>
+                                <th class="text-danger fw-bold">R @Model.Sum(i => i.TotalAmount - (i.Payments?.Sum(p => p.Amount) ?? 0)).ToString("N2")</th>
+                                <th colspan="2"></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            Showing @Model.Count invoice@(Model.Count != 1 ? "s" : "")
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <button id="exportBtn" class="btn btn-sm btn-success">
+                            <i class="fas fa-file-excel"></i> Export to CSV
+                        </button>
+                        <button id="printBtn" class="btn btn-sm btn-secondary">
+                            <i class="fas fa-print"></i> Print
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+        cursor: pointer;
+    }
+    
+    .stat-card {
+        transition: transform 0.2s ease;
+    }
+    
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+</style>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Table search
+            $('#tableSearch').on('keyup', function() {
+                var value = $(this).val().toLowerCase();
+                $('#invoicesTable tbody tr').filter(function() {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+                });
+            });
+            
+            // Auto-submit filters on change
+            $('#statusFilter, #clientFilter').change(function() {
+                $('#filterForm').submit();
+            });
+            
+            // Date filter with validation
+            $('#fromDate, #toDate').change(function() {
+                var fromDate = $('#fromDate').val();
+                var toDate = $('#toDate').val();
+                
+                if (fromDate && toDate && fromDate > toDate) {
+                    alert('From date cannot be after To date.');
+                    $('#fromDate').val('');
+                } else {
+                    $('#filterForm').submit();
+                }
+            });
+            
+            // Row click to view details
+            $('#invoicesTable tbody tr').click(function(e) {
+                if (!$(e.target).closest('a').length && !$(e.target).closest('button').length) {
+                    var viewLink = $(this).find('a:first').attr('href');
+                    if (viewLink) {
+                        window.location.href = viewLink;
+                    }
+                }
+            });
+            
+            // Export to CSV
+            $('#exportBtn').click(function() {
+                var csv = [];
+                var rows = $('#invoicesTable tr');
+                
+                rows.each(function() {
+                    var row = [];
+                    $(this).find('th, td').each(function() {
+                        var text = $(this).text().trim();
+                        row.push('"' + text.replace(/"/g, '""') + '"');
+                    });
+                    csv.push(row.join(','));
+                });
+                
+                var blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+                var url = window.URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = `Invoices_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            });
+            
+            // Print
+            $('#printBtn').click(function() {
+                window.print();
+            });
+        });
+    </script>
+}

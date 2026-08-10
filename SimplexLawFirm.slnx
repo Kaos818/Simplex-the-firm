@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SimplexLawFirm.csproj" />
+  <Project Path="SimplexLawFirm.Tests/SimplexLawFirm.Tests.csproj" />
+</Solution>
