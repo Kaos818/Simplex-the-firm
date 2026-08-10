@@ -1,0 +1,33 @@
+@model SimplexLawFirm.ViewModels.PrecedentDashboardViewModel
+@using SimplexLawFirm.Models
+@{ ViewData["Title"]="Precedent Library"; Layout="_AdminLayout"; var gaps=Model.Coverage.Count(x=>x.CurrentItems==0); }
+<div class="page-hero compact"><div><span class="eyebrow">UC-06 · Information management</span><h1>Curate the firm's precedent.</h1><p>Protected material stays outside the index. Review possible supersessions, monitor the retry queue, and commission work where coverage is missing.</p></div><a asp-action="Article" class="btn-primary-modern">New knowledge article</a></div>
+<div class="row g-3 mb-4">
+ <div class="col-md-3"><div class="surface"><span class="eyebrow">Current precedent</span><h2>@Model.Coverage.Sum(x=>x.CurrentItems)</h2><small>@Model.IndexedCount successful index job(s)</small></div></div>
+ <div class="col-md-3"><div class="surface"><span class="eyebrow">Review needed</span><h2>@Model.Flags.Count</h2></div></div>
+ <div class="col-md-3"><div class="surface"><span class="eyebrow">Coverage gaps</span><h2>@gaps</h2></div></div>
+ <div class="col-md-3"><div class="surface"><span class="eyebrow">Index backlog</span><h2>@Model.Backlog.Count</h2><small>@Model.ExcludedCount safely excluded</small></div></div>
+</div>
+<section class="surface mb-4">
+ <div class="section-heading"><div><span class="eyebrow">Human curation required</span><h2>Possible contradictions or supersessions</h2></div></div>
+ @if(!Model.Flags.Any()){<p class="text-muted">No items await review.</p>}
+ @foreach(var f in Model.Flags){<div class="record-row align-items-start"><div><b>@f.ExistingPrecedentItem.Title</b><small>Compared with newer: @f.NewPrecedentItem.Title · similarity @f.Similarity.ToString("P0")</small><p class="mb-2">@f.Reason</p></div><form asp-action="Review" method="post" class="d-flex gap-2 flex-wrap">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@f.Id"/><input class="form-control" name="note" placeholder="Reason or amendment note" required/><button name="decision" value="@PrecedentFlagStatus.Retired" class="btn btn-danger">Retire</button><button name="decision" value="@PrecedentFlagStatus.Amended" class="btn btn-warning">Amend</button><button name="decision" value="@PrecedentFlagStatus.Retained" class="btn btn-outline-success">Retain</button></form></div>}
+</section>
+<section class="surface mb-4">
+ <div class="section-heading"><div><span class="eyebrow">Decision history</span><h2>Recent curation decisions</h2></div></div>
+ @if(!Model.ReviewedFlags.Any()){<p class="text-muted">No reviewed supersession flags yet.</p>}
+ @foreach(var f in Model.ReviewedFlags){<div class="record-row"><span><b>@f.ExistingPrecedentItem.Title</b><small>New work: @f.NewPrecedentItem.Title</small><small>@f.ReviewNote</small></span><span class="status-pill">@f.Status · @f.ReviewedAtUtc?.ToLocalTime().ToString("g")</span></div>}
+</section>
+<section class="surface mb-4">
+ <div class="section-heading"><div><span class="eyebrow">Exposure map</span><h2>Coverage by legal subject</h2></div></div>
+ <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Subject</th><th>Current</th><th>All versions</th><th>Gap action</th></tr></thead><tbody>
+ @foreach(var row in Model.Coverage){<tr class="@(row.CurrentItems==0?"table-warning":"")"><td><b>@row.Subject.Name</b></td><td>@row.CurrentItems</td><td>@row.TotalItems</td><td>
+ @if(row.CurrentItems==0 && row.OpenCommission==null){<form asp-action="Commission" method="post" class="d-flex gap-2">@Html.AntiForgeryToken()<input type="hidden" name="subjectId" value="@row.Subject.Id"/><input class="form-control" name="brief" placeholder="Commissioning brief" required/><input class="form-control" name="dueDate" type="date"/><button class="btn btn-dark">Commission</button></form>}
+ else if(row.OpenCommission!=null){<div><span class="badge bg-info text-dark">@row.OpenCommission.Status</span> @row.OpenCommission.Brief <form asp-action="CompleteCommission" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@row.OpenCommission.Id"/><button class="btn btn-sm btn-outline-success">Complete</button></form></div>}
+ else {<span class="text-success">Covered</span>}</td></tr>}</tbody></table></div>
+</section>
+<div class="row g-4">
+ <div class="col-lg-6"><section class="surface"><div class="section-heading"><div><span class="eyebrow">Outage-safe processing</span><h2>Embedding backlog</h2></div><form asp-action="RetryBacklog" method="post">@Html.AntiForgeryToken()<button class="btn btn-outline-primary">Retry now</button></form></div>
+ @if(!Model.Backlog.Any()){<p class="text-success">Queue is clear.</p>} @foreach(var j in Model.Backlog){<div class="record-row"><span><b>@j.Title</b><small>Attempt @j.AttemptCount · queued @j.QueuedAtUtc.ToLocalTime().ToString("g")</small><small class="text-danger">@j.LastError</small></span><span class="status-pill">@j.Status</span></div>}</section></div>
+ <div class="col-lg-6"><section class="surface"><span class="eyebrow">Recently filed</span><h2>Current library</h2>@if(!Model.RecentItems.Any()){<p class="text-muted">No eligible content has been indexed yet.</p>} @foreach(var i in Model.RecentItems){<div class="record-row"><span><b>@i.Title</b><small>@i.LegalSubject.Name · @i.SourceType</small></span><span class="d-flex align-items-center gap-2"><span class="status-pill">@(i.IsCurrent?"Current":"Retired")</span>@if(i.SourceType==PrecedentSourceType.KnowledgeArticle){<a class="btn btn-sm btn-outline-primary" asp-action="Article" asp-route-id="@i.SourceId">Edit article</a>}</span></div>}</section></div>
+</div>

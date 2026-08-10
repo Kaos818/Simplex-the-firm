@@ -1,0 +1,4 @@
+@model IReadOnlyList<SimplexLawFirm.Models.ServiceComplaint>
+@{ Layout="_ClientLayout"; }
+<div class="page-hero compact"><div><span class="eyebrow">Protected service channel</span><h1>My complaints</h1><p>Track confidential complaints and read Director feedback.</p></div><a class="btn-primary-modern" href="/Practice/LodgeComplaint">Lodge complaint</a></div>
+<section class="surface">@if(!Model.Any()){<p class="muted">You have not lodged a complaint.</p>}@foreach(var item in Model){<a class="record-row" href="/Practice/Complaints/@item.Id"><span><b>@item.ReferenceNumber · @item.Category</b><small>@item.Case.CaseNumber · @item.SubmittedAtUtc.ToString("dd MMM yyyy")</small></span><span class="status-pill">@item.Status</span></a>}</section>

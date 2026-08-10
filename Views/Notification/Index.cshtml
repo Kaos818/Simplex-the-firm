@@ -1,0 +1,2 @@
+@model IEnumerable<SimplexLawFirm.Models.SystemNotification>
+<h1>Notifications</h1>@foreach(var item in Model){<article class="card p-3 mb-2"><h2 class="h5">@item.Title</h2><p>@item.Message</p><form asp-action="Read" asp-route-id="@item.Id" method="post">@Html.AntiForgeryToken()<button class="btn btn-link">Open</button></form></article>}

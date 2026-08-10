@@ -1,0 +1,465 @@
+﻿@model IEnumerable<SimplexLawFirm.Models.Case>
+@{
+    ViewData["Title"] = "Active Cases";
+    Layout = Context.Session.GetString("UserRole") == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">
+                <i class="fas fa-play-circle text-success me-2"></i>Active Cases
+            </h1>
+            <p class="text-muted">View and manage all currently active legal cases</p>
+        </div>
+        <div>
+            <a href="@Url.Action("Create")" class="btn btn-primary btn-lg">
+                <i class="fas fa-plus-circle me-2"></i>New Case
+            </a>
+            <a href="@Url.Action("Index")" class="btn btn-outline-secondary btn-lg">
+                <i class="fas fa-list me-2"></i>All Cases
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Active Cases</h6>
+                            <h2 class="mb-0">@Model.Count()</h2>
+                        </div>
+                        <i class="fas fa-play-circle fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Total Clients</h6>
+                            <h2 class="mb-0">@Model.Select(c => c.ClientId).Distinct().Count()</h2>
+                        </div>
+                        <i class="fas fa-users fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Assigned Lawyers</h6>
+                            <h2 class="mb-0">@Model.Where(c => c.LawyerId.HasValue).Select(c => c.LawyerId).Distinct().Count()</h2>
+                        </div>
+                        <i class="fas fa-user-graduate fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-secondary text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Unassigned</h6>
+                            <h2 class="mb-0">@Model.Count(c => !c.LawyerId.HasValue)</h2>
+                        </div>
+                        <i class="fas fa-user-slash fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-5">
+                    <label class="form-label">Search Cases</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="fas fa-search"></i></span>
+                        <input type="text" name="searchTerm" class="form-control" placeholder="Case number, title, or client..." value="@ViewBag.SearchTerm" id="searchInput" />
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Filter by Lawyer</label>
+                    <select name="lawyerId" class="form-select" id="lawyerFilter">
+                        <option value="">All Lawyers</option>
+                        @{
+                            var uniqueLawyers = Model.Where(c => c.LawyerId.HasValue)
+                                .Select(c => new { c.LawyerId, c.Lawyer.FullName })
+                                .Distinct()
+                                .OrderBy(l => l.FullName);
+                        }
+                        @foreach (var lawyer in uniqueLawyers)
+                        {
+                            <option value="@lawyer.LawyerId">@lawyer.FullName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary w-100" id="filterBtn">
+                        <i class="fas fa-filter me-2"></i>Apply Filters
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Active Cases Table -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-folder-open me-2"></i>Active Cases List
+                </h5>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="exportToExcel()">
+                        <i class="fas fa-file-excel me-1"></i>Export
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+                        <i class="fas fa-print me-1"></i>Print
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="casesTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Case Number</th>
+                            <th>Title</th>
+                            <th>Client</th>
+                            <th>Lawyer</th>
+                            <th>Created Date</th>
+                            <th>Last Updated</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-5">
+                                    <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
+                                    <h5>No Active Cases</h5>
+                                    <p class="text-muted">There are no active cases at the moment.</p>
+                                    <a href="@Url.Action("Create")" class="btn btn-primary mt-2">
+                                        <i class="fas fa-plus-circle me-2"></i>Create New Case
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var caseItem in Model)
+                            {
+                                <tr data-lawyer-id="@caseItem.LawyerId" data-case-title="@caseItem.Title.ToLower()" data-case-number="@caseItem.CaseNumber.ToLower()">
+                                    <td>
+                                        <span class="fw-bold text-primary">@caseItem.CaseNumber</span>
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold">@caseItem.Title</div>
+                                        @if (!string.IsNullOrEmpty(caseItem.Description) && caseItem.Description.Length > 50)
+                                        {
+                                            <small class="text-muted">@caseItem.Description.Substring(0, 50)...</small>
+                                        }
+                                        else if (!string.IsNullOrEmpty(caseItem.Description))
+                                        {
+                                            <small class="text-muted">@caseItem.Description</small>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar-sm bg-light rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+                                                <i class="fas @(caseItem.Client?.IsBusiness == true ? "fa-building" : "fa-user") text-primary"></i>
+                                            </div>
+                                            <div>
+                                                <div>@caseItem.Client?.FullName</div>
+                                                <small class="text-muted">@caseItem.Client?.Email</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (caseItem.Lawyer != null)
+                                        {
+                                            <div class="d-flex align-items-center">
+                                                <div class="avatar-sm bg-primary bg-opacity-10 rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+                                                    <i class="fas fa-gavel text-primary"></i>
+                                                </div>
+                                                <div>
+                                                    <div>@caseItem.Lawyer.FullName</div>
+                                                    <small class="text-muted">@caseItem.Lawyer.Email</small>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="fas fa-user-slash me-1"></i>Unassigned
+                                            </span>
+                                            <br />
+                                            <a href="@Url.Action("AssignLawyer", new { id = caseItem.Id })" class="btn btn-sm btn-link p-0 mt-1">
+                                                <i class="fas fa-plus-circle me-1"></i>Assign Lawyer
+                                            </a>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div>@caseItem.CreatedAt.ToString("dd MMM yyyy")</div>
+                                        <small class="text-muted">@caseItem.CreatedAt.ToString("HH:mm")</small>
+                                    </td>
+                                    <td>
+                                        @if (caseItem.UpdatedAt.HasValue)
+                                        {
+                                            <div>@caseItem.UpdatedAt.Value.ToString("dd MMM yyyy")</div>
+                                            <small class="text-muted">@caseItem.UpdatedAt.Value.ToString("HH:mm")</small>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Not updated</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="@Url.Action("Details", new { id = caseItem.Id })" class="btn btn-outline-primary" title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="@Url.Action("Edit", new { id = caseItem.Id })" class="btn btn-outline-secondary" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            @if (caseItem.LawyerId == null)
+                                            {
+                                                <a href="@Url.Action("AssignLawyer", new { id = caseItem.Id })" class="btn btn-outline-success" title="Assign Lawyer">
+                                                    <i class="fas fa-user-plus"></i>
+                                                </a>
+                                            }
+                                            <button type="button" class="btn btn-outline-danger" title="Archive" onclick="archiveCase(@caseItem.Id)">
+                                                <i class="fas fa-archive"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <small class="text-muted">
+                        Showing <span id="visibleCount">@Model.Count()</span> of @Model.Count() active cases
+                    </small>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshData()">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats Footer -->
+    <div class="row mt-4">
+        <div class="col-md-4 mb-3">
+            <div class="card border-0 bg-light">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <i class="fas fa-clock fa-2x text-warning"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Cases Pending Lawyer Assignment</h6>
+                            <h3 class="mb-0">@Model.Count(c => !c.LawyerId.HasValue)</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card border-0 bg-light">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <i class="fas fa-calendar-alt fa-2x text-info"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Cases Created This Month</h6>
+                            <h3 class="mb-0">@Model.Count(c => c.CreatedAt.Month == DateTime.Now.Month && c.CreatedAt.Year == DateTime.Now.Year)</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card border-0 bg-light">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <i class="fas fa-chart-line fa-2x text-success"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Average Cases per Lawyer</h6>
+                            <h3 class="mb-0">
+                                @{
+                                    var lawyersWithCases = Model.Where(c => c.LawyerId.HasValue).Select(c => c.LawyerId).Distinct().Count();
+                                    var avg = lawyersWithCases > 0 ? (double)Model.Count(c => c.LawyerId.HasValue) / lawyersWithCases : 0;
+                                }
+                                @avg.ToString("F1")
+                            </h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Live search functionality
+            $('#searchInput').on('keyup', function() {
+                filterTable();
+            });
+            
+            $('#lawyerFilter').on('change', function() {
+                filterTable();
+            });
+            
+            function filterTable() {
+                var searchText = $('#searchInput').val().toLowerCase();
+                var lawyerId = $('#lawyerFilter').val();
+                var visibleCount = 0;
+                
+                $('#casesTable tbody tr').each(function() {
+                    var $row = $(this);
+                    var caseTitle = $row.data('case-title') || '';
+                    var caseNumber = $row.data('case-number') || '';
+                    var rowLawyerId = $row.data('lawyer-id') || '';
+                    
+                    var matchesSearch = searchText === '' ||
+                        caseTitle.includes(searchText) ||
+                        caseNumber.includes(searchText);
+                    var matchesLawyer = lawyerId === '' || rowLawyerId == lawyerId;
+                    
+                    if (matchesSearch && matchesLawyer) {
+                        $row.show();
+                        visibleCount++;
+                    } else {
+                        $row.hide();
+                    }
+                });
+                
+                $('#visibleCount').text(visibleCount);
+            }
+        });
+        
+        function archiveCase(id) {
+            if (confirm('Are you sure you want to archive this case? The case will no longer appear in active cases.')) {
+                $.ajax({
+                    url: '/Case/Delete/' + id,
+                    type: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            showAlert(response.message, 'success');
+                            setTimeout(function() {
+                                location.reload();
+                            }, 1500);
+                        } else {
+                            showAlert(response.message, 'danger');
+                        }
+                    },
+                    error: function() {
+                        showAlert('An error occurred while archiving the case', 'danger');
+                    }
+                });
+            }
+        }
+        
+                function exportToExcel() {
+            var table = document.getElementById('casesTable');
+            var html = table.outerHTML;
+            var url = 'data:application/vnd.ms-excel,' + encodeURIComponent(html);
+            var downloadLink = document.createElement('a');
+            var timestamp = new Date().toISOString().slice(0,19).replace(/:/g, '');
+            downloadLink.href = url;
+            downloadLink.download = 'active_cases_' + timestamp + '.xls';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+        
+        function refreshData() {
+            showAlert('Refreshing data...', 'info');
+            setTimeout(function() {
+                location.reload();
+            }, 500);
+        }
+        
+        function showAlert(message, type) {
+            const icon = type === 'success' ? 'fa-check-circle' :
+                        (type === 'danger' ? 'fa-exclamation-circle' :
+                        (type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'));
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg" style="z-index: 9999; min-width: 300px;" role="alert">
+                    <div class="d-flex align-items-center">
+                        <i class="fas ${icon} fa-2x me-3"></i>
+                        <div>
+                            <strong>${type.charAt(0).toUpperCase() + type.slice(1)}!</strong>
+                            <div>${message}</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            $('body').append(alertHtml);
+            setTimeout(() => {
+                $('.alert').last().fadeOut(500, function() { $(this).remove(); });
+            }, 3000);
+        }
+    </script>
+}
+
+<style>
+    .stat-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        cursor: pointer;
+    }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+        }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+        cursor: pointer;
+    }
+
+    .avatar-sm {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+
+    .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+</style>

@@ -1,0 +1,17 @@
+@model IEnumerable<SimplexLawFirm.Models.BeneficiaryTrustDisbursementRequest>
+@{ Layout = "_AdminLayout"; ViewData["Title"] = "Trust requests"; }
+<div class="page-hero compact"><span class="eyebrow">Director trust control</span><h1>Beneficiary disbursement requests</h1></div>
+@foreach (var item in Model)
+{
+    <div class="card my-3"><div class="card-body">
+        <div class="d-flex justify-content-between gap-3"><span><b>@item.ReferenceNumber · @item.Beneficiary.FirstName @item.Beneficiary.LastName</b><br/><small>@item.Purpose — @item.Reason</small></span><span><b>R @item.Amount.ToString("N2")</b><br/><span class="badge bg-secondary">@item.Status</span></span></div>
+        @if (item.Status is SimplexLawFirm.Models.TrustDisbursementStatus.Submitted or SimplexLawFirm.Models.TrustDisbursementStatus.ManualIdentityReview)
+        {
+            <form asp-action="DecideTrustRequest" method="post" class="row g-2 mt-3">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@item.Id"/><div class="col-md-7"><input class="form-control" name="reason" minlength="10" required placeholder="Director decision reason"/></div><div class="col-md-5 d-flex gap-2"><button class="btn btn-success flex-fill" name="approve" value="true" disabled="@(item.Status == SimplexLawFirm.Models.TrustDisbursementStatus.ManualIdentityReview)">Approve</button><button class="btn btn-danger flex-fill" name="approve" value="false">Reject</button></div></form>
+        }
+        else
+        {
+            <p class="mt-3 mb-0"><b>Decision:</b> @item.DecisionReason</p>
+        }
+    </div></div>
+}

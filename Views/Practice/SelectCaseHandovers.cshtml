@@ -1,0 +1,35 @@
+@model SimplexLawFirm.ViewModels.SelectCaseHandoversViewModel
+@using SimplexLawFirm.Models
+@{
+    Layout = "_LawyerLayout";
+    ViewData["Title"] = "Select cases to hand over";
+    var cases = ViewBag.Cases as IReadOnlyList<Case> ?? [];
+}
+<div class="breadcrumb-line"><a href="/Practice/Handovers">Case handovers</a><span>/</span><span>Select cases</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Director-reviewed transfer</span><h1>Select cases to hand over</h1><p>Choose one or several of your activated open cases. You remain responsible until each receiving lawyer accepts the completed handover.</p></div></div>
+<form method="post" class="surface stack-form">
+ @Html.AntiForgeryToken()
+ <div asp-validation-summary="All" class="text-danger"></div>
+ <div class="section-heading"><div><span class="eyebrow">My open cases</span><h2>@cases.Count available</h2></div><input id="caseSearch" class="form-control" style="max-width:360px" type="search" placeholder="Search case number, title or client" aria-label="Search open cases" /></div>
+ <div class="d-flex gap-2 mb-3"><button class="btn-secondary-modern" type="button" id="selectAll">Select all visible</button><button class="btn-secondary-modern" type="button" id="clearAll">Clear selection</button><strong class="ms-auto"><span id="selectedCount">0</span> selected</strong></div>
+ <div id="caseRows">
+ @foreach (var matter in cases)
+ {
+  <label class="record-row case-choice" data-search="@($"{matter.CaseNumber} {matter.Title} {matter.Client.FullName} {matter.CaseType}".ToLowerInvariant())" style="cursor:pointer">
+   <span class="d-flex align-items-center gap-3"><input class="form-check-input case-checkbox" type="checkbox" name="CaseIds" value="@matter.Id" checked="@Model.CaseIds.Contains(matter.Id)"/><span><b>@matter.CaseNumber · @matter.Title</b><small>@matter.Client.FullName · @matter.CaseType · opened @matter.CreatedAt.ToString("dd MMM yyyy")</small></span></span><span class="status-pill">@matter.Status</span>
+  </label>
+ }
+ </div>
+ @if (!cases.Any()) { <div class="empty-state">No cases are eligible. Cases already transferred to you cannot be handed over again; contact the Director if exceptional intervention is required.</div> }
+ <label>Reason applying to the selected cases<textarea asp-for="Reason" rows="6" minlength="20" maxlength="2000" required placeholder="Explain capacity, conflict, expertise, continuity considerations and urgent risks"></textarea></label>
+ <div class="responsibility-note">The Director will review each selected case separately and choose a capable receiving lawyer. Submission does not immediately change case ownership.</div>
+ <div class="d-flex gap-2"><button class="btn-primary-modern" type="submit" disabled="@(!cases.Any())">Submit selected cases</button><a class="btn-secondary-modern" href="/Practice/Handovers">Cancel</a></div>
+</form>
+<script>
+const boxes=()=>[...document.querySelectorAll('.case-checkbox')];
+const updateCount=()=>document.getElementById('selectedCount').textContent=boxes().filter(x=>x.checked).length;
+document.getElementById('caseSearch')?.addEventListener('input',function(){const q=this.value.toLowerCase().trim();document.querySelectorAll('.case-choice').forEach(x=>x.style.display=!q||x.dataset.search.includes(q)?'':'none');});
+document.getElementById('selectAll')?.addEventListener('click',()=>{boxes().filter(x=>x.closest('.case-choice').style.display!=='none').forEach(x=>x.checked=true);updateCount();});
+document.getElementById('clearAll')?.addEventListener('click',()=>{boxes().forEach(x=>x.checked=false);updateCount();});
+boxes().forEach(x=>x.addEventListener('change',updateCount));updateCount();
+</script>

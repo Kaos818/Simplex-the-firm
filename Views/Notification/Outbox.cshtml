@@ -1,0 +1,6 @@
+@model IEnumerable<SimplexLawFirm.Models.EmailOutboxMessage>
+@{ ViewData["Title"] = "Email outbox"; }
+<div class="page-hero compact"><span class="eyebrow">Reliable delivery</span><h1>Email outbox</h1><p>Monitor queued, retried, delivered and permanently failed notifications without exposing SMTP credentials.</p></div>
+<div class="card p-3 table-responsive"><table class="table"><thead><tr><th>Created</th><th>Recipient</th><th>Subject</th><th>Status</th><th>Attempts</th><th>Next attempt</th></tr></thead><tbody>
+@foreach(var item in Model){<tr><td>@item.CreatedAtUtc.ToString("u")</td><td>@item.ToAddress</td><td>@item.Subject</td><td>@item.Status</td><td>@item.AttemptCount</td><td>@item.NextAttemptAtUtc?.ToString("u")</td></tr>}
+</tbody></table></div>

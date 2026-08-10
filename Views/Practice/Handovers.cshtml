@@ -1,0 +1,29 @@
+@model IReadOnlyList<SimplexLawFirm.Models.CaseHandover>
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Case handovers";
+    Layout = Context.Session.GetString("UserRole") == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    var userId = Context.Session.GetInt32("UserId");
+    var active = Model.Where(x => x.Status != HandoverStatus.Accepted).ToList();
+    var requests = ViewBag.Requests as IReadOnlyList<CaseHandoverRequest> ?? [];
+}
+<div class="page-hero compact"><div><span class="eyebrow">Continuous responsibility</span><h1>Case handovers</h1><p>Approved transfers remain here until the receiving attorney accepts responsibility.</p></div><div class="d-flex gap-2">@if(Context.Session.GetString("UserRole")=="Lawyer"){<a class="btn-primary-modern" href="/Practice/SelectCaseHandovers"><i class="fas fa-people-arrows"></i> Hand over cases</a>}<a class="btn-secondary-modern" href="/Case/Active">Open active cases</a></div></div>
+<div class="metric-grid">
+ <div class="metric-card"><span>Active</span><strong>@active.Count</strong><small>Preparing or awaiting acceptance</small></div>
+ <div class="metric-card"><span>Ready for me</span><strong>@Model.Count(x => x.ReceivingAttorneyId == userId && x.Status == HandoverStatus.Ready)</strong><small>Acceptance required</small></div>
+ <div class="metric-card"><span>Overdue</span><strong>@Model.Count(x => x.Status == HandoverStatus.Overdue)</strong><small>Escalated to a Director</small></div>
+</div>
+<section class="surface">
+ <div class="section-heading"><div><span class="eyebrow">Handover register</span><h2>Visible transfers</h2></div><input id="handoverSearch" class="form-control" style="max-width:360px" type="search" placeholder="Search case, lawyer or status" aria-label="Search handovers" /></div>
+ @foreach (var item in Model)
+ {
+  var blockers = item.Items.Count(x => x.IsMandatory && !x.IsResolved);
+  <a class="record-row handover-row" data-search="@($"{item.Case.CaseNumber} {item.Case.Title} {item.OutgoingAttorney.FullName} {item.ReceivingAttorney.FullName} {item.Status}".ToLowerInvariant())" href="/Practice/Handover/@item.Id">
+   <span><b>@item.Case.CaseNumber · @item.Case.Title</b><small>@item.OutgoingAttorney.FullName → @item.ReceivingAttorney.FullName · @blockers blocker(s) · due @item.DueAtUtc.ToString("dd MMM yyyy HH:mm")</small></span>
+   <span class="status-pill">@item.Status</span>
+  </a>
+ }
+@if (!Model.Any()) { <div class="empty-state">No handovers are visible for your role.</div> }
+</section>
+<script>document.getElementById('handoverSearch')?.addEventListener('input',function(){const q=this.value.toLowerCase().trim();document.querySelectorAll('.handover-row').forEach(x=>x.style.display=!q||x.dataset.search.includes(q)?'':'none');});</script>
+<section class="surface"><div class="section-heading"><h2>Transfer requests</h2></div>@foreach(var request in requests){<a class="record-row" href="@(Context.Session.GetString("UserRole")=="Admin"?$"/Practice/ReviewHandoverRequest/{request.Id}":$"/Case/Details/{request.CaseId}")"><span><b>@request.Case.CaseNumber · @request.RequestedByAttorney.FullName</b><small>@request.Reason</small></span><span class="status-pill">@request.Status</span></a>}@if(!requests.Any()){<p class="muted">No transfer requests.</p>}</section>

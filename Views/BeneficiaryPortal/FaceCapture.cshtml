@@ -1,0 +1,13 @@
+@model SimplexLawFirm.Models.Beneficiaries.FacialVerificationSession
+<h1>Live facial verification</h1>
+<p>Centre your face and follow each instruction. The server—not your browser—decides whether each challenge passed.</p>
+@Html.AntiForgeryToken()
+<div id="capture" data-session-id="@Model.Id" data-challenges="@Model.ChallengeJson"></div>
+<video id="camera" autoplay playsinline style="max-width:100%"></video>
+<p id="instruction">Allow camera access, then start when ready.</p>
+<button id="startCapture" type="button" class="btn btn-primary">Start verification</button>
+<div id="error" class="text-danger" role="alert"></div>
+<form asp-action="Submit" method="post" class="mt-3">@Html.AntiForgeryToken()<button id="submitApplication" class="btn btn-success d-none">Submit application for Director review</button></form>
+<hr/>
+<form asp-action="RequestManualVerification" method="post" class="mt-3">@Html.AntiForgeryToken()<label for="manualReason">Unable or unwilling to use the camera?</label><textarea id="manualReason" name="reason" class="form-control" required maxlength="1000" placeholder="Tell the Director what assistance you need."></textarea><button class="btn btn-outline-primary mt-2">Request manual verification</button></form>
+<script src="~/js/beneficiary-face-capture.js"></script>

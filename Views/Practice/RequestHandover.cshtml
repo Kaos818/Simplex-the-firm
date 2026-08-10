@@ -1,0 +1,4 @@
+@model SimplexLawFirm.Models.CaseHandoverRequest
+@{ Layout="_LawyerLayout"; var matter=(SimplexLawFirm.Models.Case)ViewBag.Case; }
+<div class="breadcrumb-line"><a href="/Practice/Handovers">Handovers</a><span>/</span><span>@matter.CaseNumber</span></div><div class="page-hero compact"><div><span class="eyebrow">Director review</span><h1>Request case handover</h1><p>@matter.Title · @matter.Client.FullName</p></div></div>
+<form method="post" class="surface stack-form">@Html.AntiForgeryToken()<input asp-for="CaseId" type="hidden"/><label>Reason for transfer<textarea asp-for="Reason" rows="7" minlength="20" required placeholder="Explain availability, conflict, expertise, client continuity and urgent risks"></textarea></label><div class="responsibility-note">You remain responsible for this matter until the Director approves a recipient and that lawyer accepts the completed handover.</div><button class="btn-primary-modern">Submit to Director</button></form>

@@ -1,0 +1,20 @@
+@model SimplexLawFirm.Models.Case
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Assign attorney";
+    Layout = "_AdminLayout";
+    var lawyers = ViewBag.EligibleLawyers as SelectList;
+}
+<div class="breadcrumb-line"><a asp-action="Details" asp-route-id="@Model.Id">@Model.CaseNumber</a><span>/</span><span>Assign attorney</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Matter ownership</span><h1>Assign an attorney</h1><p>@Model.Title</p></div></div>
+<section class="surface">
+ <div class="section-heading"><div><span class="eyebrow">Conflict checked</span><h2>Initial assignment</h2></div></div>
+ <p>@ViewBag.ConflictInfo</p>
+ <form asp-action="AssignLawyer" method="post" class="stack-form">
+  <input type="hidden" name="caseId" value="@Model.Id" />
+  <label>Attorney<select name="lawyerId" asp-items="lawyers" required><option value="">Select an eligible attorney</option></select></label>
+  <label>Assignment notes<textarea name="notes" rows="4" placeholder="Record the reason and any initial instructions"></textarea></label>
+  @if (lawyers?.Any() == true) { <button type="submit" class="btn-primary-modern">Assign attorney</button> }
+  else { <div class="alert alert-warning">No active attorney currently passes the conflict check.</div> }
+ </form>
+</section>

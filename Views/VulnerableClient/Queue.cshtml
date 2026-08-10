@@ -1,0 +1,6 @@
+@model IReadOnlyList<SimplexLawFirm.Models.VulnerableClientFlag>
+@using SimplexLawFirm.Models
+@{ ViewData["Title"]="Client safeguard reviews"; Layout="_AdminLayout"; }
+<div class="page-hero compact"><div><span class="eyebrow">Director governance</span><h1>Client safeguard reviews</h1><p>Pending and escalated accommodations require timely review. Confirmed safeguards remain enforced until removed or reviewed again.</p></div></div>
+<section class="surface"><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Client</th><th>Safeguard</th><th>Status</th><th>Review due</th><th></th></tr></thead><tbody>
+@foreach(var f in Model){<tr class="@(f.Status==VulnerableFlagStatus.Escalated?"table-danger":f.Status==VulnerableFlagStatus.PendingReview?"table-warning":"")"><td><b>@f.Client.FullName</b><br/><small>Raised by @f.RaisedByAttorney.FullName</small></td><td>@f.Safeguard<br/><small>@f.Reason</small></td><td><span class="status-pill">@f.Status</span></td><td>@f.ReviewDueAtUtc.ToLocalTime().ToString("g")</td><td><a href="/VulnerableClient/Review/@f.Id" class="btn btn-dark">Review</a></td></tr>}</tbody></table></div></section>

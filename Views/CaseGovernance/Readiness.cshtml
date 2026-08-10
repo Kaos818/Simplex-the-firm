@@ -1,0 +1,39 @@
+@model SimplexLawFirm.ViewModels.CaseReadinessReportViewModel
+@using SimplexLawFirm.Models
+@{
+    Layout = Context.Session.GetString("UserRole") == "Admin" ? "_AdminLayout" : "_LawyerLayout";
+    var mayAct = Context.Session.GetString("UserRole") == "Lawyer" && Context.Session.GetInt32("UserId") == Model.Case.LawyerId && Model.Case.Status == CaseStatus.Active;
+}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between">
+        <div><span class="badge bg-primary">UC12</span><h1>Case document readiness</h1><p>@Model.Case.CaseNumber · @(Model.CourtReady ? "Ready for court" : "Not court-ready")</p></div>
+        @if (mayAct && !Model.CourtReady)
+        {
+            <form asp-action="MarkCourtReady" method="post">@Html.AntiForgeryToken()<input name="caseId" value="@Model.Case.Id" type="hidden"/><button type="submit" class="btn btn-success">Mark court-ready</button></form>
+        }
+    </div>
+    @if (!Model.HasAuthorisedStrategy) { <div class="alert alert-danger">Court-ready status is blocked because no authorised litigation strategy is recorded.</div> }
+    @if (Model.MissingMandatory.Any()) { <div class="alert alert-warning"><b>Mandatory documents outstanding:</b> @string.Join(", ", Model.MissingMandatory.Select(x => x.Requirement.Name))</div> }
+    <div class="row g-3">
+    @foreach (var item in Model.Items)
+    {
+        var held = item.IsHeld;
+        var waived = item.Waiver?.Status == DocumentWaiverStatus.Approved;
+        <div class="col-lg-6"><div class="card h-100 border-0 shadow-sm"><div class="card-body">
+            <div class="d-flex justify-content-between"><h4>@item.Requirement.Name</h4><span class="badge @(held || waived ? "bg-success" : item.Requirement.Importance == DocumentRequirementImportance.Mandatory ? "bg-danger" : "bg-warning text-dark")">@(held ? "Held" : waived ? "Waived" : $"Missing {item.Requirement.Importance}")</span></div>
+            <p>@item.Requirement.Description</p>
+            @if (item.Document != null) { <a href="/Document/Download/@item.Document.Id">@item.Document.FileName</a> }
+            else if (item.ExternalDocument != null) { <a href="/ExternalEvidence/Download/@item.ExternalDocument.Id">@item.ExternalDocument.OriginalFileName</a><small class="d-block">Externally supplied: @item.ExternalDocument.Purpose</small> }
+            else if (mayAct)
+            {
+                <a class="btn btn-primary btn-sm mb-2" href="/Document/Upload?caseId=@Model.Case.Id&requirementCode=@item.Requirement.Code">Upload @item.Requirement.Name</a>
+                @if (item.Requirement.Importance == DocumentRequirementImportance.Mandatory && item.Waiver?.Status != DocumentWaiverStatus.PendingDirector)
+                {
+                    <form asp-action="RequestWaiver" method="post">@Html.AntiForgeryToken()<input name="caseId" value="@Model.Case.Id" type="hidden"/><input name="requirementId" value="@item.Requirement.Id" type="hidden"/><textarea name="reason" required class="form-control mb-2" placeholder="Why this document cannot be obtained"></textarea><button type="submit" class="btn btn-outline-danger btn-sm">Request Director waiver</button></form>
+                }
+            }
+            @if (item.Waiver != null) { <small class="d-block mt-2">Waiver: @item.Waiver.Status · @item.Waiver.DirectorReason</small> }
+        </div></div></div>
+    }
+    </div>
+</div>

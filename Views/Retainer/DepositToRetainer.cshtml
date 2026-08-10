@@ -1,0 +1,13 @@
+@model SimplexLawFirm.Models.RetainerDepositViewModel
+@{ ViewData["Title"] = "Top Up Retainer"; Layout = "_ClientLayout"; }
+<div class="container py-5"><div class="row justify-content-center"><div class="col-lg-7">
+<div class="card border-0 shadow"><div class="card-body p-4 p-lg-5">
+<h2><i class="fas fa-wallet text-primary"></i> Top Up Retainer</h2><p class="text-muted">@Model.RetainerTitle</p>
+<div class="alert alert-info">Current available balance: <strong>R @Model.CurrentBalance.ToString("N2")</strong></div>
+<form method="post">@Html.AntiForgeryToken()<input asp-for="RetainerId" type="hidden" />
+<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+<div class="mb-3"><label asp-for="Amount" class="form-label"></label><input asp-for="Amount" class="form-control form-control-lg" /></div>
+<div class="mb-3"><label asp-for="PaymentMethod" class="form-label"></label><select asp-for="PaymentMethod" asp-items="Html.GetEnumSelectList<SimplexLawFirm.Models.PaymentMethod>()" class="form-select"></select></div>
+<div class="mb-4"><label asp-for="TransactionReference" class="form-label"></label><input asp-for="TransactionReference" class="form-control" placeholder="Card or bank transaction reference" /><span asp-validation-for="TransactionReference" class="text-danger"></span></div>
+<button class="btn btn-primary btn-lg w-100"><i class="fas fa-lock"></i> Confirm Deposit</button>
+</form></div></div></div></div></div>

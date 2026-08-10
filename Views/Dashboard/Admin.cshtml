@@ -1,0 +1,110 @@
+﻿@using Microsoft.AspNetCore.Http
+@{
+    ViewData["Title"] = "Director Dashboard";
+    Layout = "_AdminLayout";
+}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="display-4 mb-4">Director Dashboard</h1>
+            <p class="lead">Welcome back, @Context.Session.GetString("UserFullName")!</p>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-3 mb-4">
+            <div class="card bg-primary text-white shadow-lg">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Total Users</h6>
+                            <h2 class="mb-0">@ViewBag.TotalUsers</h2>
+                        </div>
+                        <i class="fas fa-users fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-success text-white shadow-lg">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Total Clients</h6>
+                            <h2 class="mb-0">@ViewBag.TotalClients</h2>
+                        </div>
+                        <i class="fas fa-user-friends fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-info text-white shadow-lg">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Total Cases</h6>
+                            <h2 class="mb-0">@ViewBag.TotalCases</h2>
+                        </div>
+                        <i class="fas fa-folder-open fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-warning text-white shadow-lg">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Active Retainers</h6>
+                            <h2 class="mb-0">@ViewBag.ActiveRetainers</h2>
+                        </div>
+                        <i class="fas fa-file-signature fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-lg">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Pending Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            Client Service Requests
+                            <span class="badge bg-primary rounded-pill">@ViewBag.PendingRequests</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            Retainers Pending Approval
+                            <span class="badge bg-warning rounded-pill">@ViewBag.PendingApprovals</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            Unpaid Invoices
+                            <span class="badge bg-danger rounded-pill">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-lg">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/Users/Create" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add New User</a>
+                        <a href="/Client/Create" class="btn btn-success"><i class="fas fa-user-friends"></i> Register New Client</a>
+                        <a href="/Retainer/Create" class="btn btn-info"><i class="fas fa-file-signature"></i> Create Retainer</a>
+                        <a href="/Retainer/PendingRequests" class="btn btn-warning"><i class="fas fa-clock"></i> View Client Requests</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

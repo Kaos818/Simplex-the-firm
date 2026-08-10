@@ -1,0 +1,22 @@
+@model IReadOnlyList<SimplexLawFirm.Models.CaseDocumentRequest>
+@using SimplexLawFirm.Models
+@{
+    var role = Context.Session.GetString("UserRole");
+    Layout = role == "Client" ? "_ClientLayout" : role == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    ViewData["Title"] = "Case document requests";
+}
+<div class="page-hero compact"><div><span class="eyebrow">Case evidence workspace</span><h1>Document requests</h1><p>Track every request, upload, review and missing-document response in its matter context.</p></div></div>
+<section class="surface">
+ <div class="section-heading"><div><span class="eyebrow">Searchable register</span><h2>@Model.Count request(s)</h2></div><input id="requestSearch" class="form-control" style="max-width:360px" type="search" placeholder="Search case, request, lawyer or status" aria-label="Search document requests" /></div>
+ <div id="requestRows">
+ @foreach (var item in Model)
+ {
+  var target = role == "Client" ? $"/CaseDocumentRequest/Respond/{item.Id}" : $"/CaseDocumentRequest/Details/{item.Id}";
+  <a class="record-row request-row" href="@target" data-search="@($"{item.Case.CaseNumber} {item.Case.Title} {item.Title} {item.RequestedByAttorney.FullName} {item.Status}".ToLowerInvariant())">
+   <span><b>@item.Case.CaseNumber · @item.Title</b><small>@item.RequestedByAttorney.FullName · due @item.DueAtUtc.ToString("dd MMM yyyy")</small></span><span class="status-pill">@item.Status</span>
+  </a>
+ }
+ </div>
+ @if (!Model.Any()) { <div class="empty-state">No case document requests are visible for your account.</div> }
+</section>
+<script>document.getElementById('requestSearch')?.addEventListener('input',function(){const q=this.value.toLowerCase().trim();document.querySelectorAll('.request-row').forEach(x=>x.style.display=!q||x.dataset.search.includes(q)?'':'none');});</script>

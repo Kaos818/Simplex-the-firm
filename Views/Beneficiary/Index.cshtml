@@ -1,0 +1,10 @@
+@model IEnumerable<SimplexLawFirm.Models.Beneficiaries.Beneficiary>
+@{ ViewData["Title"] = "My Beneficiaries"; }
+<h1>My Beneficiaries</h1>
+<p><a asp-action="Create" class="btn btn-primary">Add beneficiary</a></p>
+@if (TempData["DeliveryNotice"] is string notice) { <div class="alert alert-info" role="status">@notice</div> }
+@{ var deliveryStatuses = ViewBag.DeliveryStatuses as Dictionary<int, SimplexLawFirm.Models.EmailOutboxStatus?> ?? []; }
+<table class="table"><thead><tr><th>Name</th><th>Email</th><th>Beneficiary status</th><th>Email delivery</th><th></th></tr></thead><tbody>
+@foreach (var item in Model) { var delivery = deliveryStatuses.GetValueOrDefault(item.Id); <tr><td>@item.FirstName @item.LastName</td><td>@item.Email</td><td>@item.Status</td><td>@if (delivery is null) { <span class="text-muted">Not sent</span> } else if (delivery == SimplexLawFirm.Models.EmailOutboxStatus.Sent) { <span class="text-success">Sent</span> } else if (delivery == SimplexLawFirm.Models.EmailOutboxStatus.PermanentlyFailed) { <span class="text-danger">Failed — resend after correcting the email address</span> } else { <span class="text-warning">@delivery (checking delivery)</span> }</td><td><a asp-action="Details" asp-route-id="@item.Id">View</a>
+<form asp-action="Invite" asp-route-id="@item.Id" method="post" class="d-inline">@Html.AntiForgeryToken()<button class="btn btn-link">Send invitation</button></form></td></tr> }
+</tbody></table>

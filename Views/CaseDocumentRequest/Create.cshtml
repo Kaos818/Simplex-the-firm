@@ -1,0 +1,5 @@
+@model SimplexLawFirm.Models.CaseDocumentRequest
+@{ Layout="_LawyerLayout"; var matter=(SimplexLawFirm.Models.Case)ViewBag.Case; }
+<div class="breadcrumb-line"><a href="/Case/Details/@matter.Id">@matter.CaseNumber</a><span>/</span><span>Request documents</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Case-specific evidence</span><h1>Request documents</h1><p>@matter.Title · @matter.Client.FullName</p></div></div>
+<form method="post" class="surface stack-form">@Html.AntiForgeryToken()<input asp-for="CaseId" type="hidden"/><label>Request title<input asp-for="Title" required placeholder="e.g. Updated bank statements"/></label><label>Documents required<textarea asp-for="RequiredDocuments" rows="5" required placeholder="List every required document on a separate line"></textarea></label><label>Instructions<textarea asp-for="Instructions" rows="4" placeholder="Explain dates, certification or format requirements"></textarea></label><label>Due date<input asp-for="DueAtUtc" type="date" required/></label><button class="btn-primary-modern">Send request to client</button></form>

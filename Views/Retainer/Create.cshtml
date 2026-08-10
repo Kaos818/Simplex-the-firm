@@ -1,0 +1,535 @@
+﻿@model SimplexLawFirm.Models.Retainer
+
+@{
+    ViewData["Title"] = "Create Retainer";
+    Layout = "_AdminLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-file-signature fa-2x me-2"></i>
+                            <h2 class="d-inline-block mb-0">Create New Retainer</h2>
+                        </div>
+                        <a href="/Retainer/Index" class="btn btn-light">
+                            <i class="fas fa-arrow-left"></i> Back to List
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Global Info Alert Container -->
+                    <div id="globalInfoAlert" class="alert alert-info alert-dismissible fade show" role="alert" style="display: none;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <span id="globalInfoMessage"></span>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+
+                    <!-- Global Error Alert Container -->
+                    <div id="globalErrorAlert" class="alert alert-danger alert-dismissible fade show" role="alert" style="display: none;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span id="globalErrorMessage"></span>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+
+                    <!-- Global Warning Alert Container -->
+                    <div id="globalWarningAlert" class="alert alert-warning alert-dismissible fade show" role="alert" style="display: none;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span id="globalWarningMessage"></span>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+
+                    <!-- Global Success Alert Container -->
+                    <div id="globalSuccessAlert" class="alert alert-success alert-dismissible fade show" role="alert" style="display: none;">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <span id="globalSuccessMessage"></span>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+
+                    
+                    <!-- Validation Summary -->
+<div asp-validation-summary="All" class="alert alert-danger">
+    <i class="fas fa-exclamation-circle me-2"></i>
+    <strong>Please correct the following errors:</strong>
+</div>
+                    <form asp-action="Create" method="post" id="retainerForm" novalidate>
+                        @Html.AntiForgeryToken()
+
+                        <!-- Loading Overlay -->
+                        <div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; text-align: center; padding-top: 20%;">
+                            <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <h4 class="text-light mt-3">Processing your request...</h4>
+                            <p class="text-light">Please do not close this window</p>
+                        </div>
+
+                        <!-- Basic Information -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5 class="border-bottom pb-2">
+                                    <i class="fas fa-info-circle text-primary"></i> Basic Information
+                                </h5>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Title" class="form-label fw-bold">
+                                    Retainer Title <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="Title" class="form-control" placeholder="e.g., Legal Retainer Agreement - John Doe" />
+                                <span asp-validation-for="Title" class="text-danger"></span>
+                                <small class="text-muted">Enter a descriptive title for this retainer agreement</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="ClientId" class="form-label fw-bold">
+                                    Client <span class="text-danger">*</span>
+                                </label>
+                                <select asp-for="ClientId" class="form-select" asp-items="ViewBag.Clients">
+                                    <option value="">-- Select Client --</option>
+                                </select>
+                                <span asp-validation-for="ClientId" class="text-danger"></span>
+                                <small class="text-muted">Select the client this retainer belongs to</small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="CaseId" class="form-label fw-bold">Related Case (Optional)</label>
+                                <select asp-for="CaseId" class="form-select" asp-items="ViewBag.Cases">
+                                    <option value="">-- Select Case --</option>
+                                </select>
+                                <span asp-validation-for="CaseId" class="text-danger"></span>
+                                <small class="text-muted">Link this retainer to an existing case</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="TemplateId" class="form-label fw-bold">Use Template (Optional)</label>
+                                <select asp-for="TemplateId" class="form-select" asp-items="ViewBag.Templates">
+                                    <option value="">-- Select Template --</option>
+                                </select>
+                                <span asp-validation-for="TemplateId" class="text-danger"></span>
+                                <small class="text-muted text-info">
+                                    <i class="fas fa-magic"></i> Selecting a template will auto-fill the details below
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="AssignedLawyerId" class="form-label fw-bold">
+                                    Assign Lawyer <span class="text-danger">*</span>
+                                </label>
+                                <select asp-for="AssignedLawyerId" class="form-select" asp-items="ViewBag.Lawyers">
+                                    <option value="">-- Select Lawyer --</option>
+                                </select>
+                                <span asp-validation-for="AssignedLawyerId" class="text-danger"></span>
+                                <small class="text-muted">The assigned lawyer will review and approve this retainer</small>
+                            </div>
+                        </div>
+
+                        <!-- Scope & Terms -->
+                        <div class="row mt-4 mb-4">
+                            <div class="col-12">
+                                <h5 class="border-bottom pb-2">
+                                    <i class="fas fa-file-contract text-primary"></i> Scope & Terms
+                                </h5>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="ScopeOfWork" class="form-label fw-bold">
+                                Scope of Work <span class="text-danger">*</span>
+                            </label>
+                            <textarea asp-for="ScopeOfWork" class="form-control" rows="5" placeholder="Describe the legal services to be provided..."></textarea>
+                            <span asp-validation-for="ScopeOfWork" class="text-danger"></span>
+                            <small class="text-muted">Be specific about what services are included in this retainer</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="SpecialTerms" class="form-label fw-bold">Special Terms & Conditions</label>
+                            <textarea asp-for="SpecialTerms" class="form-control" rows="4" placeholder="Any special conditions, limitations, or exclusions..."></textarea>
+                            <span asp-validation-for="SpecialTerms" class="text-danger"></span>
+                            <small class="text-muted">Optional: Add any specific terms that apply to this agreement</small>
+                        </div>
+
+                        <!-- Fee Structure -->
+                        <div class="row mt-4 mb-4">
+                            <div class="col-12">
+                                <h5 class="border-bottom pb-2">
+                                    <i class="fas fa-money-bill-wave text-primary"></i> Fee Structure
+                                </h5>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="Type" class="form-label fw-bold">
+                                    Retainer Type <span class="text-danger">*</span>
+                                </label>
+                                <select asp-for="Type" class="form-select" asp-items="ViewBag.RetainerTypes">
+                                    <option value="">-- Select Type --</option>
+                                </select>
+                                <span asp-validation-for="Type" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="Amount" class="form-label fw-bold">
+                                    Amount <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">R</span>
+                                    <input asp-for="Amount" class="form-control" type="number" step="0.01" min="0" />
+                                </div>
+                                <span asp-validation-for="Amount" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="BillingCycle" class="form-label fw-bold">Billing Cycle</label>
+                                <input asp-for="BillingCycle" class="form-control" placeholder="e.g., Monthly, One-time, Quarterly" />
+                                <span asp-validation-for="BillingCycle" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="IncludedHours" class="form-label fw-bold">Included Hours</label>
+                                <input asp-for="IncludedHours" class="form-control" type="number" step="0.5" min="0" />
+                                <span asp-validation-for="IncludedHours" class="text-danger"></span>
+                                <small class="text-muted">Number of billable hours included (if applicable)</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="OverageRate" class="form-label fw-bold">Average Rate</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">R</span>
+                                    <input asp-for="OverageRate" class="form-control" type="number" step="0.01" min="0" />
+                                    <span class="input-group-text">/hour</span>
+                                </div>
+                                <span asp-validation-for="OverageRate" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="RequiresUpfrontPayment" class="form-label fw-bold">Payment Requirement</label>
+                                <select asp-for="RequiresUpfrontPayment" class="form-select">
+                                    <option value="true">Requires Upfront Payment</option>
+                                    <option value="false">No Upfront Payment Required</option>
+                                </select>
+                                <span asp-validation-for="RequiresUpfrontPayment" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="PaymentDueDays" class="form-label fw-bold">Payment Due Days</label>
+                                <input asp-for="PaymentDueDays" class="form-control" type="number" min="1" max="90" />
+                                <span asp-validation-for="PaymentDueDays" class="text-danger"></span>
+                                <small class="text-muted">Days after approval for payment due date</small>
+                            </div>
+                        </div>
+
+                        <!-- Dates -->
+                        <div class="row mt-4 mb-4">
+                            <div class="col-12">
+                                <h5 class="border-bottom pb-2">
+                                    <i class="fas fa-calendar-alt text-primary"></i> Effective Dates
+                                </h5>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="StartDate" class="form-label fw-bold">
+                                    Start Date <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="StartDate" class="form-control" type="date" />
+                                <span asp-validation-for="StartDate" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="EndDate" class="form-label fw-bold">End Date (Optional)</label>
+                                <input asp-for="EndDate" class="form-control" type="date" />
+                                <span asp-validation-for="EndDate" class="text-danger"></span>
+                                <small class="text-muted">Leave blank for ongoing agreements</small>
+                            </div>
+                        </div>
+
+                        <!-- Internal Notes -->
+                        <div class="row mt-4 mb-4">
+                            <div class="col-12">
+                                <h5 class="border-bottom pb-2">
+                                    <i class="fas fa-sticky-note text-primary"></i> Internal Notes
+                                </h5>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="AdminNotes" class="form-label fw-bold">Admin Notes</label>
+                            <textarea asp-for="AdminNotes" class="form-control" rows="3" placeholder="Internal notes for admin/staff..."></textarea>
+                            <span asp-validation-for="AdminNotes" class="text-danger"></span>
+                            <small class="text-muted">These notes are only visible to staff, not clients</small>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <hr />
+                                
+<div class="d-flex justify-content-between">
+    <a href="/Retainer/Index" class="btn btn-secondary" id="cancelBtn">
+        <i class="fas fa-times"></i> Cancel
+    </a>
+    <div>
+        <button type="submit" class="btn btn-primary btn-lg" name="action" value="create">
+            <i class="fas fa-save"></i> Save as Draft
+        </button>
+        <button type="submit" class="btn btn-info btn-lg" name="action" value="createAndContinue">
+            <i class="fas fa-plus-circle"></i> Save & Add Another
+        </button>
+    </div>
+</div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+
+            // Hide validation summary if empty
+            var validationSummary = $('#validationSummary');
+            if (validationSummary.length && validationSummary.find('li').length === 0 && !validationSummary.hasClass('validation-summary-errors')) {
+                validationSummary.hide();
+            }
+
+            // Show initial info alert
+            showAlert('Fill in the retainer details below. Fields marked with <strong>*</strong> are required.', 'info', 6000);
+
+            // -------------------------------
+            // FORM SUBMIT HANDLING
+            // -------------------------------
+            $('#retainerForm').on('submit', function (e) {
+                // Validate form before submission
+                if (!validateForm()) {
+                    e.preventDefault();
+                    showAlert('Please fix validation errors before submitting.', 'danger');
+                    return false;
+                }
+                
+                // Show loading overlay
+                $('#loadingOverlay').show();
+                $('#saveDraftBtn, #saveAndContinueBtn').prop('disabled', true);
+                
+                return true; // Allow form to submit
+            });
+
+            // -------------------------------
+            // TEMPLATE AUTO-FILL
+            // -------------------------------
+            $('#TemplateId').change(function () {
+                var templateId = $(this).val();
+                if (!templateId) return;
+
+                showAlert('Loading template...', 'info', 2000);
+
+                var $dropdown = $(this);
+                $dropdown.prop('disabled', true);
+
+                $.ajax({
+                    url: '/api/retainer/template/' + templateId,
+                    type: 'GET',
+                    timeout: 10000,
+                    success: function (data) {
+                        if (!data) return;
+
+                        $('#Title').val(data.name || '');
+                        $('#ScopeOfWork').val(data.description || '');
+                        $('#Type').val(data.type);
+                        $('#Amount').val(data.basePrice || 0);
+                        $('#IncludedHours').val(data.includedHours || 0);
+                        $('#OverageRate').val(data.overageRate || 0);
+                        $('#BillingCycle').val(data.billingCycle || '');
+
+                        showAlert('Template "' + data.name + '" applied successfully', 'success');
+                    },
+                    error: function () {
+                        showAlert('Failed to load template.', 'danger');
+                    },
+                    complete: function () {
+                        $dropdown.prop('disabled', false);
+                    }
+                });
+            });
+
+            // -------------------------------
+            // CLIENT → CASES
+            // -------------------------------
+            $('#ClientId').change(function () {
+                var clientId = $(this).val();
+                var caseSelect = $('#CaseId');
+                var clientName = $('#ClientId option:selected').text();
+
+                caseSelect.empty().append('<option value="">-- Select Case --</option>');
+
+                if (!clientId) {
+                    showAlert('Select a client first.', 'info');
+                    return;
+                }
+
+                caseSelect.prop('disabled', true);
+
+                $.ajax({
+                    url: '/api/retainer/client/' + clientId + '/cases',
+                    type: 'GET',
+                    timeout: 10000,
+                    success: function (cases) {
+                        if (cases && cases.length > 0) {
+                            for (var i = 0; i < cases.length; i++) {
+                                caseSelect.append('<option value="' + cases[i].id + '">' + cases[i].title + '</option>');
+                            }
+                            showAlert('Loaded ' + cases.length + ' case(s) for ' + clientName, 'success');
+                        } else {
+                            caseSelect.append('<option value="">-- No cases found --</option>');
+                            showAlert('No cases found for ' + clientName, 'warning');
+                        }
+                    },
+                    error: function () {
+                        showAlert('Failed to load cases.', 'danger');
+                    },
+                    complete: function () {
+                        caseSelect.prop('disabled', false);
+                    }
+                });
+            });
+
+            // -------------------------------
+            // REAL-TIME VALIDATION
+            // -------------------------------
+            $('#Title, #ClientId, #AssignedLawyerId, #ScopeOfWork, #Type, #Amount, #StartDate')
+                .on('change blur', function () {
+                    validateField($(this));
+                });
+
+            // Amount validation
+            $('#Amount').on('change', function () {
+                var val = parseFloat($(this).val());
+                toggleValidation($(this), val > 0, 'Amount must be greater than 0');
+            });
+
+            // Date validation
+            $('#StartDate, #EndDate').on('change', function () {
+                var start = $('#StartDate').val();
+                var end = $('#EndDate').val();
+
+                if (start && end && new Date(end) < new Date(start)) {
+                    toggleValidation($('#EndDate'), false, 'End date cannot be before start date');
+                } else {
+                    toggleValidation($('#EndDate'), true);
+                }
+            });
+
+            // Payment days validation
+            $('#PaymentDueDays').on('change', function () {
+                var val = parseInt($(this).val());
+                toggleValidation($(this), val >= 1 && val <= 90, 'Must be between 1 and 90 days');
+            });
+
+        });
+
+        // -------------------------------
+        // VALIDATION HELPERS
+        // -------------------------------
+        function validateForm() {
+            var valid = true;
+            var requiredFields = ['#Title', '#ClientId', '#ScopeOfWork', '#Amount', '#StartDate'];
+            
+            // AssignedLawyerId is optional for draft, so don't require it
+            for (var i = 0; i < requiredFields.length; i++) {
+                if (!validateField($(requiredFields[i]))) {
+                    valid = false;
+                }
+            }
+            
+            return valid;
+        }
+
+        function validateField($field) {
+            var val = $field.val();
+            var fieldId = $field.attr('id');
+            
+            // Special handling for different field types
+            if (fieldId === 'ClientId') {
+                if (!val || val == '0' || val == '') {
+                    toggleValidation($field, false, 'Please select a client');
+                    return false;
+                }
+            } else if (fieldId === 'Amount') {
+                var numVal = parseFloat(val);
+                if (isNaN(numVal) || numVal <= 0) {
+                    toggleValidation($field, false, 'Amount must be greater than 0');
+                    return false;
+                }
+            } else if (!val || val.trim() === '') {
+                toggleValidation($field, false, 'This field is required');
+                return false;
+            }
+            
+            toggleValidation($field, true);
+            return true;
+        }
+
+        function toggleValidation($field, isValid, message) {
+            if (!isValid) {
+                $field.addClass('is-invalid');
+                var $errorSpan = $field.siblings('.text-danger');
+                if ($errorSpan.length) {
+                    $errorSpan.text(message || '');
+                }
+            } else {
+                $field.removeClass('is-invalid');
+                var $errorSpan = $field.siblings('.text-danger');
+                if ($errorSpan.length) {
+                    $errorSpan.empty();
+                }
+            }
+        }
+
+        // -------------------------------
+        // ALERT SYSTEM
+        // -------------------------------
+        function showAlert(message, type, duration) {
+            duration = duration || 4000;
+            
+            var map = {
+                success: '#globalSuccessAlert',
+                danger: '#globalErrorAlert',
+                warning: '#globalWarningAlert',
+                info: '#globalInfoAlert'
+            };
+            
+            var alertId = map[type] || map.info;
+            var $alert = $(alertId);
+            
+            if (!$alert.length) {
+                // If alert containers don't exist, use console
+                console.log('[' + type.toUpperCase() + '] ' + message);
+                return;
+            }
+            
+            // Hide all alerts
+            $('#globalInfoAlert, #globalErrorAlert, #globalWarningAlert, #globalSuccessAlert').hide();
+            
+            // Show this alert
+            $alert.find('span').html(message);
+            $alert.fadeIn(200);
+            
+            // Auto-hide after duration
+            setTimeout(function() {
+                $alert.fadeOut(400);
+            }, duration);
+        }
+    </script>
+}

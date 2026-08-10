@@ -1,0 +1,223 @@
+﻿@model IEnumerable<SimplexLawFirm.Models.RetainerTemplate>
+@{
+    ViewData["Title"] = "Retainer Templates";
+    Layout = "_AdminLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">
+                <i class="fas fa-layer-group text-primary me-2"></i>Retainer Templates
+            </h1>
+            <p class="text-muted">Manage reusable legal service packages for client self-service</p>
+        </div>
+        <a href="@Url.Action("CreateTemplate")" class="btn btn-primary btn-lg">
+            <i class="fas fa-plus-circle me-2"></i>Create Template
+        </a>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Total Templates</h6>
+                            <h2 class="mb-0">@Model.Count()</h2>
+                        </div>
+                        <i class="fas fa-layer-group fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Published</h6>
+                            <h2 class="mb-0">@Model.Count(t => t.IsPublic && t.IsActive)</h2>
+                        </div>
+                        <i class="fas fa-globe fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Draft</h6>
+                            <h2 class="mb-0">@Model.Count(t => !t.IsPublic && t.IsActive)</h2>
+                        </div>
+                        <i class="fas fa-pen-fancy fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-secondary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Categories</h6>
+                            <h2 class="mb-0">@Model.Select(t => t.Category).Distinct().Count()</h2>
+                        </div>
+                        <i class="fas fa-tags fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates Grid -->
+    @if (!Model.Any())
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-layer-group fa-5x text-muted mb-3"></i>
+                <h3>No Templates Yet</h3>
+                <p class="text-muted">Create reusable retainer templates that clients can select from the service catalog.</p>
+                <a href="@Url.Action("CreateTemplate")" class="btn btn-primary btn-lg mt-3">
+                    <i class="fas fa-plus-circle me-2"></i>Create Your First Template
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var template in Model.OrderBy(t => t.DisplayOrder))
+            {
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-header bg-white border-0 pt-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <span class="badge @(template.IsPublic ? "bg-success" : "bg-secondary")">
+                                        @(template.IsPublic ? "Published" : "Draft")
+                                    </span>
+                                    @if (template.RequiresUpfrontPayment)
+                                    {
+                                        <span class="badge bg-info ms-1">
+                                            <i class="fas fa-money-bill me-1"></i>Upfront: @template.UpfrontPercentage%
+                                        </span>
+                                    }
+                                    @if (template.AllowInstallments)
+                                    {
+                                        <span class="badge bg-warning text-dark ms-1">
+                                            <i class="fas fa-calendar-week me-1"></i>Installments
+                                        </span>
+                                    }
+                                </div>
+                                <small class="text-muted">Order: @template.DisplayOrder</small>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title">@template.Name</h5>
+                            <div class="mb-2">
+                                <span class="badge bg-primary">@template.Category</span>
+                                <span class="badge bg-secondary">@template.Type</span>
+                            </div>
+                            <p class="card-text text-muted small">
+                                @{
+                                    var description = template.Description ?? string.Empty;
+                                }
+                                @if (!string.IsNullOrEmpty(description) && description.Length > 100)
+                                {
+                                    @(description.Substring(0, 100) + "...")
+                                }
+                                else if (!string.IsNullOrEmpty(description))
+                                {
+                                    @description
+                                }
+                                else
+                                {
+                                    <span class="text-muted">No description provided</span>
+                                }
+                            </p>
+                            <hr />
+                            <div class="row">
+                                <div class="col-6">
+                                    <small class="text-muted">Price</small>
+                                    <h6 class="mb-0 text-success">R @template.BasePrice.ToString("N2")</h6>
+                                    <small class="text-muted">@template.PriceDisplay</small>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Billing</small>
+                                    <div>@template.BillingCycle</div>
+                                    @if (template.IncludedHours > 0)
+                                    {
+                                        <small class="text-muted">@template.IncludedHours hrs included</small>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white border-0 pb-3">
+                            <div class="d-flex justify-content-between">
+                                <a href="@Url.Action("EditTemplate", new { id = template.Id })" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-edit me-1"></i>Edit
+                                </a>
+                                <button type="button" class="btn @(template.IsPublic ? "btn-outline-warning" : "btn-outline-success") btn-sm" onclick="togglePublish(@template.Id, @template.IsPublic.ToString().ToLower())">
+                                    <i class="fas @(template.IsPublic ? "fa-eye-slash" : "fa-eye") me-1"></i>
+                                    @(template.IsPublic ? "Unpublish" : "Publish")
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteTemplate(@template.Id)">
+                                    <i class="fas fa-trash me-1"></i>Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        function togglePublish(id, isPublic) {
+            var action = isPublic ? 'unpublish' : 'publish';
+            if (confirm(`Are you sure you want to ${action} this template?`)) {
+                $.ajax({
+                    url: '/Retainer/PublishTemplate/' + id,
+                    type: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            showAlert(response.message, 'success');
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            showAlert(response.message, 'danger');
+                        }
+                    },
+                    error: function() {
+                        showAlert('An error occurred', 'danger');
+                    }
+                });
+            }
+        }
+
+        function deleteTemplate(id) {
+            if (confirm('Are you sure you want to delete this template? This action cannot be undone.')) {
+                $.ajax({
+                    url: '/Retainer/DeleteTemplate/' + id,
+                    type: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            showAlert(response.message, 'success');
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            showAlert(response.message, 'danger');
+                        }
+                    },
+                    error: function() {
+                        showAlert('An error occurred', 'danger');
+                    }
+                });
+            }
+        }
+    </script>
+}

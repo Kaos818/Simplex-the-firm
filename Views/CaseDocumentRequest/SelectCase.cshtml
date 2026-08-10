@@ -1,0 +1,18 @@
+@model IReadOnlyList<SimplexLawFirm.Models.Case>
+@{
+    Layout = "_LawyerLayout";
+    ViewData["Title"] = "Request missing documentation";
+}
+<div class="breadcrumb-line"><a href="/CaseDocumentRequest">Document requests</a><span>/</span><span>Select case</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Client evidence request</span><h1>Request missing documentation</h1><p>Select the active case first. The client will receive a notification that opens a secure upload workspace for that specific case.</p></div></div>
+<section class="surface">
+ <div class="section-heading"><div><span class="eyebrow">My active matters</span><h2>@Model.Count available cases</h2></div><input id="caseSearch" class="form-control" style="max-width:360px" type="search" placeholder="Search case number, title or client" aria-label="Search active cases" /></div>
+ @foreach (var matter in Model)
+ {
+  <a class="record-row request-case-row" data-search="@($"{matter.CaseNumber} {matter.Title} {matter.Client.FullName} {matter.CaseType}".ToLowerInvariant())" href="/CaseDocumentRequest/Create?caseId=@matter.Id">
+   <span><b>@matter.CaseNumber · @matter.Title</b><small>@matter.Client.FullName · @matter.CaseType</small></span><span class="btn-primary-modern">Request documents</span>
+  </a>
+ }
+ @if (!Model.Any()) { <div class="empty-state">You have no activated open cases available for a document request.</div> }
+</section>
+<script>document.getElementById('caseSearch')?.addEventListener('input',function(){const q=this.value.toLowerCase().trim();document.querySelectorAll('.request-case-row').forEach(x=>x.style.display=!q||x.dataset.search.includes(q)?'':'none');});</script>

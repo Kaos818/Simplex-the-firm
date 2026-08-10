@@ -1,0 +1,3 @@
+@model SimplexLawFirm.Models.CalendarEvent
+<h1>Confirm appointment response</h1><p>@Model.Title — @Model.StartDateTime.ToString("f")</p>
+<p>Opening this page did not change your appointment.</p><form method="post">@Html.AntiForgeryToken()<input type="hidden" name="token" value="@ViewBag.Token"/><input type="hidden" name="response" value="@ViewBag.Response"/><textarea name="comments" class="form-control" maxlength="500"></textarea><button class="btn btn-primary mt-2">Confirm @ViewBag.Response</button></form>

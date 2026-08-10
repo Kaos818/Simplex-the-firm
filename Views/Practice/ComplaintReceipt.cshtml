@@ -1,0 +1,3 @@
+@model SimplexLawFirm.Models.ServiceComplaint
+@{ ViewData["Title"]="Complaint received"; Layout="_ClientLayout"; }
+<div class="receipt-card"><div class="receipt-check">✓</div><span class="eyebrow">Complaint received</span><h1>@Model.ReferenceNumber</h1><p>We have securely recorded your complaint about <b>@Model.Case.Title</b>.</p><div class="receipt-detail"><span>Response due</span><strong>@Model.ResponseDueAtUtc.ToString("dddd, dd MMMM yyyy")</strong></div><p class="muted">Keep this reference. If the response clock is missed, the system will escalate the matter automatically.</p><a class="btn-primary-modern" href="/Dashboard/Client">Return to dashboard</a></div>

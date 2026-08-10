@@ -1,0 +1,347 @@
+﻿@using SimplexLawFirm.Models
+@using TaskStatusEnum = SimplexLawFirm.Models.TaskStatus
+@model SimplexLawFirm.Models.TaskItem
+
+@Html.AntiForgeryToken()
+@{
+    ViewData["Title"] = $"Task: {Model.Title}";
+    Layout = "_AdminLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/Calendar/Tasks">Tasks</a></li>
+                    <li class="breadcrumb-item active">@Model.Title</li>
+                </ol>
+            </nav>
+            
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-tasks text-primary"></i> @Model.Title
+                    </h1>
+                    <p class="text-muted">Task details and activity</p>
+                </div>
+                <div>
+                    <a href="/Calendar/Tasks" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Tasks
+                    </a>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Main Task Details -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Task Information</h5>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="text-muted">Status</label>
+                            <div>
+                                @{
+                                    var statusClass = Model.Status.ToString().ToLower();
+                                    if (statusClass == "completed") { statusClass = "success"; }
+                                    else if (statusClass == "inprogress") { statusClass = "primary"; }
+                                    else if (statusClass == "onhold") { statusClass = "warning"; }
+                                    else { statusClass = "secondary"; }
+                                    <span class="badge bg-@statusClass fs-6">
+                                        @Model.Status
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted">Priority</label>
+                            <div>
+                                @{
+                                    var priorityClass = Model.Priority.ToString().ToLower();
+                                    if (priorityClass == "urgent") { priorityClass = "danger"; }
+                                    else if (priorityClass == "high") { priorityClass = "warning"; }
+                                    else if (priorityClass == "medium") { priorityClass = "info"; }
+                                    else { priorityClass = "secondary"; }
+                                    <span class="badge bg-@priorityClass fs-6">
+                                        @Model.Priority
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted">Due Date</label>
+                            <div class="@(Model.DueDate < DateTime.Now && Model.Status != TaskStatusEnum.Completed ? "text-danger fw-bold" : "")">
+                                @Model.DueDate?.ToString("MMMM dd, yyyy")
+                                @if (Model.DueDate < DateTime.Now && Model.Status != TaskStatusEnum.Completed)
+                                {
+                                    <span class="badge bg-danger ms-2">Overdue</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="text-muted">Description</label>
+                        <div class="p-3 bg-light rounded">
+                            @Html.Raw(Model.Description?.Replace("\n", "<br/>") ?? "No description provided.")
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted">Assigned To</label>
+                            <p>@Model.AssignedTo?.FullName</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted">Created By</label>
+                            <p>@Model.CreatedBy?.FullName</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted">Estimated Hours</label>
+                            <p>@(Model.EstimatedHours?.ToString("F1") ?? "0") hours</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted">Actual Hours</label>
+                            <div class="input-group">
+                                <input type="number" id="actualHours" class="form-control" step="0.5" value="@(Model.ActualHours ?? 0)" />
+                                <button class="btn btn-primary" onclick="updateHours(@Model.Id)">Update</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    @if (Model.IsBillable)
+                    {
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-dollar-sign"></i> This task is billable
+                        </div>
+                    }
+                    
+                    @if (Model.Case != null)
+                    {
+                        <div class="mt-3">
+                            <label class="text-muted">Related Case</label>
+                            <p><a href="/Case/Details/@Model.CaseId">@Model.Case.Title</a></p>
+                        </div>
+                    }
+                </div>
+            </div>
+            
+            <!-- Comments Section -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Comments & Activity</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <textarea id="newComment" class="form-control" rows="3" placeholder="Add a comment..."></textarea>
+                        <div class="mt-2">
+                            <button class="btn btn-primary btn-sm" onclick="addComment(@Model.Id)">
+                                <i class="fas fa-paper-plane"></i> Post Comment
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="commentsList">
+                        @if (Model.Comments != null && Model.Comments.Any())
+                        {
+                            foreach (var comment in Model.Comments.OrderByDescending(c => c.CreatedAt))
+                            {
+                                <div class="border-bottom pb-2 mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <strong>@comment.User?.FullName</strong>
+                                        <small class="text-muted">@comment.CreatedAt.ToString("MMM dd, yyyy HH:mm")</small>
+                                    </div>
+                                    <p class="mb-0">@comment.Comment</p>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <p class="text-muted text-center">No comments yet.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Quick Actions -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        @if (Model.Status != TaskStatusEnum.Completed)
+                        {
+                            <button class="btn btn-success" onclick="updateStatus(@Model.Id, 'Completed')">
+                                <i class="fas fa-check-circle"></i> Mark as Complete
+                            </button>
+                        }
+                        @if (Model.Status != TaskStatusEnum.InProgress)
+                        {
+                            <button class="btn btn-primary" onclick="updateStatus(@Model.Id, 'InProgress')">
+                                <i class="fas fa-play"></i> Start Task
+                            </button>
+                        }
+                        @if (Model.Status != TaskStatusEnum.OnHold)
+                        {
+                            <button class="btn btn-warning" onclick="updateStatus(@Model.Id, 'OnHold')">
+                                <i class="fas fa-pause"></i> Put on Hold
+                            </button>
+                        }
+                        <hr />
+                        <button class="btn btn-outline-danger" onclick="deleteTask(@Model.Id)">
+                            <i class="fas fa-trash"></i> Delete Task
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Subtasks -->
+            @if (Model.SubTasks != null && Model.SubTasks.Any())
+            {
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Subtasks</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            @foreach (var subtask in Model.SubTasks)
+                            {
+                                <div class="list-group-item">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox"
+                                        @(subtask.Status == TaskStatusEnum.Completed ? "checked" : "")
+                                               onchange="updateSubtaskStatus(@subtask.Id, this.checked)">
+                                        <label class="form-check-label @(subtask.Status == TaskStatusEnum.Completed ? "text-decoration-line-through" : "")">
+                                            @subtask.Title
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function updateStatus(id, status) {
+            $.ajax({
+                url: '/Calendar/UpdateTaskStatus',
+                type: 'POST',
+                data: { id: id, status: status },
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function(response) {
+                    if (response.success) {
+                        location.reload();
+                    } else {
+                        showAlert('Error updating status', 'danger');
+                    }
+                }
+            });
+        }
+        
+        function updateHours(id) {
+            var hours = $('#actualHours').val();
+            $.ajax({
+                url: '/Calendar/UpdateTaskHours',
+                type: 'POST',
+                data: { id: id, actualHours: hours },
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function(response) {
+                    if (response.success) {
+                        showAlert('Hours updated successfully!', 'success');
+                    } else {
+                        showAlert('Error updating hours', 'danger');
+                    }
+                }
+            });
+        }
+        
+        function addComment(taskId) {
+            var comment = $('#newComment').val();
+            if (!comment.trim()) {
+                showAlert('Please enter a comment', 'warning');
+                return;
+            }
+            
+            $.ajax({
+                url: '/Calendar/AddTaskComment',
+                type: 'POST',
+                data: { taskId: taskId, comment: comment },
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function(response) {
+                    if (response.success) {
+                        location.reload();
+                    } else {
+                        showAlert('Error adding comment', 'danger');
+                    }
+                }
+            });
+        }
+        
+        function deleteTask(id) {
+            if (confirm('Are you sure you want to delete this task?')) {
+                $.ajax({
+                    url: '/Calendar/DeleteTask',
+                    type: 'POST',
+                    data: { id: id },
+                    headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                    success: function(response) {
+                        if (response.success) {
+                            window.location.href = '/Calendar/Tasks';
+                        } else {
+                            showAlert('Error deleting task', 'danger');
+                        }
+                    }
+                });
+            }
+        }
+        
+        
+        function updateSubtaskStatus(id, isChecked) {
+            var status = isChecked ? 'Completed' : 'NotStarted';
+            $.ajax({
+                url: '/Calendar/UpdateTaskStatus',
+                type: 'POST',
+                data: { id: id, status: status },
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function(response) {
+                    if (response.success) {
+                        location.reload();
+                    }
+                }
+            });
+        }
+        
+        function showAlert(message, type) {
+            var alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3" style="z-index: 9999; min-width: 300px;">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            $('body').append(alertHtml);
+            setTimeout(function() {
+                $('.alert').fadeOut(500, function() { $(this).remove(); });
+            }, 3000);
+        }
+    </script>
+}

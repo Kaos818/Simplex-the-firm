@@ -1,0 +1,4 @@
+@model IEnumerable<SimplexLawFirm.Models.ReimbursementClaim>
+@{ ViewData["Title"]="Reimbursement approvals"; Layout="_AdminLayout"; }
+<div class="page-hero compact"><div><span class="eyebrow">Director approval</span><h1>Reimbursement review queue</h1><p>Only claims above delegated authority or outside policy limits appear here.</p></div></div>
+<section class="surface">@if(!Model.Any()){<p class="muted">No reimbursement claims require Director review.</p>}@foreach(var claim in Model){<a class="record-row" href="/Reimbursement/Review/@claim.Id"><span><b>@claim.ClaimNumber · @claim.Attorney.FullName</b><small>@claim.Case.CaseNumber · @claim.ExpenseType @if(claim.ExceedsPolicyLimit){<strong>· Policy limit exceeded</strong>}</small></span><span><b>R @claim.Amount.ToString("N2")</b><small>@claim.Classification</small></span></a>}</section>

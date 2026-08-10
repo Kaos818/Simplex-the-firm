@@ -1,0 +1,176 @@
+﻿@model List<SimplexLawFirm.Models.TrustAccount>
+
+@{
+    ViewData["Title"] = "Trust Account Management";
+    Layout = "_AdminLayout";
+    
+    var totalBalance = Model.Sum(t => t.Balance);
+    var totalDeposited = Model.Sum(t => t.TotalDeposited);
+    var totalWithdrawn = Model.Sum(t => t.TotalWithdrawn);
+    var activeAccounts = Model.Count(t => t.Balance > 0);
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-bank text-primary"></i> Trust Account Management
+                    </h1>
+                    <p class="text-muted">Manage client trust accounts and transactions</p>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Accounts</h6>
+                            <h2 class="mb-0">@Model.Count</h2>
+                        </div>
+                        <i class="fas fa-users fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Balance</h6>
+                            <h2 class="mb-0">R @totalBalance.ToString("N0")</h2>
+                        </div>
+                        <i class="fas fa-dollar-sign fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Deposited</h6>
+                            <h2 class="mb-0">R @totalDeposited.ToString("N0")</h2>
+                        </div>
+                        <i class="fas fa-arrow-down fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Active Accounts</h6>
+                            <h2 class="mb-0">@activeAccounts</h2>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search by client name or email..." />
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-outline-secondary w-100" onclick="window.print()">
+                        <i class="fas fa-print"></i> Print Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-bank fa-5x text-muted mb-3"></i>
+            <h3 class="text-muted">No Trust Accounts</h3>
+            <p class="text-muted">No trust accounts have been created yet.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="trustAccountsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Client</th>
+                                <th>Email</th>
+                                <th>Current Balance</th>
+                                <th>Total Deposited</th>
+                                <th>Total Withdrawn</th>
+                                <th>Last Updated</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var account in Model)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@account.Client?.FullName</strong>
+                                    </td>
+                                    <td>@account.Client?.Email</td>
+                                    <td>
+                                        <span class="fw-bold @(account.Balance > 0 ? "text-success" : "text-muted")">
+                                            R @account.Balance.ToString("N2")
+                                        </span>
+                                    </td>
+                                    <td>R @account.TotalDeposited.ToString("N2")</td>
+                                    <td>R @account.TotalWithdrawn.ToString("N2")</td>
+                                    <td>@account.LastUpdated.ToString("MMM dd, yyyy")</td>
+                                    <td>
+                                        <a href="/Retainer/AdminTrustDetails/@account.Id" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> View Details
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="2" class="text-end">Totals:</th>
+                                <th class="text-success">R @totalBalance.ToString("N2")</th>
+                                <th>R @totalDeposited.ToString("N2")</th>
+                                <th>R @totalWithdrawn.ToString("N2")</th>
+                                <th colspan="2"></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('#searchInput').on('keyup', function() {
+                var value = $(this).val().toLowerCase();
+                $('#trustAccountsTable tbody tr').filter(function() {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+                });
+            });
+        });
+    </script>
+}

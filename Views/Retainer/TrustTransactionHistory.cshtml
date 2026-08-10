@@ -1,0 +1,318 @@
+﻿@model SimplexLawFirm.Models.ClientTrustViewModel
+
+@{
+    ViewData["Title"] = "Trust Transaction History";
+    Layout = "_ClientLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-history text-primary"></i> Trust Transaction History
+                    </h1>
+                    <p class="text-muted">View all your trust account transactions</p>
+                </div>
+                <div>
+                    <a href="/Retainer/MyTrustAccount" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Account
+                    </a>
+                    <a href="/Retainer/ExportTrustTransactions" class="btn btn-success">
+                        <i class="fas fa-file-excel"></i> Export CSV
+                    </a>
+                    <a href="/Retainer/DepositToTrust" class="btn btn-primary">
+                        <i class="fas fa-plus-circle"></i> New Deposit
+                    </a>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Account Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Current Balance</h6>
+                            <h2 class="mb-0">R @(Model.TrustAccount?.Balance.ToString("N2") ?? "0.00")</h2>
+                        </div>
+                        <i class="fas fa-dollar-sign fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Deposited</h6>
+                            <h2 class="mb-0">R @(Model.TrustAccount?.TotalDeposited.ToString("N2") ?? "0.00")</h2>
+                        </div>
+                        <i class="fas fa-arrow-down fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-info text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Withdrawn</h6>
+                            <h2 class="mb-0">R @(Model.TrustAccount?.TotalWithdrawn.ToString("N2") ?? "0.00")</h2>
+                        </div>
+                        <i class="fas fa-arrow-up fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Transaction Type</label>
+                    <select id="typeFilter" class="form-select">
+                        <option value="">All Transactions</option>
+                        <option value="Deposit">Deposits Only</option>
+                        <option value="Withdrawal">Withdrawals Only</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">From Date</label>
+                    <input type="date" id="fromDate" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">To Date</label>
+                    <input type="date" id="toDate" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="d-flex gap-2">
+                        <button id="applyFilters" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> Apply
+                        </button>
+                        <button id="clearFilters" class="btn btn-outline-secondary w-100">
+                            <i class="fas fa-undo"></i> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-list"></i> Transaction History
+                    <span class="badge bg-secondary ms-2" id="transactionCount">@Model.RecentTransactions.Count transactions</span>
+                </h5>
+                <div>
+                    <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search..." style="width: 200px;" />
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            @if (!Model.RecentTransactions.Any())
+            {
+                <div class="text-center py-5">
+                    <i class="fas fa-exchange-alt fa-4x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Transactions Yet</h4>
+                    <p class="text-muted">Make a deposit to start building your transaction history.</p>
+                    <a href="/Retainer/DepositToTrust" class="btn btn-primary mt-3">
+                        <i class="fas fa-plus-circle"></i> Make a Deposit
+                    </a>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="transactionsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Description</th>
+                                <th>Reference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var transaction in Model.RecentTransactions)
+                            {
+                                <tr data-type="@transaction.Type">
+                                    <td>@transaction.TransactionDate.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td>
+                                        @if (transaction.Type == TransactionType.Deposit)
+                                        {
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-arrow-down"></i> Deposit
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-arrow-up"></i> Withdrawal
+                                            </span>
+                                        }
+                                    </td>
+                                    <td class="@(transaction.Type == TransactionType.Deposit ? "text-success" : "text-danger") fw-bold">
+                                        @(transaction.Type == TransactionType.Deposit ? "+" : "-") R @transaction.Amount.ToString("N2")
+                                    </td>
+                                    <td>@transaction.Description</td>
+                                    <td>
+                                        <code class="small">@transaction.Reference</code>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="2" class="text-end">Closing Balance:</th>
+                                <th class="text-success fw-bold">R @(Model.TrustAccount?.Balance.ToString("N2") ?? "0.00")</th>
+                                <th colspan="2"></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            }
+        </div>
+        <div class="card-footer bg-white">
+            <div class="row">
+                <div class="col-md-6">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                    </small>
+                </div>
+                <div class="col-md-6 text-end">
+                    <small class="text-muted">
+                        <i class="fas fa-lock"></i> All transactions are secured and verified
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+        cursor: pointer;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Search functionality
+            $('#searchInput').on('keyup', function() {
+                var value = $(this).val().toLowerCase();
+                $('#transactionsTable tbody tr').filter(function() {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+                });
+                updateCount();
+            });
+            
+            // Type filter
+            $('#typeFilter').change(function() {
+                applyFilters();
+            });
+            
+            // Date filters
+            $('#applyFilters').click(function() {
+                applyFilters();
+            });
+            
+            $('#clearFilters').click(function() {
+                $('#typeFilter').val('');
+                $('#fromDate').val('');
+                $('#toDate').val('');
+                $('#searchInput').val('');
+                $('#transactionsTable tbody tr').show();
+                updateCount();
+            });
+            
+            function applyFilters() {
+                var type = $('#typeFilter').val();
+                var fromDate = $('#fromDate').val();
+                var toDate = $('#toDate').val();
+                
+                $('#transactionsTable tbody tr').each(function() {
+                    var show = true;
+                    var row = $(this);
+                    
+                    // Type filter
+                    if (type && row.data('type') !== type) {
+                        show = false;
+                    }
+                    
+                    // Date filter
+                    if (show && fromDate) {
+                        var dateText = row.find('td:first').text();
+                        var rowDate = new Date(dateText);
+                        var filterDate = new Date(fromDate);
+                        if (rowDate < filterDate) {
+                            show = false;
+                        }
+                    }
+                    
+                    if (show && toDate) {
+                        var dateText = row.find('td:first').text();
+                        var rowDate = new Date(dateText);
+                        var filterDate = new Date(toDate);
+                        filterDate.setHours(23, 59, 59);
+                        if (rowDate > filterDate) {
+                            show = false;
+                        }
+                    }
+                    
+                    if (show) {
+                        row.show();
+                    } else {
+                        row.hide();
+                    }
+                });
+                
+                updateCount();
+            }
+            
+            function updateCount() {
+                var visible = $('#transactionsTable tbody tr:visible').length;
+                $('#transactionCount').text(visible + ' transaction' + (visible !== 1 ? 's' : ''));
+            }
+            
+            // Row click to view details
+            $('#transactionsTable tbody tr').click(function() {
+                var type = $(this).find('td:eq(1)').text().trim();
+                var amount = $(this).find('td:eq(2)').text().trim();
+                var description = $(this).find('td:eq(3)').text().trim();
+                var reference = $(this).find('code').text();
+                
+                Swal.fire({
+                    title: 'Transaction Details',
+                    html: `
+                        <div class="text-start">
+                            <p><strong>Type:</strong> ${type}</p>
+                            <p><strong>Amount:</strong> ${amount}</p>
+                            <p><strong>Description:</strong> ${description}</p>
+                            <p><strong>Reference:</strong> <code>${reference}</code></p>
+                        </div>
+                    `,
+                    icon: 'info',
+                    confirmButtonText: 'Close'
+                });
+            });
+        });
+    </script>
+}

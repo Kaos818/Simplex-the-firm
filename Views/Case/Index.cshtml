@@ -1,0 +1,217 @@
+﻿@model IEnumerable<SimplexLawFirm.Models.Case>
+@{
+    ViewData["Title"] = "Case Management";
+    Layout = Context.Session.GetString("UserRole") == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">
+                <i class="fas fa-gavel text-primary me-2"></i>Case Management
+            </h1>
+            <p class="text-muted">Manage and track all legal cases</p>
+        </div>
+        <a href="@Url.Action("Create")" class="btn btn-primary btn-lg">
+            <i class="fas fa-plus-circle me-2"></i>New Case
+        </a>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Total Cases</h6>
+                            <h2 class="mb-0">@Model.Count()</h2>
+                        </div>
+                        <i class="fas fa-folder-open fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Active Cases</h6>
+                            <h2 class="mb-0">@Model.Count(c => c.Status == CaseStatus.Active)</h2>
+                        </div>
+                        <i class="fas fa-play-circle fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Pending</h6>
+                            <h2 class="mb-0">@Model.Count(c => c.Status == CaseStatus.Pending)</h2>
+                        </div>
+                        <i class="fas fa-clock fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-secondary text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Closed</h6>
+                            <h2 class="mb-0">@Model.Count(c => c.Status == CaseStatus.Closed)</h2>
+                        </div>
+                        <i class="fas fa-check-circle fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Search</label>
+                    <input type="text" name="searchTerm" class="form-control" placeholder="Case title, number, or client..." value="@ViewBag.SearchTerm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Status</option>
+                        @foreach (var status in Enum.GetValues(typeof(CaseStatus)))
+                        {
+                            <option value="@status" selected="@(ViewBag.CurrentStatus?.ToString() == status.ToString())">@status</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-2"></i>Filter
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <a href="@Url.Action("Index")" class="btn btn-outline-secondary w-100">
+                        <i class="fas fa-sync-alt me-2"></i>Reset
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Cases Table -->
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Case Number</th>
+                            <th>Title</th>
+                            <th>Client</th>
+                            <th>Lawyer</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-5">
+                                    <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                                    <p class="mb-0">No cases found</p>
+                                    <a href="@Url.Action("Create")" class="btn btn-sm btn-primary mt-2">Create your first case</a>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var caseItem in Model)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="fw-bold">@caseItem.CaseNumber</span>
+                                    </td>
+                                    <td>@caseItem.Title</td>
+                                    <td>
+                                        <a href="@Url.Action("Details", "Client", new { id = caseItem.ClientId })" class="text-decoration-none">
+                                            @caseItem.Client?.FullName
+                                        </a>
+                                    </td>
+                                    <td>@(caseItem.Lawyer?.FullName ?? "Unassigned")</td>
+                                    <td>
+                                        <span class="badge @GetStatusBadgeClass(caseItem.Status)">
+                                            @caseItem.Status
+                                        </span>
+                                    </td>
+                                    <td>@caseItem.CreatedAt.ToString("dd MMM yyyy")</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="@Url.Action("Details", new { id = caseItem.Id })" class="btn btn-outline-primary" title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="@Url.Action("Edit", new { id = caseItem.Id })" class="btn btn-outline-secondary" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-outline-danger" title="Archive" onclick="archiveCase(@caseItem.Id)">
+                                                <i class="fas fa-archive"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    string GetStatusBadgeClass(CaseStatus status)
+    {
+        return status switch
+        {
+            CaseStatus.Active => "bg-success",
+            CaseStatus.Pending => "bg-warning text-dark",
+            CaseStatus.Closed => "bg-secondary",
+            CaseStatus.Archived => "bg-dark",
+            _ => "bg-info"
+        };
+    }
+}
+
+@section Scripts {
+    <script>
+        function archiveCase(id) {
+            if (confirm('Are you sure you want to archive this case?')) {
+                $.ajax({
+                    url: '/Case/Delete/' + id,
+                    type: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            showAlert(response.message, 'success');
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            showAlert(response.message, 'danger');
+                        }
+                    },
+                    error: function() {
+                        showAlert('An error occurred', 'danger');
+                    }
+                });
+            }
+        }
+    </script>
+}

@@ -1,0 +1,32 @@
+@model SimplexLawFirm.Models.Beneficiaries.Beneficiary
+@using SimplexLawFirm.Models.Beneficiaries
+@{ var latest = ViewBag.LatestDocuments as Dictionary<int, BeneficiaryDocument> ?? []; }
+<h1>@Model.FirstName @Model.LastName</h1>
+<dl><dt>Status</dt><dd>@Model.Status</dd><dt>Decision reason</dt><dd>@(Model.RejectionReason ?? Model.ManualReviewReason ?? "No final decision yet.")</dd></dl>
+<div class="d-flex flex-wrap gap-2 mb-4">
+@if (Model.Status == BeneficiaryStatus.Draft) { <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-primary">Edit draft</a> }
+@if (Model.Status is BeneficiaryStatus.Draft or BeneficiaryStatus.InvitationSent) {
+<form asp-action="Invite" asp-route-id="@Model.Id" method="post">@Html.AntiForgeryToken()<button class="btn btn-primary">@(Model.Status == BeneficiaryStatus.InvitationSent ? "Resend secure invitation" : "Send secure invitation")</button></form>
+<form asp-action="Deactivate" asp-route-id="@Model.Id" method="post" class="d-flex gap-2">@Html.AntiForgeryToken()<input name="reason" class="form-control" required maxlength="500" placeholder="Reason for deactivation"/><button class="btn btn-outline-danger">Deactivate</button></form>
+}
+</div>
+@if (TempData["DocumentResult"] is string message) { <div class="alert alert-info">@message</div> }
+<h2 class="h4">Identity and supporting documents</h2>
+<p>You may upload documents for the beneficiary now, or send the secure invitation so the beneficiary can upload them personally.</p>
+@foreach (var assignment in Model.RequirementAssignments.OrderBy(x => x.Requirement.DisplayOrder))
+{
+<section class="card p-3 mb-3">
+    <h3 class="h5">@assignment.Requirement.DisplayName</h3>
+    <p>@assignment.Requirement.Description</p>
+    @if (assignment.Requirement.RequiresCertifiedCopy) { <p><strong>Certified copy required.</strong> Automated screening is advisory; an administrator confirms certification.</p> }
+    @if (latest.TryGetValue(assignment.RequirementId, out var document)) {
+        <div class="alert alert-secondary"><strong>@document.PreScreenStatus:</strong> @(document.UserFacingReason ?? "Awaiting review.") <a asp-action="DownloadDocument" asp-route-documentId="@document.Id" class="ms-2">Download securely</a></div>
+    }
+    <form asp-action="UploadDocument" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="requirementId" value="@assignment.RequirementId">
+        <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" required>
+        <button class="btn btn-outline-primary">Upload and pre-screen</button>
+    </form>
+</section>
+}

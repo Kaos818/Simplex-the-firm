@@ -1,0 +1,10 @@
+@model SimplexLawFirm.Models.VulnerableClientFlag
+@using SimplexLawFirm.Models
+@{ ViewData["Title"]="Raise client support flag"; Layout="_LawyerLayout"; var client=(Client)ViewBag.Client; }
+<div class="page-hero compact"><div><span class="eyebrow">Procedural accommodation</span><h1>Raise support flag</h1><p>@client.FullName · Safeguards take effect immediately while Director review is pending.</p></div></div>
+<form method="post" class="surface" style="max-width:850px">@Html.AntiForgeryToken()<input type="hidden" name="clientId" value="@client.Id"/>
+<label class="form-label">Required safeguard</label><select name="safeguard" class="form-select" asp-items="Html.GetEnumSelectList<ClientSafeguard>()"></select>
+<label class="form-label mt-3">Language required <small>(mandatory for an interpreter)</small></label><input name="languageRequired" class="form-control"/>
+<label class="form-label mt-3">Professional reason for the flag</label><textarea name="reason" class="form-control" rows="6" required maxlength="1000"></textarea>
+<div class="alert alert-info mt-3">This is not the firm's financial or legal risk rating. It records an accommodation the firm owes the client.</div>
+<button class="btn btn-warning">Raise and enforce flag</button> <a href="/Client/Details/@client.Id" class="btn btn-outline-secondary">Cancel</a></form>

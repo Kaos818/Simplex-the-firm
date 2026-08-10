@@ -1,0 +1,53 @@
+@model SimplexLawFirm.ViewModels.HandoverPageViewModel
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Case handover";
+    Layout = Context.Session.GetString("UserRole") == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    var userId = Context.Session.GetInt32("UserId");
+    var role = Context.Session.GetString("UserRole");
+    var isDirector = role is "Admin" or "Director";
+    var isOutgoing = userId == Model.Handover.OutgoingAttorneyId;
+    var isReceiving = userId == Model.Handover.ReceivingAttorneyId;
+    var editable = Model.Handover.Status is HandoverStatus.Preparing or HandoverStatus.Overdue or HandoverStatus.QueryRaised;
+}
+<div class="breadcrumb-line"><a href="/Practice/Handovers">Case handovers</a><span>/</span><a href="/Case/Details/@Model.Handover.CaseId">@Model.Handover.Case.CaseNumber</a><span>/</span><span>Handover</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Safe transfer</span><h1>@Model.Handover.Case.Title</h1><p>@Model.Handover.OutgoingAttorney.FullName → @Model.Handover.ReceivingAttorney.FullName</p></div><span class="status-pill large">@Model.Handover.Status</span></div>
+
+@if (!string.IsNullOrWhiteSpace(Model.Handover.ReceivingAttorneyQuery)) { <div class="alert alert-info"><strong>Receiving attorney query:</strong> @Model.Handover.ReceivingAttorneyQuery</div> }
+@if (!string.IsNullOrWhiteSpace(Model.Handover.DirectorQueryResponse)) { <div class="alert alert-success"><strong>Director's response:</strong> @Model.Handover.DirectorQueryResponse <small class="d-block mt-1">Recorded @Model.Handover.DirectorQueryRespondedAtUtc?.ToString("dd MMM yyyy HH:mm 'UTC'")</small></div> }
+@if (!string.IsNullOrWhiteSpace(Model.Handover.ReceivingAttorneyDeclineReason)) { <div class="alert alert-danger"><strong>Acceptance declined:</strong> @Model.Handover.ReceivingAttorneyDeclineReason</div> }
+@if (Model.BlockingItems.Count > 0) { <div class="alert alert-warning"><strong>Handover is blocked.</strong> The outgoing attorney must record a position for each mandatory item before it can be marked ready.</div> }
+
+<div class="workspace-grid">
+ <section class="surface"><div class="section-heading"><div><span class="eyebrow">Live checklist</span><h2>@Model.BlockingItems.Count blocker(s)</h2></div><small>Rechecked when readiness is submitted</small></div>
+ @foreach (var item in Model.Handover.Items) {
+     @if (isOutgoing && editable) {
+       <form method="post" action="/Practice/ResolveItem" class="checklist-item @(item.IsResolved ? "done" : "")">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@item.Id"/><input type="hidden" name="handoverId" value="@Model.Handover.Id"/><input type="hidden" name="resolved" value="@((!item.IsResolved).ToString().ToLowerInvariant())"/><button type="submit" class="check-button" aria-label="@(item.IsResolved ? "Reopen checklist item" : "Record checklist item position")">@(item.IsResolved ? "✓" : "○")</button><div class="item-copy"><b>@item.Type</b><p>@item.Description</p><small>@(item.IsMandatory ? "Mandatory" : "Advisory")</small>@if (!item.IsResolved) { <input name="resolutionNote" required="@item.IsMandatory" placeholder="Record the position taken…" aria-label="Resolution note"/> } else if (!string.IsNullOrWhiteSpace(item.ResolutionNote)) { <em>@item.ResolutionNote</em> }</div></form>
+     } else {
+       <div class="checklist-item @(item.IsResolved ? "done" : "")"><span class="check-button" aria-hidden="true">@(item.IsResolved ? "✓" : "○")</span><div class="item-copy"><b>@item.Type</b><p>@item.Description</p><small>@(item.IsMandatory ? "Mandatory" : "Advisory")</small>@if (!string.IsNullOrWhiteSpace(item.ResolutionNote)) { <em>@item.ResolutionNote</em> }</div></div>
+     }
+ }
+ </section>
+
+ @if (isOutgoing && editable) {
+ <section class="surface"><span class="eyebrow">Handover briefing</span><h2>Prepare the next attorney</h2><form method="post" action="/Practice/MarkReady" class="stack-form">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Handover.Id"/><label>Handover notes<textarea name="notes" rows="5">@Model.Handover.Notes</textarea></label><label>Urgent matters & imminent deadlines<textarea name="urgentMatters" rows="4">@Model.Handover.UrgentMatters</textarea></label><div class="responsibility-note">Responsibility remains with <b>@Model.Handover.OutgoingAttorney.FullName</b> until acceptance.</div><button type="submit" class="btn-primary-modern">Run live check & mark ready</button></form></section>
+ } else if (isReceiving && Model.Handover.Status == HandoverStatus.Ready) {
+ <section class="surface receiving-acceptance"><span class="eyebrow">Receiving attorney</span><h2>Accept responsibility</h2><p>Acknowledge every mandatory checklist item, confirm the Director's risk flags, then sign to accept.</p>
+  <form method="post" action="/Practice/AcceptHandover" class="stack-form">@Html.AntiForgeryToken()<input type="hidden" name="Id" value="@Model.Handover.Id"/>
+   <div class="acceptance-checks">@foreach (var item in Model.Handover.Items.Where(x => x.IsMandatory)) { <label class="checklist-ack"><input type="checkbox" name="AcknowledgedItemIds" value="@item.Id" required/><span><b>@item.Type</b><small>@item.Description</small></span></label> }</div>
+   <label class="checklist-ack risk-ack"><input type="checkbox" name="RiskAcknowledged" value="true" required/><span><b>I have read and understood the Director's risk flags and accept responsibility for managing them.</b></span></label>
+   <label>Type your full name to sign digitally<input name="SignatureName" autocomplete="name" required maxlength="200" placeholder="@Model.Handover.ReceivingAttorney.FullName"/></label>
+   <button type="submit" class="btn-primary-modern">Accept handover</button>
+  </form>
+  @if (!Model.Handover.DirectorQueryVerdictFinal) { <a class="response-option query-link" href="/Practice/RaiseHandoverQuery/@Model.Handover.Id"><i class="far fa-envelope"></i><span><b>Question the Director's decision</b><small>Open a dedicated, recorded query</small></span><i class="fas fa-arrow-right"></i></a> }
+  else { <div class="responsibility-note mt-3"><b>Director's final verdict recorded.</b> No further query may be raised for this transfer. Accept responsibility or decline with a recorded reason.</div> }
+  <details class="response-option danger"><summary><i class="fas fa-times"></i> Decline acceptance instead</summary><form method="post" action="/Practice/DeclineHandover" class="stack-form compact">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Handover.Id"/><label>Reason for declining<textarea name="reason" minlength="20" maxlength="2000" required rows="3"></textarea></label><button class="btn btn-outline-danger">Decline and return to Director</button></form></details>
+ </section>
+ } else {
+ <section class="surface"><span class="eyebrow">Handover status</span><h2>@(Model.Handover.Status == HandoverStatus.QueryRaised ? "Director response required" : "Read-only for your role")</h2><p>@(Model.Handover.Status == HandoverStatus.QueryRaised ? "Acceptance is paused while the Director responds to the receiving attorney's query." : Model.Handover.Status == HandoverStatus.Ready ? "Waiting for the receiving attorney to accept responsibility." : Model.Handover.Status == HandoverStatus.Accepted ? "Responsibility has transferred and the acceptance is recorded." : "The outgoing attorney or Director is preparing the handover pack.")</p>@if (Model.Handover.Status == HandoverStatus.QueryRaised && isDirector) { <a class="btn-primary-modern d-inline-block text-decoration-none" href="/Practice/ReviewHandoverQuery/@Model.Handover.Id">Respond to receiving attorney</a> }@if (isReceiving && Model.Handover.Status == HandoverStatus.QueryRaised) { <a class="btn-secondary-modern d-inline-block text-decoration-none" href="/Practice/RaiseHandoverQuery/@Model.Handover.Id">View my query</a> }@if (!string.IsNullOrWhiteSpace(Model.Handover.AcceptanceSignatureName)) { <div class="responsibility-note">Digitally accepted by <b>@Model.Handover.AcceptanceSignatureName</b> on @Model.Handover.AcceptedAtUtc?.ToString("dd MMM yyyy HH:mm 'UTC'").</div> }</section>
+ }
+</div>
+
+<style>
+ .receiving-acceptance{border-radius:26px;padding:2rem}.acceptance-checks{display:grid;gap:.75rem}.checklist-ack{display:flex;gap:.8rem;align-items:flex-start;padding:.85rem;border:1px solid #d8dee6;border-radius:14px;background:#fff;cursor:pointer}.checklist-ack input{width:1.15rem;height:1.15rem;margin-top:.2rem;accent-color:#b8892d}.checklist-ack span{display:grid;gap:.2rem}.checklist-ack small{color:#667085}.risk-ack{margin-top:.6rem;background:#fbf8ef}.response-option{border-top:1px solid #e4e7ec;margin-top:1rem;padding-top:1rem}.query-link{display:flex;align-items:center;gap:.8rem;text-decoration:none;color:#344054}.query-link span{display:grid;flex:1}.query-link small{color:#667085}.response-option summary{cursor:pointer;color:#52606d}.response-option.danger summary{color:#8f1d1d}.stack-form.compact{margin-top:1rem}
+</style>

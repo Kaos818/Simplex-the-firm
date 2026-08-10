@@ -1,0 +1,202 @@
+﻿@model List<SimplexLawFirm.Models.Invoice>
+
+@{
+    ViewData["Title"] = "My Invoices";
+    Layout = "_ClientLayout";
+    
+    var totalInvoices = ViewBag.TotalInvoices as int? ?? 0;
+    var totalPaid = ViewBag.TotalPaid as decimal? ?? 0;
+    var totalOutstanding = ViewBag.TotalOutstanding as decimal? ?? 0;
+    var overdueCount = ViewBag.OverdueCount as int? ?? 0;
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-5 fw-bold">
+                <i class="fas fa-file-invoice-dollar text-primary"></i> My Invoices
+            </h1>
+            <p class="text-muted">View and manage your invoices</p>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Invoices</h6>
+                            <h2 class="mb-0">@totalInvoices</h2>
+                        </div>
+                        <i class="fas fa-file-invoice fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Paid</h6>
+                            <h2 class="mb-0">R @totalPaid.ToString("N0")</h2>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Outstanding</h6>
+                            <h2 class="mb-0">R @totalOutstanding.ToString("N0")</h2>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-danger text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Overdue</h6>
+                            <h2 class="mb-0">@overdueCount</h2>
+                        </div>
+                        <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Filter by Status</label>
+                    <select name="status" class="form-select" onchange="this.form.submit()">
+                        <option value="">All Status</option>
+                        @foreach (InvoiceStatus status in ViewBag.StatusOptions)
+                        {
+                            <option value="@status" selected="@(ViewBag.CurrentStatus == status.ToString())">
+                                @status
+                            </option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <a href="/Billing/MyInvoices" class="btn btn-outline-secondary">
+                        <i class="fas fa-undo"></i> Clear Filters
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-inbox fa-5x text-muted mb-3"></i>
+            <h3 class="text-muted">No Invoices Found</h3>
+            <p class="text-muted">You don't have any invoices yet.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Invoice #</th>
+                                <th>Date</th>
+                                <th>Due Date</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Paid</th>
+                                <th>Balance</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var invoice in Model)
+                            {
+                                var paidAmount = invoice.Payments?.Sum(p => p.Amount) ?? 0;
+                                var balanceDue = invoice.TotalAmount - paidAmount;
+                                var isOverdue = invoice.DueDate < DateTime.Now && invoice.Status != InvoiceStatus.Paid;
+                                
+                                <tr>
+                                    <td>
+                                        <strong>@invoice.InvoiceNumber</strong>
+                                        @if (invoice.RetainerId.HasValue)
+                                        {
+                                            <br />
+                                            <small class="text-muted">Retainer #@invoice.RetainerId</small>
+                                        }
+                                    </td>
+                                    <td>@invoice.IssueDate.ToString("MMM dd, yyyy")</td>
+                                    <td class="@(isOverdue ? "text-danger fw-bold" : "")">
+                                        @invoice.DueDate.ToString("MMM dd, yyyy")
+                                        @if (isOverdue)
+                                        {
+                                            <br />
+                                            <span class="badge bg-danger">OVERDUE</span>
+                                        }
+                                    </td>
+                                    <td>@invoice.Description</td>
+                                    <td class="fw-bold">R @invoice.TotalAmount.ToString("N2")</td>
+                                    <td class="text-success">R @paidAmount.ToString("N2")</td>
+                                    <td class="text-danger">R @balanceDue.ToString("N2")</td>
+                                    <td>
+                                        @{
+                                            var statusClass = invoice.Status switch
+                                            {
+                                                InvoiceStatus.Paid => "bg-success",
+                                                InvoiceStatus.PartiallyPaid => "bg-warning",
+                                                InvoiceStatus.Sent => "bg-info",
+                                                InvoiceStatus.Overdue => "bg-danger",
+                                                _ => "bg-secondary"
+                                            };
+                                        }
+                                        <span class="badge @statusClass">@invoice.Status</span>
+                                    </td>
+                                    <td>
+                                        <a href="/Billing/ClientInvoiceDetails/@invoice.Id" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                        @if (balanceDue > 0 && invoice.Status != InvoiceStatus.Paid)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-success mt-1" onclick="payInvoice(@invoice.Id)">
+                                                <i class="fas fa-credit-card"></i> Pay
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        function payInvoice(id) {
+            // Redirect to payment page or show payment modal
+            window.location.href = '/Billing/PayInvoice/' + id + '?paymentMethod=CreditCard';
+        }
+    </script>
+}

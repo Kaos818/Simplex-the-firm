@@ -1,0 +1,242 @@
+﻿@model IEnumerable<SimplexLawFirm.Models.Document>
+@{
+    ViewData["Title"] = "Shared With Me";
+    Layout = "_AdminLayout";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">
+                <i class="fas fa-share-alt text-primary me-2"></i>Shared With Me
+            </h1>
+            <p class="text-muted">Documents that have been shared with you</p>
+        </div>
+        <a href="@Url.Action("Index")" class="btn btn-outline-secondary">
+            <i class="fas fa-folder me-2"></i>My Documents
+        </a>
+    </div>
+
+    <!-- Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Shared Documents</h6>
+                            <h2 class="mb-0">@Model.Count()</h2>
+                        </div>
+                        <i class="fas fa-file-alt fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-info text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Total Size</h6>
+                            <h2 class="mb-0">@Model.Sum(d => long.TryParse(d.FileSize?.Split(' ')[0], out var size) ? size : 0).ToString("F0") MB</h2>
+                        </div>
+                        <i class="fas fa-database fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">Recently Shared</h6>
+                            <h2 class="mb-0">@Model.Count(d => d.UploadedAt >= DateTime.Now.AddDays(-7))</h2>
+                        </div>
+                        <i class="fas fa-clock fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-share-alt fa-5x text-muted mb-3"></i>
+                <h3>No Shared Documents</h3>
+                <p class="text-muted">No documents have been shared with you yet.</p>
+                <a href="@Url.Action("Index")" class="btn btn-primary mt-3">
+                    <i class="fas fa-folder me-2"></i>Go to My Documents
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Shared Documents List</h5>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search documents...">
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="documentsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>File Name</th>
+                                <th>Category</th>
+                                <th>Shared By</th>
+                                <th>Related Case</th>
+                                <th>Shared Date</th>
+                                <th>Size</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var doc in Model)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas @GetFileIcon(doc.FileType) fa-lg me-2 text-primary"></i>
+                                            <div>
+                                                <div class="fw-bold">@doc.FileName</div>
+                                                <small class="text-muted">Version @(doc.VersionNumber ?? 1)</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">@doc.Category</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-user-circle me-1 text-muted"></i>
+                                            @doc.UploadedBy?.FullName
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (doc.Case != null)
+                                        {
+                                            <a href="@Url.Action("Details", "Case", new { id = doc.CaseId })" class="text-decoration-none">
+                                                <i class="fas fa-folder-open me-1"></i>@doc.Case.CaseNumber
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div>@doc.UploadedAt.ToString("dd MMM yyyy")</div>
+                                        <small class="text-muted">@doc.UploadedAt.ToString("HH:mm")</small>
+                                    </td>
+                                    <td>@doc.FileSize</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="@Url.Action("Download", new { id = doc.Id })" class="btn btn-outline-primary" title="Download">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                            <a href="@Url.Action("Preview", new { id = doc.Id })" class="btn btn-outline-secondary" title="Preview" target="_blank">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-outline-info" title="Share Info" onclick="showShareInfo(@doc.Id)">
+                                                <i class="fas fa-share-alt"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Share Info Modal -->
+<div class="modal fade" id="shareInfoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-share-alt me-2"></i>Document Share Information</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="shareInfoContent">
+                Loading...
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    string GetFileIcon(string fileType)
+    {
+        if (string.IsNullOrEmpty(fileType)) return "fa-file";
+        
+        if (fileType.Contains("pdf")) return "fa-file-pdf text-danger";
+        if (fileType.Contains("word") || fileType.Contains("document")) return "fa-file-word text-primary";
+        if (fileType.Contains("excel") || fileType.Contains("sheet")) return "fa-file-excel text-success";
+        if (fileType.Contains("image")) return "fa-file-image text-info";
+        if (fileType.Contains("text")) return "fa-file-alt";
+        return "fa-file";
+    }
+}
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('#searchInput').on('keyup', function() {
+                var value = $(this).val().toLowerCase();
+                $('#documentsTable tbody tr').filter(function() {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+                });
+            });
+        });
+
+        function showShareInfo(documentId) {
+            $('#shareInfoContent').html('<div class="text-center py-3"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">Loading...</p></div>');
+            $('#shareInfoModal').modal('show');
+            
+            $.ajax({
+                url: '/Document/GetShareInfo/' + documentId,
+                type: 'GET',
+                success: function(data) {
+                    var html = `
+                        <div class="mb-3">
+                            <strong>Document:</strong> ${data.fileName}
+                        </div>
+                        <div class="mb-3">
+                            <strong>Shared By:</strong> ${data.sharedBy}
+                        </div>
+                        <div class="mb-3">
+                            <strong>Shared On:</strong> ${new Date(data.sharedAt).toLocaleString()}
+                        </div>
+                        <div class="mb-3">
+                            <strong>Expires:</strong> ${data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'Never'}
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            You have ${data.accessCount || 0} access${data.accessCount !== 1 ? 'es' : ''} to this document.
+                        </div>
+                    `;
+                    $('#shareInfoContent').html(html);
+                },
+                error: function() {
+                    $('#shareInfoContent').html('<div class="alert alert-danger">Failed to load share information.</div>');
+                }
+            });
+        }
+    </script>
+}

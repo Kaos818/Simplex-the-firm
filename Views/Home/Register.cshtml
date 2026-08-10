@@ -1,0 +1,50 @@
+@model SimplexLawFirm.Models.RegisterViewModel
+@{ ViewData["Title"] = "Create your account"; Layout = null; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Create your account - Simplex Law</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="auth-page">
+    <main class="auth-shell auth-shell-wide">
+        <section class="auth-story" aria-label="About Simplex Law">
+            <a asp-action="Index" class="brand-lockup" aria-label="Simplex Law home"><span class="brand-mark">S</span><span><b>Simplex</b><small>Legal workspace</small></span></a>
+            <div class="auth-story-copy">
+                <span class="eyebrow">Secure client portal</span>
+                <h1>Your legal work.<br />Clear and connected.</h1>
+                <p>Create one account to follow matters, appointments, documents and billing from a private workspace.</p>
+                <div class="trust-notes"><span><i class="fas fa-shield-halved"></i> Privacy by design</span><span><i class="fas fa-circle-check"></i> Protected access</span></div>
+            </div>
+            <a asp-action="Index" class="btn-ghost"><i class="fas fa-arrow-left"></i>&nbsp; Back to the website</a>
+        </section>
+        <section class="auth-panel">
+            <div class="auth-card register-form-wrap">
+                <span class="eyebrow">Get started</span>
+                <h2>Create an account</h2>
+                <p class="muted">Enter your details to open your secure client workspace.</p>
+                @if (TempData["Error"] != null) { <div class="alert alert-danger" role="alert">@TempData["Error"]</div> }
+                <form method="post" class="stack-form" novalidate>
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <label>Full name<div class="input-icon"><i class="far fa-user"></i><input asp-for="FullName" autocomplete="name" placeholder="Your full name" /></div><span asp-validation-for="FullName" class="text-danger"></span></label>
+                    <label>Email address<div class="input-icon"><i class="far fa-envelope"></i><input asp-for="Email" type="email" autocomplete="email" placeholder="you@example.com" /></div><span asp-validation-for="Email" class="text-danger"></span></label>
+                    <div class="auth-grid">
+                        <label>Password<div class="input-icon"><i class="fas fa-lock"></i><input asp-for="Password" type="password" autocomplete="new-password" /></div><span asp-validation-for="Password" class="text-danger"></span></label>
+                        <label>Confirm password<div class="input-icon"><i class="fas fa-lock"></i><input asp-for="ConfirmPassword" type="password" autocomplete="new-password" /></div><span asp-validation-for="ConfirmPassword" class="text-danger"></span></label>
+                    </div>
+                    <label class="auth-consent"><input type="checkbox" required /> <span>I agree to the privacy and portal terms.</span></label>
+                    <button type="submit" class="auth-submit">Create secure account <i class="fas fa-arrow-right"></i></button>
+                </form>
+                <p class="auth-footer">Already registered? <a asp-action="Login">Sign in</a></p>
+            </div>
+        </section>
+    </main>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <partial name="_ValidationScriptsPartial" />
+</body>
+</html>

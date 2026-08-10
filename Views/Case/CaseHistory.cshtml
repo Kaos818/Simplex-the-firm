@@ -1,0 +1,20 @@
+@using SimplexLawFirm.Controllers
+@{
+    var matter = (SimplexLawFirm.Models.Case)ViewBag.Case;
+    var activities = (IReadOnlyList<CaseActivityViewModel>)ViewBag.Activities;
+    Layout = Context.Session.GetString("UserRole") == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    ViewData["Title"] = $"History · {matter.CaseNumber}";
+}
+<div class="breadcrumb-line"><a href="/Case/Details/@matter.Id">@matter.CaseNumber</a><span>/</span><span>Case history</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Permanent matter record</span><h1>@matter.Title</h1><p>Documents, events, work, notes and every responsibility transfer remain attached to this case.</p></div><a class="btn-secondary-modern" href="/Case/Details/@matter.Id">Case overview</a></div>
+<section class="surface">
+ <div class="section-heading"><div><span class="eyebrow">Chronology</span><h2>@activities.Count recorded activities</h2></div><input id="historySearch" class="form-control" style="max-width:360px" type="search" placeholder="Search history" aria-label="Search case history" /></div>
+ <div class="timeline-list">
+ @foreach (var activity in activities)
+ {
+  <article class="record-row history-row" data-search="@($"{activity.Type} {activity.Description} {activity.User}".ToLowerInvariant())"><span><b>@activity.Type · @activity.Date.ToString("dd MMM yyyy HH:mm")</b><small>@activity.Description</small></span><span>@activity.User</span></article>
+ }
+ </div>
+ @if (!activities.Any()) { <div class="empty-state">No activity has been recorded yet.</div> }
+</section>
+<script>document.getElementById('historySearch')?.addEventListener('input',function(){const q=this.value.toLowerCase().trim();document.querySelectorAll('.history-row').forEach(x=>x.style.display=!q||x.dataset.search.includes(q)?'':'none');});</script>

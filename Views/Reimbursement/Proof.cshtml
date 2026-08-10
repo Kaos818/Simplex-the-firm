@@ -1,0 +1,5 @@
+@model SimplexLawFirm.ViewModels.UploadReimbursementProofViewModel
+@{ ViewData["Title"]="Upload expense proof"; Layout="_LawyerLayout"; }
+<div class="breadcrumb-line"><a href="/Reimbursement">Reimbursements</a><span>/</span><span>Proof</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Step 2 of 2</span><h1>Activity confirmed. Add proof.</h1><p>Upload the receipt or supplier document. PDF, JPEG and PNG files up to 10 MB are accepted.</p></div></div>
+<form method="post" enctype="multipart/form-data" class="surface guided-form">@Html.AntiForgeryToken()<input asp-for="ClaimId" type="hidden"/><div asp-validation-summary="All" class="validation-summary"></div><div class="form-section"><span>Supporting evidence</span><label>Receipt or proof<input asp-for="Proof" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required/></label></div><button class="btn-primary-modern">Submit reimbursement claim</button></form>

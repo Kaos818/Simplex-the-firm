@@ -1,0 +1,179 @@
+﻿@model List<SimplexLawFirm.Models.TimeEntry>
+
+@{
+    ViewData["Title"] = "Time Tracking";
+    Layout = "_AdminLayout";
+    
+    var totalHours = Model.Sum(t => t.Hours);
+    var totalBillable = Model.Where(t => t.IsBillable).Sum(t => t.Hours);
+    var totalValue = Model.Sum(t => t.TotalAmount);
+    var billableValue = Model.Where(t => t.IsBillable).Sum(t => t.TotalAmount);
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-stopwatch text-primary"></i> Time Tracking
+                    </h1>
+                    <p class="text-muted">Monitor all lawyer time entries</p>
+                </div>
+                <div>
+                    <a href="/Billing/AddTimeEntry" class="btn btn-primary">
+                        <i class="fas fa-plus-circle"></i> Add Time Entry
+                    </a>
+                    <a href="/Billing/TimeEntries/Export" class="btn btn-success">
+                        <i class="fas fa-file-excel"></i> Export
+                    </a>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h6>Total Hours</h6>
+                    <h2>@totalHours.ToString("F1")</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h6>Billable Hours</h6>
+                    <h2>@totalBillable.ToString("F1")</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h6>Total Value</h6>
+                    <h2>R @totalValue.ToString("N0")</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h6>Billable Value</h6>
+                    <h2>R @billableValue.ToString("N0")</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Lawyer</label>
+                    <select name="lawyerId" class="form-select" asp-items="ViewBag.Lawyers">
+                        <option value="">All Lawyers</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Case</label>
+                    <select name="caseId" class="form-select" asp-items="ViewBag.Cases">
+                        <option value="">All Cases</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" name="fromDate" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">To Date</label>
+                    <input type="date" name="toDate" class="form-control" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Time Entries Table -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Lawyer</th>
+                            <th>Case</th>
+                            <th>Retainer</th>
+                            <th>Description</th>
+                            <th>Hours</th>
+                            <th>Rate</th>
+                            <th>Total</th>
+                            <th>Billable</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in Model)
+                        {
+                            <tr>
+                                <td>@entry.Date.ToString("MMM dd, yyyy")</td>
+                                <td>@entry.Lawyer?.FullName</td>
+                                <td>
+                                    @if (entry.Case != null)
+                                    {
+                                        <a href="/Case/Details/@entry.CaseId">@entry.Case?.Title</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (entry.Retainer != null)
+                                    {
+                                        <a href="/Retainer/Details/@entry.RetainerId">@entry.Retainer?.Title</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>@entry.Description</td>
+                                <td class="fw-bold">@entry.Hours.ToString("F1")</td>
+                                <td>R @entry.HourlyRate.ToString("N2")</td>
+                                <td class="text-primary">R @entry.TotalAmount.ToString("N2")</td>
+                                <td>
+                                    @if (entry.IsBillable)
+                                    {
+                                        <span class="badge bg-success">Billable</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Non-Billable</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="5" class="text-end">Totals:</th>
+                            <th>@totalHours.ToString("F1") hrs</th>
+                            <th></th>
+                            <th class="text-primary">R @totalValue.ToString("N2")</th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

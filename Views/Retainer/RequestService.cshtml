@@ -1,0 +1,92 @@
+﻿@model SimplexLawFirm.Models.ClientRequest
+
+@{
+    ViewData["Title"] = "Request Legal Service";
+    Layout = "_ClientLayout";
+    var template = ViewBag.Template as SimplexLawFirm.Models.RetainerTemplate;
+    var client = ViewBag.Client as SimplexLawFirm.Models.Client;
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h4 mb-0">Request Service: @template.Name</h2>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle-fill"></i>
+                        <strong>Important:</strong> This is a service request, not a final agreement. A lawyer will review your request and provide a customized retainer agreement.
+                    </div>
+
+                    <form asp-action="RequestService" method="post">
+                        <input type="hidden" asp-for="TemplateId" />
+                        <input type="hidden" asp-for="ClientId" />
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Selected Service</label>
+                            <p class="form-control-plaintext">@template.Name</p>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Estimated Price Range</label>
+                            <p class="form-control-plaintext">@template.PriceDisplay</p>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="ClientNotes" class="form-label fw-bold">Additional Information</label>
+                            <textarea asp-for="ClientNotes" class="form-control" rows="4"
+                                      placeholder="Please provide any additional details about your legal matter..."></textarea>
+                            <span asp-validation-for="ClientNotes" class="text-danger"></span>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Urgency" class="form-label fw-bold">Urgency Level</label>
+                                <select asp-for="Urgency" class="form-select">
+                                    <option value="Low">Low - Within 2-4 weeks</option>
+                                    <option value="Medium">Medium - Within 1-2 weeks</option>
+                                    <option value="High">High - Within 1 week</option>
+                                    <option value="Urgent">Urgent - ASAP</option>
+                                </select>
+                                <span asp-validation-for="Urgency" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="PreferredContact" class="form-label fw-bold">Preferred Contact Method</label>
+                                <select asp-for="PreferredContact" class="form-select">
+                                    <option value="Email">Email</option>
+                                    <option value="Phone">Phone</option>
+                                    <option value="WhatsApp">WhatsApp</option>
+                                </select>
+                                <span asp-validation-for="PreferredContact" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-secondary mt-3">
+                            <h6 class="fw-bold mb-2">What happens next?</h6>
+                            <ol class="mb-0 small">
+                                <li>Your request will be reviewed by our legal team</li>
+                                <li>A lawyer will contact you to discuss your matter</li>
+                                <li>You'll receive a customized retainer agreement for review</li>
+                                <li>Once approved, you can sign electronically and begin</li>
+                            </ol>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a asp-action="ServiceCatalog" class="btn btn-secondary">Back to Services</a>
+                            <button type="submit" class="btn btn-primary">Submit Request</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

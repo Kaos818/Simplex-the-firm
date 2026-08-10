@@ -1,0 +1,430 @@
+﻿@model List<SimplexLawFirm.Models.TimeEntry>
+
+@{
+    ViewData["Title"] = "My Time Entries";
+    Layout = "_LawyerLayout";
+    
+    var totalHours = Model.Sum(t => t.Hours);
+    var totalAmount = Model.Sum(t => t.TotalAmount);
+    var billableHours = Model.Where(t => t.IsBillable).Sum(t => t.Hours);
+    var billableAmount = Model.Where(t => t.IsBillable).Sum(t => t.TotalAmount);
+    var nonBillableHours = Model.Where(t => !t.IsBillable).Sum(t => t.Hours);
+    var utilizationRate = totalHours > 0 ? (billableHours / totalHours) * 100 : 0;
+    
+    // Get filter values from ViewBag
+    var selectedCaseId = ViewBag.SelectedCaseId as int?;
+    var selectedFromDate = ViewBag.FromDate as string;
+    var selectedToDate = ViewBag.ToDate as string;
+    var selectedIsBillable = ViewBag.IsBillable as string;
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <div>
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-clock text-primary"></i> My Time Entries
+                    </h1>
+                    <p class="text-muted">Track and manage your billable hours</p>
+                </div>
+                <div class="mt-2 mt-md-0">
+                    <a href="/Billing/AddTimeEntry" class="btn btn-primary">
+                        <i class="fas fa-plus-circle"></i> Add Time Entry
+                    </a>
+                    <button type="button" class="btn btn-success" id="exportBtn">
+                        <i class="fas fa-file-excel"></i> Export
+                    </button>
+                </div>
+            </div>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card bg-info text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Hours</h6>
+                            <h2 class="mb-0">@totalHours.ToString("F1")</h2>
+                        </div>
+                        <i class="fas fa-hourglass-half fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card bg-success text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Billable Hours</h6>
+                            <h2 class="mb-0">@billableHours.ToString("F1")</h2>
+                        </div>
+                        <i class="fas fa-dollar-sign fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card bg-primary text-white shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Value</h6>
+                            <h2 class="mb-0">R @totalAmount.ToString("N0")</h2>
+                        </div>
+                        <i class="fas fa-chart-line fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Utilization Rate</h6>
+                            <h2 class="mb-0">@utilizationRate.ToString("F0")%</h2>
+                        </div>
+                        <i class="fas fa-chart-pie fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fas fa-filter"></i> Filter Time Entries</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" id="filterForm" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Case</label>
+                    <select name="caseId" class="form-select" id="caseFilter">
+                        <option value="">All Cases</option>
+                        @if (ViewBag.Cases != null)
+                        {
+                            foreach (var caseItem in ViewBag.Cases as SelectList)
+                            {
+                                <option value="@caseItem.Value" selected="@(selectedCaseId?.ToString() == caseItem.Value)">
+                                    @caseItem.Text
+                                </option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" name="fromDate" class="form-control" id="fromDateFilter" value="@selectedFromDate" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">To Date</label>
+                    <input type="date" name="toDate" class="form-control" id="toDateFilter" value="@selectedToDate" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Billable Status</label>
+                    <select name="isBillable" class="form-select" id="billableFilter">
+                        <option value="">All</option>
+                        <option value="true" selected="@(selectedIsBillable == "true")">Billable Only</option>
+                        <option value="false" selected="@(selectedIsBillable == "false")">Non-Billable Only</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search"></i> Filter
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-clock fa-5x text-muted mb-3"></i>
+            <h3 class="text-muted">No Time Entries Found</h3>
+            <p class="text-muted">You haven't added any time entries yet.</p>
+            <a href="/Billing/AddTimeEntry" class="btn btn-primary mt-3">
+                <i class="fas fa-plus-circle"></i> Add Your First Time Entry
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-list"></i> Time Entries
+                    <span class="badge bg-secondary ms-2">@Model.Count entries</span>
+                </h5>
+                <div>
+                    <input type="text" id="tableSearch" class="form-control form-control-sm" placeholder="Search..." style="width: 200px;" />
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="timeEntriesTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Case</th>
+                                <th>Retainer</th>
+                                <th>Description</th>
+                                <th>Hours</th>
+                                <th>Rate</th>
+                                <th>Total</th>
+                                <th>Billable</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in Model.OrderByDescending(e => e.Date))
+                            {
+                                <tr>
+                                    <td>@entry.Date.ToString("MMM dd, yyyy")</td>
+                                    <td>
+                                        @if (entry.Case != null)
+                                        {
+                                            <a href="/Case/Details/@entry.CaseId" class="text-decoration-none">@entry.Case?.Title</a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (entry.Retainer != null)
+                                        {
+                                            <a href="/Retainer/Details/@entry.RetainerId" class="text-decoration-none">@entry.Retainer?.Title</a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td class="description-cell" style="max-width: 250px;">
+                                        <span title="@entry.Description">@(entry.Description?.Length > 50 ? entry.Description.Substring(0, 50) + "..." : entry.Description)</span>
+                                    </td>
+                                    <td class="fw-bold">@entry.Hours.ToString("F1")</td>
+                                    <td>R @entry.HourlyRate.ToString("N2")</td>
+                                    <td class="text-primary fw-bold">R @entry.TotalAmount.ToString("N2")</td>
+                                    <td>
+                                        @if (entry.IsBillable)
+                                        {
+                                            <span class="badge bg-success">Billable</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Non-Billable</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-danger delete-entry" data-id="@entry.Id" data-description="@entry.Description" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="4" class="text-end">Totals:</th>
+                                <th><strong>@totalHours.ToString("F1") hrs</strong></th>
+                                <th></th>
+                                <th class="text-primary"><strong>R @totalAmount.ToString("N2")</strong></th>
+                                <th colspan="2"></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            Showing @Model.Count time entr@(Model.Count == 1 ? "y" : "ies")
+                            @if (selectedCaseId.HasValue)
+                            {
+                                <span>for selected case</span>
+                            }
+                            @if (!string.IsNullOrEmpty(selectedFromDate) && !string.IsNullOrEmpty(selectedToDate))
+                            {
+                                <span>between @selectedFromDate and @selectedToDate</span>
+                            }
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small class="text-muted">
+                            Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .stat-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        cursor: pointer;
+    }
+    
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+        }
+    
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+        cursor: pointer;
+    }
+    
+    .description-cell {
+        max-width: 250px;
+        word-wrap: break-word;
+    }
+    
+    .btn-group .btn {
+        padding: 0.25rem 0.5rem;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Delete entry with confirmation
+            $('.delete-entry').click(function() {
+                var id = $(this).data('id');
+                var description = $(this).data('description');
+                var shortDesc = description && description.length > 50 ? description.substring(0, 50) + '...' : description;
+                
+                Swal.fire({
+                    title: 'Delete Time Entry?',
+                    html: `Are you sure you want to delete:<br><strong>"${shortDesc || 'this time entry'}"</strong>?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Yes, delete it!',
+                    cancelButtonText: 'Cancel'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.ajax({
+                            url: '/Billing/DeleteTimeEntry',
+                            type: 'POST',
+                            data: { id: id },
+                            headers: {
+                                'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()
+                            },
+                            success: function(response) {
+                                if (response.success) {
+                                    Swal.fire('Deleted!', 'Time entry has been deleted.', 'success')
+                                        .then(() => location.reload());
+                                } else {
+                                    Swal.fire('Error!', response.message || 'Error deleting time entry.', 'error');
+                                }
+                            },
+                            error: function() {
+                                Swal.fire('Error!', 'An error occurred. Please try again.', 'error');
+                            }
+                        });
+                    }
+                });
+            });
+            
+            // Clear filters
+            $('#clearFilters').click(function() {
+                window.location.href = '/Billing/MyTimeEntries';
+            });
+            
+            // Table search functionality
+            $('#tableSearch').on('keyup', function() {
+                var value = $(this).val().toLowerCase();
+                $('#timeEntriesTable tbody tr').filter(function() {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+                });
+            });
+            
+            // Export functionality
+            $('#exportBtn').click(function() {
+                exportToExcel();
+            });
+            
+            // Row click to view details
+            $('#timeEntriesTable tbody tr').click(function(e) {
+                if (!$(e.target).closest('.btn-group').length && !$(e.target).closest('a').length) {
+                    var editLink = $(this).find('.btn-outline-primary').attr('href');
+                    if (editLink) {
+                        window.location.href = editLink;
+                    }
+                }
+            });
+            
+            // Auto-submit filters on change
+            $('#caseFilter, #billableFilter').change(function() {
+                $('#filterForm').submit();
+            });
+            
+            // Date range validation
+            $('#fromDateFilter, #toDateFilter').change(function() {
+                var fromDate = $('#fromDateFilter').val();
+                var toDate = $('#toDateFilter').val();
+                
+                if (fromDate && toDate && fromDate > toDate) {
+                    Swal.fire('Invalid Date Range', 'From date cannot be after To date.', 'warning');
+                    $('#fromDateFilter').val('');
+                } else {
+                    $('#filterForm').submit();
+                }
+            });
+        });
+        
+        function exportToExcel() {
+            // Get current table data
+            var table = document.getElementById('timeEntriesTable');
+            var rows = table.querySelectorAll('tbody tr');
+            var data = [];
+            
+            // Headers
+            var headers = ['Date', 'Case', 'Retainer', 'Description', 'Hours', 'Rate', 'Total', 'Billable'];
+            data.push(headers);
+            
+            // Data rows
+            rows.forEach(function(row) {
+                var rowData = [];
+                var cells = row.querySelectorAll('td');
+                for (var i = 0; i < cells.length - 1; i++) { // Skip actions column
+                    rowData.push(cells[i].innerText.trim());
+                }
+                data.push(rowData);
+            });
+            
+            // Create CSV
+            var csv = data.map(row => row.join(',')).join('\n');
+            var blob = new Blob([csv], { type: 'text/csv' });
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = `TimeEntries_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            Swal.fire('Export Complete', 'Your time entries have been exported to CSV.', 'success');
+        }
+    </script>
+}

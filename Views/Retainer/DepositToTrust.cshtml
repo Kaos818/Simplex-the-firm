@@ -1,0 +1,98 @@
+﻿@model SimplexLawFirm.Models.TrustDepositViewModel
+
+@{
+    ViewData["Title"] = "Deposit to Trust Account";
+    Layout = "_ClientLayout";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">
+                            <i class="fas fa-bank me-2"></i> Deposit to Trust Account
+                        </h3>
+                        <a href="/Retainer/MyTrustAccount" class="btn btn-light btn-sm">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Funds deposited into your trust account will be held securely and used for future legal services.
+                    </div>
+
+                    <form method="post" action="/Retainer/DepositToTrust">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="ClientId" />
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Client</label>
+                            <input type="text" class="form-control" value="@Model.ClientName" disabled />
+                        </div>
+
+                        <div class="mb-4">
+                            <label asp-for="Amount" class="form-label fw-bold">Deposit Amount <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text bg-primary text-white">R</span>
+                                <input asp-for="Amount" class="form-control" type="number" step="0.01" min="0.01" placeholder="0.00" />
+                            </div>
+                            <span asp-validation-for="Amount" class="text-danger"></span>
+                            <small class="text-muted">Minimum deposit: R 0.01</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label asp-for="Description" class="form-label fw-bold">Description (Optional)</label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="e.g., Initial deposit for legal services, Retainer fee, etc."></textarea>
+                            <span asp-validation-for="Description" class="text-danger"></span>
+                            <small class="text-muted">Provide a reference for this deposit</small>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Important:</strong> Deposits are processed securely. You will receive a confirmation once completed.
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-arrow-down"></i> Process Deposit
+                            </button>
+                            <a href="/Retainer/MyTrustAccount" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Trust Account Info -->
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h6 class="text-muted mb-3">About Trust Accounts</h6>
+                    <p class="small text-muted">
+                        Your trust account is a secure holding account managed by Simplex Law Firm in accordance with legal regulations.
+                        Funds are held separately from the firm's operating accounts and are used exclusively for your legal matters.
+                    </p>
+                    <hr />
+                    <div class="row">
+                        <div class="col-md-6">
+                            <i class="fas fa-shield-alt text-success me-1"></i>
+                            <small>Fully secured and regulated</small>
+                        </div>
+                        <div class="col-md-6">
+                            <i class="fas fa-chart-line text-info me-1"></i>
+                            <small>Real-time balance updates</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

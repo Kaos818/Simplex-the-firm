@@ -1,0 +1,189 @@
+﻿@model RetainerTemplate
+
+@{
+    ViewData["Title"] = "Create Retainer Template";
+    Layout = "_AdminLayout";
+}
+
+<div class="container py-4">
+    <form asp-action="CreateTemplate" method="post" id="createTemplateForm">
+        @Html.AntiForgeryToken()
+
+        <!-- HEADER -->
+        <div class="mb-4">
+            <h2 class="fw-bold">Create Retainer Template</h2>
+            <p class="text-muted">
+                Define a service offering that clients can browse and request.
+            </p>
+        </div>
+
+        <!-- ERRORS -->
+        <div asp-validation-summary="All" class="alert alert-danger"></div>
+
+        <!-- BASIC INFO -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light fw-bold">Basic Information</div>
+            <div class="card-body">
+
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label asp-for="Name" class="form-label fw-bold"></label>
+                        <input asp-for="Name" class="form-control" placeholder="e.g. Corporate Consultation Retainer" />
+                        <small class="text-muted">This is what clients will see.</small>
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="Type" class="form-label fw-bold"></label>
+                        <select asp-for="Type" asp-items="ViewBag.RetainerTypes" class="form-select">
+                            <option value="">Select type</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="Category" class="form-label fw-bold"></label>
+                        <input asp-for="Category" class="form-control" placeholder="e.g. Corporate Law" />
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="DisplayOrder" class="form-label fw-bold"></label>
+                        <input asp-for="DisplayOrder" type="number" class="form-control" />
+                        <small class="text-muted">Lower numbers show first to clients.</small>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- SERVICE DETAILS -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light fw-bold">Service Details</div>
+            <div class="card-body">
+
+                <div class="mb-3">
+                    <label asp-for="Description" class="form-label fw-bold"></label>
+                    <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Inclusions" class="form-label fw-bold">What’s Included</label>
+                    <textarea asp-for="Inclusions" class="form-control" rows="3"></textarea>
+                    <small class="text-muted">Clearly outline what the client receives.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Exclusions" class="form-label fw-bold"></label>
+                    <textarea asp-for="Exclusions" class="form-control" rows="3"></textarea>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- PRICING -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light fw-bold">Pricing & Billing</div>
+            <div class="card-body">
+
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label asp-for="BasePrice" class="form-label fw-bold"></label>
+                        <input asp-for="BasePrice" type="number" step="0.01" class="form-control" />
+                    </div>
+
+                    <div class="col-md-3 mb-3">
+                        <label asp-for="PriceDisplay" class="form-label fw-bold"></label>
+                        <input asp-for="PriceDisplay" class="form-control" placeholder="e.g. R20,000/month" />
+                    </div>
+
+                    <div class="col-md-3 mb-3">
+                        <label asp-for="IncludedHours" class="form-label fw-bold"></label>
+                        <input asp-for="IncludedHours" type="number" class="form-control" />
+                    </div>
+
+                    <div class="col-md-3 mb-3">
+                        <label asp-for="OverageRate" class="form-label fw-bold"></label>
+                        <input asp-for="OverageRate" type="number" class="form-control" />
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="BillingCycle" class="form-label fw-bold"></label>
+                        <select asp-for="BillingCycle" class="form-select">
+                            <option>Monthly</option>
+                            <option>Quarterly</option>
+                            <option>Annually</option>
+                            <option>OneTime</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="EstimatedDuration" class="form-label fw-bold"></label>
+                        <input asp-for="EstimatedDuration" class="form-control" placeholder="e.g. 3 Months" />
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- PAYMENT RULES -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light fw-bold">Payment Rules</div>
+            <div class="card-body">
+
+                <div class="form-check form-switch mb-3">
+                    <input asp-for="RequiresUpfrontPayment" class="form-check-input" id="requiresUpfrontPayment" />
+                    <label class="form-check-label fw-bold">Requires Upfront Payment</label>
+                </div>
+
+                <div id="upfrontDiv" class="mb-3">
+                    <input asp-for="UpfrontPercentage" type="number" class="form-control" placeholder="Upfront %" />
+                </div>
+
+                <div class="form-check form-switch mb-3">
+                    <input asp-for="AllowInstallments" class="form-check-input" id="allowInstallments" />
+                    <label class="form-check-label fw-bold">Allow Installments</label>
+                </div>
+
+                <div id="installmentsDiv">
+                    <input asp-for="MaxInstallments" type="number" class="form-control" placeholder="Max installments" />
+                </div>
+
+            </div>
+        </div>
+
+        <!-- TERMS -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light fw-bold">Terms & Conditions</div>
+            <div class="card-body">
+                <textarea asp-for="TermsAndConditions" class="form-control" rows="4"></textarea>
+            </div>
+        </div>
+
+        <!-- ACTIONS -->
+        <div class="d-flex justify-content-between">
+            <a asp-action="Templates" class="btn btn-outline-secondary">Back</a>
+            <button type="submit" class="btn btn-primary px-4">Create Template</button>
+        </div>
+
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        $(function () {
+
+            $('#requiresUpfrontPayment').change(function () {
+                $('#upfrontDiv').toggle(this.checked);
+            }).trigger('change');
+
+            $('#allowInstallments').change(function () {
+                $('#installmentsDiv').toggle(this.checked);
+            }).trigger('change');
+
+        });
+    </script>
+}

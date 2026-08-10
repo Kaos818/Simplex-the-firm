@@ -1,0 +1,64 @@
+@model IEnumerable<SimplexLawFirm.Models.AttorneyWhereabout>
+@using SimplexLawFirm.Models
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Attorney whereabouts";
+    var urgent = (IEnumerable<CalendarEvent>)ViewBag.UrgentEvents;
+    var candidates = (Dictionary<int, IReadOnlyList<ApplicationUser>>)ViewBag.ReplacementCandidates;
+}
+<div class="page-hero compact">
+    <span class="eyebrow">Safety control room</span>
+    <h1>Attorney whereabouts</h1>
+    <p>Monitor off-site engagements, record contact attempts, and protect imminent court commitments.</p>
+</div>
+
+<section class="surface mb-4">
+    <div class="section-heading"><h2>Off-site status</h2></div>
+    @if (!Model.Any())
+    {
+        <p class="muted">No off-site engagements have been recorded.</p>
+    }
+    @foreach (var item in Model)
+    {
+        <div class="record-row align-items-start">
+            <span>
+                <b>@item.Attorney.FullName</b>
+                <small>@item.Venue · checked in @item.CheckedInAtUtc.ToLocalTime().ToString("g") · expected @item.ExpectedReturnAtUtc.ToLocalTime().ToString("g")</small>
+                @if (!string.IsNullOrWhiteSpace(item.ContactOutcome))
+                {
+                    <small><b>Contact:</b> @item.ContactOutcome</small>
+                }
+            </span>
+            <span class="status-pill">@item.Status</span>
+        </div>
+        @if (item.CheckedOutAtUtc == null && item.Status is WhereaboutStatus.AlertRaised or WhereaboutStatus.DirectorEscalated)
+        {
+            <form method="post" action="/Operational/RecordSafetyContact" class="surface mb-3 stack-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@item.Id" />
+                <label>Contact attempt outcome<textarea name="outcome" required rows="2" placeholder="Who was contacted, when, and what was learned"></textarea></label>
+                <label><input type="checkbox" name="accountedFor" value="true" /> Attorney has been accounted for</label>
+                <button type="submit" class="btn-secondary-modern">Record contact attempt</button>
+            </form>
+        }
+    }
+</section>
+
+<section class="surface">
+    <div class="section-heading"><div><span class="eyebrow">Urgent continuity</span><h2>Court appearances in the next 24 hours</h2></div></div>
+    @if (!urgent.Any())
+    {
+        <p class="muted">No urgent court commitments need reallocation.</p>
+    }
+    @foreach (var court in urgent)
+    {
+        <div class="record-row align-items-start"><span><b>@court.Title</b><small>@court.StartDateTime.ToLocalTime().ToString("g") · @court.Location</small></span></div>
+        <form method="post" action="/Operational/ReallocateUrgentCommitment" class="stack-form mb-3">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="eventId" value="@court.Id" />
+            <label>Available matching attorney<select name="replacementAttorneyId" required><option value="">Select attorney</option>@foreach (var attorney in candidates[court.Id]) { <option value="@attorney.Id">@attorney.FullName</option> }</select></label>
+            <label>Reallocation reason<textarea name="reason" required rows="2"></textarea></label>
+            <button type="submit" class="btn-primary-modern">Reallocate urgent commitment</button>
+        </form>
+    }
+</section>

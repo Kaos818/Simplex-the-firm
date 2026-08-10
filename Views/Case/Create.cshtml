@@ -1,0 +1,117 @@
+﻿@model SimplexLawFirm.Models.Case
+
+@{
+    ViewData["Title"] = "Create Case";
+}
+
+<div class="container mt-4">
+
+    <!-- ✅ SUCCESS MESSAGE -->
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show auto-dismiss">
+            @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- ❌ ERROR MESSAGE -->
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show auto-dismiss">
+            @Html.Raw(TempData["Error"])
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="card shadow p-4">
+        <h3 class="mb-4">Create New Case</h3>
+
+        <form asp-action="Create" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+
+            <!-- 🔥 MODEL ERRORS -->
+            <div asp-validation-summary="All" class="alert alert-danger"></div>
+
+            <!-- Case Number & Status -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Case Number</label>
+                    <input asp-for="CaseNumber" readonly class="form-control" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Status</label>
+                    <select asp-for="Status" asp-items="ViewBag.StatusOptions" class="form-select"></select>
+                </div>
+            </div>
+
+            <!-- Title -->
+            <div class="mb-3">
+                <label class="form-label">Case Title *</label>
+                <input asp-for="Title" class="form-control" placeholder="e.g. Smith vs Johnson" />
+                <span asp-validation-for="Title" class="text-danger"></span>
+            </div>
+
+            <!-- Description -->
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <textarea asp-for="Description" class="form-control" placeholder="Optional..."></textarea>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6"><label class="form-label">Case type *</label><input asp-for="CaseType" class="form-control" placeholder="e.g. Commercial" required /></div>
+                <div class="col-md-6"><label asp-for="MatterValue" class="form-label">Matter value *</label><input asp-for="MatterValue" type="number" min="1" step="0.01" class="form-control" required /></div>
+                <div class="col-md-6"><label class="form-label">Evidence strength</label><input asp-for="EvidenceStrength" class="form-range" type="range" min="0" max="1" step="0.05" /><small class="text-muted">0 = weak, 1 = exceptionally strong</small></div>
+            </div>
+
+            <!-- Client -->
+            <div class="mb-3">
+                <label class="form-label">Client *</label>
+                <select asp-for="ClientId" asp-items="ViewBag.Clients" class="form-select">
+                    <option value="">-- Select Client --</option>
+                </select>
+                <span asp-validation-for="ClientId" class="text-danger"></span>
+            </div>
+
+            <!-- Lawyer -->
+            <div class="mb-3">
+                <label class="form-label">Assign Lawyer</label>
+                <select asp-for="LawyerId" asp-items="ViewBag.Lawyers" class="form-select">
+                    <option value="">-- Unassigned --</option>
+                </select>
+                <span asp-validation-for="LawyerId" class="text-danger"></span>
+            </div>
+
+            <!-- Initial Note -->
+            <div class="mb-3">
+                <label class="form-label">Initial Note</label>
+                <textarea name="initialNote" class="form-control" placeholder="Optional note..."></textarea>
+            </div>
+
+            <!-- Upload -->
+            <div class="mb-3">
+                <label class="form-label">Upload Documents</label>
+                <input type="file" name="uploadedDocuments" multiple class="form-control" />
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" class="btn btn-primary w-100">
+                Create Case
+            </button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        // 🔥 AUTO DISMISS ALERTS
+        setTimeout(() => {
+            document.querySelectorAll('.auto-dismiss').forEach(el => {
+                el.classList.remove('show');
+                el.classList.add('fade');
+            });
+        }, 4000);
+    </script>
+}
