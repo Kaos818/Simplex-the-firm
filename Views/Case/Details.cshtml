@@ -221,6 +221,9 @@
                         <a href="@Url.Action("Index", "Document", new { caseId = Model.Id })" class="btn btn-sm btn-secondary">
                             <i class="fas fa-folder-open me-1"></i>View All
                         </a>
+                        <a href="@Url.Action("RequestDocuments", "Document", new { caseId = Model.Id })" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-inbox me-1"></i>Request from Client
+                        </a>
                     </div>
                 </div>
             }

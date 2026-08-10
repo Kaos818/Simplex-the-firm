@@ -1,0 +1,40 @@
+@model SimplexLawFirm.Models.DocumentRequest
+@using SimplexLawFirm.Models
+@{ ViewData["Title"] = "Review request"; Layout = "_LawyerLayout"; }
+<div class="breadcrumb-line"><a href="/Document/MyRequests">Document requests</a><span>/</span><span>@Model.Title</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">@Model.Case.CaseNumber</span><h1>@Model.Title</h1><p>Requested from @Model.Client.FullName on @Model.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy")@(Model.DueAtUtc.HasValue ? $" · due {Model.DueAtUtc.Value:dd MMM yyyy}" : "")</p></div><span class="status-pill large">@Model.Status</span></div>
+
+<div class="workspace-grid">
+ <section class="surface">
+  <span class="eyebrow">Instructions given to client</span>
+  <p class="pre-wrap">@(string.IsNullOrWhiteSpace(Model.Instructions) ? "(No additional instructions.)" : Model.Instructions)</p>
+  @if (!string.IsNullOrWhiteSpace(Model.MissingItemsNote)) {
+   <div class="alert alert-warning mt-2"><b>Outstanding:</b> @Model.MissingItemsNote</div>
+  }
+ </section>
+
+ <section class="surface">
+  <span class="eyebrow">Uploaded documents</span><h2>@Model.Documents.Count file(s)</h2>
+  @if (!Model.Documents.Any()) {
+   <div class="empty-state">The client hasn't uploaded anything yet.</div>
+  } else {
+   @foreach (var doc in Model.Documents.OrderByDescending(d => d.UploadedAt)) {
+    <a class="record-row" href="/Document/Details/@doc.Id"><span><b>@doc.FileName</b><small>@doc.FileType · @doc.FileSize · uploaded @doc.UploadedAt.ToString("dd MMM yyyy HH:mm")</small></span><span>View →</span></a>
+   }
+  }
+ </section>
+
+ @if (Model.Status != DocumentRequestStatus.Fulfilled) {
+ <section class="surface">
+  <span class="eyebrow">Decision</span><h2>Is this complete?</h2>
+  <div class="d-flex gap-2 flex-wrap mt-2">
+   <form method="post" action="/Document/MarkRequestFulfilled">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Id"/><button class="btn-primary-modern" @(Model.Documents.Any() ? "" : "disabled title=\"No documents uploaded yet\"")>Mark fulfilled</button></form>
+  </div>
+  <form method="post" action="/Document/MarkRequestMissing" class="stack-form mt-3">
+   @Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Id"/>
+   <label>Something's missing — tell the client what<textarea name="note" rows="3" required placeholder="e.g. The bank statement you sent only covers 2 months, please add the third."></textarea></label>
+   <button type="submit" class="btn-secondary-modern">Notify client of missing item</button>
+  </form>
+ </section>
+ }
+</div>

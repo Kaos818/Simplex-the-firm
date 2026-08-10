@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using SimplexLawFirm.Data;
 using SimplexLawFirm.Models;
 using SimplexLawFirm.Infrastructure.Authorization;
+using SimplexLawFirm.Services.CurrentUser;
+using SimplexLawFirm.Services.Notifications;
 
 namespace SimplexLawFirm.Controllers
 {
@@ -12,11 +14,15 @@ namespace SimplexLawFirm.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly INotificationService _notifications;
+        private readonly ICurrentClientService _currentClient;
 
-        public DocumentController(ApplicationDbContext context, IWebHostEnvironment webHostEnvironment)
+        public DocumentController(ApplicationDbContext context, IWebHostEnvironment webHostEnvironment, INotificationService notifications, ICurrentClientService currentClient)
         {
             _context = context;
             _webHostEnvironment = webHostEnvironment;
+            _notifications = notifications;
+            _currentClient = currentClient;
         }
 
         // GET: Document/Index
@@ -177,6 +183,192 @@ namespace SimplexLawFirm.Controllers
             TempData["Error"] = "Please select a file to upload.";
             await LoadRequirementsAsync(model.CaseId);
             return View(model);
+        }
+
+        // GET: Document/RequestDocuments?caseId=5
+        [RequireSessionRole("Lawyer", "Admin")]
+        public async Task<IActionResult> RequestDocuments(int caseId, CancellationToken ct)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId");
+            var role = HttpContext.Session.GetString("UserRole");
+            var matter = await _context.Cases.Include(x => x.Client).SingleOrDefaultAsync(x => x.Id == caseId, ct);
+            if (matter == null) return NotFound();
+            if (role != "Admin" && matter.LawyerId != userId) return Forbid();
+            ViewBag.Case = matter;
+            return View();
+        }
+
+        // POST: Document/RequestDocuments
+        [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Lawyer", "Admin")]
+        public async Task<IActionResult> RequestDocuments(int caseId, string title, string instructions, DateTime? dueAtUtc, CancellationToken ct)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId")!.Value;
+            var role = HttpContext.Session.GetString("UserRole");
+            var matter = await _context.Cases.Include(x => x.Client).SingleOrDefaultAsync(x => x.Id == caseId, ct);
+            if (matter == null) return NotFound();
+            if (role != "Admin" && matter.LawyerId != userId) return Forbid();
+            if (string.IsNullOrWhiteSpace(title)) { TempData["Error"] = "Describe what documentation you need."; return RedirectToAction(nameof(RequestDocuments), new { caseId }); }
+
+            var request = new DocumentRequest
+            {
+                CaseId = caseId, ClientId = matter.ClientId, RequestedByUserId = userId,
+                Title = title.Trim(), Instructions = instructions?.Trim() ?? "", DueAtUtc = dueAtUtc
+            };
+            _context.DocumentRequests.Add(request);
+            await _context.SaveChangesAsync(ct);
+
+            var clientUser = await _context.Users.SingleOrDefaultAsync(x => x.Email == matter.Client.Email, ct);
+            if (clientUser != null)
+                await _notifications.QueueAsync(clientUser.Id, "DocumentRequest", "Documentation requested",
+                    $"Your attorney requested documentation for {matter.CaseNumber}: {request.Title}", $"/Document/UploadForRequest/{request.Id}",
+                    $"document-request-{request.Id}", ct);
+
+            await CreateAuditLog($"Requested documentation from client on case {matter.CaseNumber}: {title}");
+            TempData["Success"] = "Documentation request sent to the client.";
+            return RedirectToAction(nameof(MyRequests), new { caseId });
+        }
+
+        // GET: Document/MyRequests?caseId=5 (lawyer/admin view of requests they've raised)
+        [RequireSessionRole("Lawyer", "Admin")]
+        public async Task<IActionResult> MyRequests(int? caseId, CancellationToken ct)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId");
+            var role = HttpContext.Session.GetString("UserRole");
+            var query = _context.DocumentRequests.Include(x => x.Case).Include(x => x.Client).Include(x => x.Documents).AsQueryable();
+            query = role == "Admin" ? query : query.Where(x => x.RequestedByUserId == userId);
+            if (caseId.HasValue) query = query.Where(x => x.CaseId == caseId.Value);
+            var requests = await query.OrderByDescending(x => x.CreatedAtUtc).ToListAsync(ct);
+            ViewBag.CaseId = caseId;
+            return View(requests);
+        }
+
+        // GET: Document/ReviewRequest/5 (lawyer reviews what the client uploaded)
+        [RequireSessionRole("Lawyer", "Admin")]
+        public async Task<IActionResult> ReviewRequest(int id, CancellationToken ct)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId");
+            var role = HttpContext.Session.GetString("UserRole");
+            var request = await _context.DocumentRequests.Include(x => x.Case).Include(x => x.Client)
+                .Include(x => x.Documents).Include(x => x.RequestedByUser).SingleOrDefaultAsync(x => x.Id == id, ct);
+            if (request == null) return NotFound();
+            if (role != "Admin" && request.RequestedByUserId != userId) return Forbid();
+            return View(request);
+        }
+
+        // POST: Document/MarkRequestMissing
+        [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Lawyer", "Admin")]
+        public async Task<IActionResult> MarkRequestMissing(int id, string note, CancellationToken ct)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId")!.Value;
+            var role = HttpContext.Session.GetString("UserRole");
+            var request = await _context.DocumentRequests.Include(x => x.Case).Include(x => x.Client).SingleOrDefaultAsync(x => x.Id == id, ct);
+            if (request == null) return NotFound();
+            if (role != "Admin" && request.RequestedByUserId != userId) return Forbid();
+            if (string.IsNullOrWhiteSpace(note)) { TempData["Error"] = "State what's missing before notifying the client."; return RedirectToAction(nameof(ReviewRequest), new { id }); }
+
+            request.Status = DocumentRequestStatus.MissingItems;
+            request.MissingItemsNote = note.Trim();
+            request.ReviewedAtUtc = DateTime.UtcNow;
+            request.ReviewedByUserId = userId;
+            await _context.SaveChangesAsync(ct);
+
+            var clientUser = await _context.Users.SingleOrDefaultAsync(x => x.Email == request.Client.Email, ct);
+            if (clientUser != null)
+                await _notifications.QueueAsync(clientUser.Id, "DocumentRequest", "Documentation still missing",
+                    $"For {request.Case.CaseNumber} — \"{request.Title}\": {note.Trim()}", $"/Document/UploadForRequest/{request.Id}",
+                    $"document-request-missing-{request.Id}-{DateTime.UtcNow.Ticks}", ct);
+
+            TempData["Success"] = "Client notified of what's still missing.";
+            return RedirectToAction(nameof(ReviewRequest), new { id });
+        }
+
+        // POST: Document/MarkRequestFulfilled
+        [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Lawyer", "Admin")]
+        public async Task<IActionResult> MarkRequestFulfilled(int id, CancellationToken ct)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId")!.Value;
+            var role = HttpContext.Session.GetString("UserRole");
+            var request = await _context.DocumentRequests.SingleOrDefaultAsync(x => x.Id == id, ct);
+            if (request == null) return NotFound();
+            if (role != "Admin" && request.RequestedByUserId != userId) return Forbid();
+            if (!request.Documents.Any() && !await _context.Documents.AnyAsync(x => x.DocumentRequestId == id, ct))
+            { TempData["Error"] = "No documents have been uploaded against this request yet."; return RedirectToAction(nameof(ReviewRequest), new { id }); }
+
+            request.Status = DocumentRequestStatus.Fulfilled;
+            request.ReviewedAtUtc = DateTime.UtcNow;
+            request.ReviewedByUserId = userId;
+            request.MissingItemsNote = null;
+            await _context.SaveChangesAsync(ct);
+            TempData["Success"] = "Request marked as fulfilled.";
+            return RedirectToAction(nameof(ReviewRequest), new { id });
+        }
+
+        // GET: Document/ClientRequests (client's own document requests, across all their cases)
+        [RequireSessionRole("Client")]
+        public async Task<IActionResult> ClientRequests(CancellationToken ct)
+        {
+            var client = await _currentClient.GetAsync(ct);
+            if (client == null) return Forbid();
+            var requests = await _context.DocumentRequests.Include(x => x.Case).Include(x => x.Documents).Include(x => x.RequestedByUser)
+                .Where(x => x.ClientId == client.Id).OrderByDescending(x => x.CreatedAtUtc).ToListAsync(ct);
+            return View(requests);
+        }
+
+        // GET: Document/UploadForRequest/5
+        [RequireSessionRole("Client")]
+        public async Task<IActionResult> UploadForRequest(int id, CancellationToken ct)
+        {
+            var client = await _currentClient.GetAsync(ct);
+            if (client == null) return Forbid();
+            var request = await _context.DocumentRequests.Include(x => x.Case).Include(x => x.Documents).Include(x => x.RequestedByUser)
+                .SingleOrDefaultAsync(x => x.Id == id && x.ClientId == client.Id, ct);
+            if (request == null) return NotFound();
+            return View(request);
+        }
+
+        // POST: Document/UploadForRequest/5
+        [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Client")]
+        public async Task<IActionResult> UploadForRequest(int id, IFormFile file, CancellationToken ct)
+        {
+            var client = await _currentClient.GetAsync(ct);
+            if (client == null) return Forbid();
+            var request = await _context.DocumentRequests.Include(x => x.Case).Include(x => x.RequestedByUser)
+                .SingleOrDefaultAsync(x => x.Id == id && x.ClientId == client.Id, ct);
+            if (request == null) return NotFound();
+            if (request.Status == DocumentRequestStatus.Fulfilled) { TempData["Error"] = "This request has already been fulfilled."; return RedirectToAction(nameof(UploadForRequest), new { id }); }
+
+            if (file == null || file.Length == 0) { TempData["Error"] = "Choose a file to upload."; return RedirectToAction(nameof(UploadForRequest), new { id }); }
+            var allowedExtensions = new[] { ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png", ".txt", ".msg", ".eml" };
+            var fileExt = Path.GetExtension(file.FileName).ToLower();
+            if (!allowedExtensions.Contains(fileExt)) { TempData["Error"] = "Invalid file type. Allowed: PDF, DOC, XLS, JPG, PNG, TXT, MSG, EML"; return RedirectToAction(nameof(UploadForRequest), new { id }); }
+            if (file.Length > 50 * 1024 * 1024) { TempData["Error"] = "File size exceeds 50MB limit."; return RedirectToAction(nameof(UploadForRequest), new { id }); }
+
+            var uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "documents");
+            if (!Directory.Exists(uploadsFolder)) Directory.CreateDirectory(uploadsFolder);
+            var uniqueFileName = $"{Guid.NewGuid()}_{DateTime.Now:yyyyMMddHHmmss}_{SanitizeFileName(file.FileName)}";
+            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+            using (var stream = new FileStream(filePath, FileMode.Create)) { await file.CopyToAsync(stream); }
+
+            var clientUserId = HttpContext.Session.GetInt32("UserId");
+            var document = new Document
+            {
+                FileName = file.FileName, FilePath = $"/uploads/documents/{uniqueFileName}", FileSize = FormatFileSize(file.Length), FileType = file.ContentType,
+                CaseId = request.CaseId, ClientId = request.ClientId, UploadedById = clientUserId, Category = DocumentCategory.ClientDocuments,
+                Description = $"Uploaded by client against request \"{request.Title}\"", VersionNumber = 1, UploadedAt = DateTime.Now, DocumentRequestId = request.Id
+            };
+            _context.Documents.Add(document);
+            request.Status = DocumentRequestStatus.Uploaded;
+            request.UploadedAtUtc = DateTime.UtcNow;
+            request.MissingItemsNote = null;
+            await _context.SaveChangesAsync(ct);
+
+            await _notifications.QueueAsync(request.RequestedByUserId, "DocumentRequest", "Client uploaded requested documentation",
+                $"{client.FullName} uploaded a document for {request.Case.CaseNumber}: \"{request.Title}\".", $"/Document/ReviewRequest/{request.Id}",
+                $"document-request-uploaded-{request.Id}-{DateTime.UtcNow.Ticks}", ct);
+            await CreateAuditLog($"Client uploaded document against request {request.Id}: {file.FileName}");
+
+            TempData["Success"] = "Document uploaded. Your attorney has been notified for review.";
+            return RedirectToAction(nameof(UploadForRequest), new { id });
         }
 
         // GET: Document/Details/5
@@ -591,8 +783,13 @@ namespace SimplexLawFirm.Controllers
                 if (currentLawyerId == userId) return true;
                 // A case being handed over is visible to both the outgoing and receiving attorney
                 // for the life of the handover, not just whoever currently owns the case record.
-                return await _context.CaseHandovers.AnyAsync(x => x.CaseId == document.CaseId && x.Status != HandoverStatus.Accepted
-                    && (x.OutgoingAttorneyId == userId || x.ReceivingAttorneyId == userId));
+                if (await _context.CaseHandovers.AnyAsync(x => x.CaseId == document.CaseId && x.Status != HandoverStatus.Accepted
+                    && (x.OutgoingAttorneyId == userId || x.ReceivingAttorneyId == userId))) return true;
+                // A closed matter used as a comparable in one of this lawyer's own forecasts is visible
+                // so the forecast's supporting documentation can be read, without opening full case access.
+                var ownForecasts = await _context.CaseForecasts.Where(x => x.AttorneyId == userId).Select(x => x.ComparableCasesJson).ToListAsync();
+                return ownForecasts.Any(json => (System.Text.Json.JsonSerializer.Deserialize<List<SimplexLawFirm.ViewModels.ComparableMatter>>(json) ?? [])
+                    .Any(c => c.CaseId == document.CaseId));
             }
             if (role != "Client") return false;
             var email = HttpContext.Session.GetString("UserEmail");

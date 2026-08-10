@@ -24,6 +24,9 @@ public interface IPracticeIntelligenceService
     Task<ServiceComplaint> LodgeComplaintAsync(int clientId, LodgeComplaintViewModel input, CancellationToken ct = default);
     Task<ServiceComplaint> ResolveComplaintAsync(int complaintId, int reviewerId, ComplaintResolutionOutcome outcome, IReadOnlyList<string> mediationSteps, string formalResponse, string? remedy, CancellationToken ct = default);
     Task<ComplaintAppointment> BookComplaintAppointmentAsync(int complaintId, int bookedByUserId, DateTime scheduledAtUtc, AppointmentFormat format, string? notes, CancellationToken ct = default);
+    Task<CaseHandoverRequest> RequestHandoverAsync(int caseId, int lawyerId, string reason, CancellationToken ct = default);
+    Task<CaseHandover> ApproveHandoverRequestAsync(int requestId, int receivingAttorneyId, int directorId, CancellationToken ct = default);
+    Task DeclineHandoverRequestAsync(int requestId, int directorId, string reason, CancellationToken ct = default);
 }
 
 public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotificationService notifications) : IPracticeIntelligenceService
@@ -32,7 +35,7 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
 
     public async Task<CaseForecast> CreateForecastAsync(int caseId, int attorneyId, CancellationToken ct = default)
     {
-        var matter = await db.Cases.SingleAsync(x => x.Id == caseId, ct);
+        var matter = await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId, ct) ?? throw new KeyNotFoundException("Matter not found.");
         if (matter.Status is CaseStatus.Closed or CaseStatus.Archived || matter.LawyerId != attorneyId)
             throw new InvalidOperationException("Only the assigned attorney may forecast an open matter.");
         if (await db.CaseForecasts.AnyAsync(x => x.CaseId == caseId && x.Status != ForecastStatus.Refused, ct))
@@ -65,7 +68,7 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         forecast.ProbabilityBand = probability >= .70m ? "Strong prospects" : probability >= .45m ? "Balanced prospects" : "Limited prospects";
         forecast.ConfidenceLevel = comparable.Count >= 10 ? "High" : comparable.Count >= 6 ? "Moderate" : "Developing";
         forecast.FactorsJson = JsonSerializer.Serialize(factors);
-        forecast.ComparableCasesJson = JsonSerializer.Serialize(comparable.Select(x => new ComparableMatter(x.CaseNumber, x.Title, x.RecordedOutcome!.Value)));
+        forecast.ComparableCasesJson = JsonSerializer.Serialize(comparable.Select(x => new ComparableMatter(x.CaseNumber, x.Title, x.RecordedOutcome!.Value, x.Id)));
         db.CaseForecasts.Add(forecast);
         await db.SaveChangesAsync(ct);
         return forecast;
@@ -89,7 +92,7 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
 
     public async Task ScoreForecastAsync(int caseId, ForecastResult outcome, CancellationToken ct = default)
     {
-        var matter = await db.Cases.SingleAsync(x => x.Id == caseId, ct);
+        var matter = await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId, ct) ?? throw new KeyNotFoundException("Matter not found.");
         if (matter.Status is CaseStatus.Closed or CaseStatus.Archived)
             throw new InvalidOperationException("Only an open matter can be scored.");
         if (!await db.CaseForecasts.AnyAsync(x => x.CaseId == caseId && x.Status == ForecastStatus.Locked, ct))
@@ -119,7 +122,7 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
 
     public async Task<CaseHandover> ApproveReassignmentAsync(int caseId, int receivingAttorneyId, int directorId, string reason, CancellationToken ct = default)
     {
-        var matter = await db.Cases.SingleAsync(x => x.Id == caseId, ct);
+        var matter = await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId, ct) ?? throw new KeyNotFoundException("Matter not found.");
         if (matter.Status is CaseStatus.Closed or CaseStatus.Archived) throw new InvalidOperationException("Only an active matter can be reassigned.");
         if (!matter.LawyerId.HasValue || matter.LawyerId == receivingAttorneyId) throw new InvalidOperationException("Select a different receiving attorney.");
         if (await db.CaseHandovers.AnyAsync(x => x.CaseId == caseId && x.Status != HandoverStatus.Accepted, ct))
@@ -135,6 +138,53 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         await db.SaveChangesAsync(ct);
         await RefreshHandoverAsync(handover, ct);
         return handover;
+    }
+
+    public async Task<CaseHandoverRequest> RequestHandoverAsync(int caseId, int lawyerId, string reason, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason)) throw new InvalidOperationException("State the reason for handing over this matter.");
+        var matter = await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId, ct) ?? throw new KeyNotFoundException("Matter not found.");
+        if (matter.LawyerId != lawyerId) throw new UnauthorizedAccessException("Only the assigned attorney may request a handover of this matter.");
+        if (matter.Status != CaseStatus.Active) throw new InvalidOperationException("Only an active, open matter can be handed over.");
+        if (await db.CaseHandoverRequests.AnyAsync(x => x.CaseId == caseId && x.Status == HandoverRequestStatus.Pending, ct))
+            throw new InvalidOperationException("A handover request for this matter is already awaiting director review.");
+        if (await db.CaseHandovers.AnyAsync(x => x.CaseId == caseId && x.Status != HandoverStatus.Accepted, ct))
+            throw new InvalidOperationException("This matter already has an active handover.");
+
+        var request = new CaseHandoverRequest { CaseId = caseId, RequestedByUserId = lawyerId, Reason = reason.Trim() };
+        db.CaseHandoverRequests.Add(request);
+        await db.SaveChangesAsync(ct);
+        foreach (var directorId in await db.Users.Where(x => x.Role == UserRole.Admin && x.IsActive).Select(x => x.Id).ToListAsync(ct))
+            await notifications.QueueAsync(directorId, "HandoverRequest", "Case handover requested", $"A handover was requested for {matter.CaseNumber}.", "/Practice/HandoverRequests", $"handover-request-{request.Id}-{directorId}", ct);
+        return request;
+    }
+
+    public async Task<CaseHandover> ApproveHandoverRequestAsync(int requestId, int receivingAttorneyId, int directorId, CancellationToken ct = default)
+    {
+        var request = await db.CaseHandoverRequests.Include(x => x.Case).SingleOrDefaultAsync(x => x.Id == requestId, ct) ?? throw new KeyNotFoundException("Handover request not found.");
+        if (request.Status != HandoverRequestStatus.Pending) throw new InvalidOperationException("This request has already been decided.");
+        var handover = await ApproveReassignmentAsync(request.CaseId, receivingAttorneyId, directorId, request.Reason, ct);
+        request.Status = HandoverRequestStatus.Approved;
+        request.DecidedByUserId = directorId;
+        request.DecidedAtUtc = DateTime.UtcNow;
+        request.CaseReassignmentId = handover.CaseReassignmentId;
+        await db.SaveChangesAsync(ct);
+        await notifications.QueueAsync(request.RequestedByUserId, "HandoverRequest", "Handover request approved", $"Your handover request for {request.Case.CaseNumber} was approved and is now in preparation.", $"/Practice/Handover/{handover.Id}", $"handover-request-approved-{request.Id}", ct);
+        return handover;
+    }
+
+    public async Task DeclineHandoverRequestAsync(int requestId, int directorId, string reason, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason)) throw new InvalidOperationException("State why the handover request is being declined.");
+        var director = await db.Users.SingleOrDefaultAsync(x => x.Id == directorId && x.Role == UserRole.Admin && x.IsActive, ct) ?? throw new UnauthorizedAccessException("Only a Director may decide handover requests.");
+        var request = await db.CaseHandoverRequests.Include(x => x.Case).SingleOrDefaultAsync(x => x.Id == requestId, ct) ?? throw new KeyNotFoundException("Handover request not found.");
+        if (request.Status != HandoverRequestStatus.Pending) throw new InvalidOperationException("This request has already been decided.");
+        request.Status = HandoverRequestStatus.Declined;
+        request.DecidedByUserId = director.Id;
+        request.DecidedAtUtc = DateTime.UtcNow;
+        request.DeclineReason = reason.Trim();
+        await db.SaveChangesAsync(ct);
+        await notifications.QueueAsync(request.RequestedByUserId, "HandoverRequest", "Handover request declined", $"Your handover request for {request.Case.CaseNumber} was declined: {reason.Trim()}", "/Practice/MyHandoverRequests", $"handover-request-declined-{request.Id}", ct);
     }
 
     public async Task RefreshHandoverAsync(CaseHandover handover, CancellationToken ct = default)

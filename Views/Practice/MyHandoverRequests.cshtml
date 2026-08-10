@@ -1,0 +1,21 @@
+@model List<SimplexLawFirm.Models.CaseHandoverRequest>
+@using SimplexLawFirm.Models
+@{ ViewData["Title"] = "My handover requests"; Layout = "_LawyerLayout"; }
+<div class="page-hero compact"><div><span class="eyebrow">Case management</span><h1>My handover requests</h1><p>Requests you've submitted to hand over a matter, and the director's decision.</p></div>
+ <a class="btn-primary-modern" href="/Practice/RequestHandover">Hand over a case</a>
+</div>
+
+@if (!Model.Any()) {
+ <div class="empty-state">You haven't requested a handover. Use "Hand over a case" if you need to reassign one of your active matters.</div>
+} else {
+ <div class="workspace-grid">
+  @foreach (var r in Model) {
+   <div class="record-row">
+    <span><b>@r.Case.CaseNumber — @r.Case.Title</b><small>Requested @r.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy") · @r.Reason</small>
+     @if (r.Status == HandoverRequestStatus.Declined && !string.IsNullOrWhiteSpace(r.DeclineReason)) { <small class="text-danger d-block mt-1">Declined: @r.DeclineReason</small> }
+    </span>
+    <span class="status-pill" style="@(r.Status == HandoverRequestStatus.Approved ? "background:#dcf5e6;color:#0a7a3d" : r.Status == HandoverRequestStatus.Declined ? "background:#fbe4e4;color:#a11" : "")">@r.Status</span>
+   </div>
+  }
+ </div>
+}

@@ -211,6 +211,7 @@
         selectable: true,
         droppable: true,
         eventClick: function(info) {
+        if (String(info.event.id).indexOf('task-') === 0) { window.location.href = '/Calendar/Tasks'; return; }
         editEvent(info.event.id);
         },
         eventContent: function(arg) {
@@ -275,6 +276,7 @@
         
         // Edit existing event
         function editEvent(eventId) {
+        eventId = String(eventId).replace(/^event-/, '');
         $.ajax({
         url: '/Calendar/GetEvent/' + eventId,
         type: 'GET',
@@ -379,6 +381,7 @@
         
         // Move event (drag & drop)
         function moveEvent(id, newStart, newEnd) {
+        id = String(id).replace(/^event-/, '');
         $.ajax({
         url: '/Calendar/MoveEvent/' + id,
         type: 'POST',
@@ -396,6 +399,7 @@
         
         // Resize event
         function resizeEvent(id, newEnd) {
+        id = String(id).replace(/^event-/, '');
         $.ajax({
         url: '/Calendar/ResizeEvent/' + id,
         type: 'POST',

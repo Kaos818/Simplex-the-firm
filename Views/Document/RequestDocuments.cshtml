@@ -1,0 +1,18 @@
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Request documentation"; Layout = "_LawyerLayout";
+    var matter = (Case)ViewBag.Case;
+}
+<div class="breadcrumb-line"><a href="/Document/MyRequests">Document requests</a><span>/</span><span>@matter.CaseNumber</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">@matter.CaseNumber</span><h1>Request documentation from @matter.Client?.FullName</h1><p>Tell the client exactly what you need. They'll be notified and can upload it directly against this request.</p></div></div>
+
+<div class="surface" style="max-width:640px">
+ <form method="post" action="/Document/RequestDocuments" class="stack-form">
+  @Html.AntiForgeryToken()
+  <input type="hidden" name="caseId" value="@matter.Id"/>
+  <label>What do you need? (required)<input class="form-control" name="title" required placeholder="e.g. Proof of income for the last 3 months"/></label>
+  <label>Instructions for the client<textarea name="instructions" rows="4" placeholder="Explain what to upload and why…"></textarea></label>
+  <label>Due date (optional)<input type="date" name="dueAtUtc"/></label>
+  <button type="submit" class="btn-primary-modern">Send request &amp; notify client</button>
+ </form>
+</div>

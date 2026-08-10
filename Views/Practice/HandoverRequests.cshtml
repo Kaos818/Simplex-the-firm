@@ -1,0 +1,37 @@
+@model List<SimplexLawFirm.Models.CaseHandoverRequest>
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Handover requests"; Layout = "_AdminLayout";
+    var lawyers = (List<ApplicationUser>)ViewBag.Lawyers;
+}
+<div class="page-hero compact"><div><span class="eyebrow">Case management</span><h1>Handover requests</h1><p>Review the reason an attorney has given for handing over a matter, then choose a receiving attorney.</p></div></div>
+
+@if (!Model.Any()) {
+ <div class="empty-state">No handover requests are currently awaiting review.</div>
+} else {
+ <div class="workspace-grid">
+  @foreach (var r in Model) {
+   var eligible = lawyers.Where(x => x.Id != r.RequestedByUserId).ToList();
+   <section class="surface">
+    <span class="eyebrow">@r.Case.CaseNumber</span><h2>@r.Case.Title</h2>
+    <p>Requested by <b>@r.RequestedByUser.FullName</b> on @r.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy")</p>
+    <p class="pre-wrap"><b>Reason:</b> @r.Reason</p>
+    <form method="post" action="/Practice/ApproveHandoverRequest" class="stack-form mt-2">
+     @Html.AntiForgeryToken()<input type="hidden" name="id" value="@r.Id"/>
+     <label>Receiving attorney
+      <select name="receivingAttorneyId" class="form-select" required>
+       <option value="">-- Select attorney --</option>
+       @foreach (var l in eligible) { <option value="@l.Id">@l.FullName</option> }
+      </select>
+     </label>
+     <button type="submit" class="btn-primary-modern">Approve &amp; reassign</button>
+    </form>
+    <form method="post" action="/Practice/DeclineHandoverRequest" class="stack-form mt-2">
+     @Html.AntiForgeryToken()<input type="hidden" name="id" value="@r.Id"/>
+     <label>Or decline, with a reason<input class="form-control" name="reason" placeholder="Why is this request being declined?"/></label>
+     <button type="submit" class="btn-secondary-modern">Decline request</button>
+    </form>
+   </section>
+  }
+ </div>
+}

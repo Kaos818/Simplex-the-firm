@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using SimplexLawFirm.Data;
+using SimplexLawFirm.Models;
 
 namespace SimplexLawFirm.Infrastructure.Authentication;
 
@@ -20,7 +21,7 @@ public sealed class RememberMeMiddleware(RequestDelegate next)
             if (user is not null)
             {
                 context.Session.SetInt32("UserId", user.Id);
-                context.Session.SetString("UserRole", user.Role.ToString());
+                context.Session.SetString("UserRole", user.Role == UserRole.Director ? "Admin" : user.Role.ToString());
                 context.Session.SetString("UserFullName", user.FullName);
                 context.Session.SetString("UserEmail", user.Email);
             }

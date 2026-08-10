@@ -1,0 +1,25 @@
+@model List<SimplexLawFirm.Models.Case>
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Case handover status"; Layout = "_ClientLayout";
+    var handovers = (Dictionary<int, CaseHandover>)ViewBag.Handovers;
+}
+<div class="breadcrumb-line"><a href="/Case/MyCases">My cases</a><span>/</span><span>Handover status</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Case management</span><h1>Attorney assignment</h1><p>See which attorney currently holds each of your matters, and whether it's in the process of being handed over to someone new.</p></div></div>
+
+@if (!Model.Any()) {
+ <div class="empty-state">You have no cases on record.</div>
+} else {
+ <div class="workspace-grid">
+  @foreach (var c in Model) {
+   var handover = handovers.TryGetValue(c.Id, out var h) ? h : null;
+   <div class="record-row">
+    <span><b>@c.CaseNumber — @c.Title</b>
+     <small>Current attorney: @(c.Lawyer?.FullName ?? "Unassigned")</small>
+     @if (handover != null) { <small class="d-block mt-1">Being handed over from <b>@handover.OutgoingAttorney.FullName</b> to <b>@handover.ReceivingAttorney.FullName</b></small> }
+    </span>
+    @if (handover != null) { <span class="status-pill large">@handover.Status</span> }
+   </div>
+  }
+ </div>
+}

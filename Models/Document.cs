@@ -42,7 +42,49 @@ namespace SimplexLawFirm.Models
 
         public DateTime? LastModifiedAt { get; set; }
 
+        public int? DocumentRequestId { get; set; }
+        public DocumentRequest? DocumentRequest { get; set; }
+
         public ICollection<DocumentShare> SharedWith { get; set; }
+    }
+
+    public class DocumentRequest
+    {
+        public int Id { get; set; }
+
+        public int CaseId { get; set; }
+        public Case Case { get; set; }
+
+        public int ClientId { get; set; }
+        public Client Client { get; set; }
+
+        public int RequestedByUserId { get; set; }
+        public ApplicationUser RequestedByUser { get; set; }
+
+        [Required] public string Title { get; set; } = "";
+        public string Instructions { get; set; } = "";
+
+        public DocumentRequestStatus Status { get; set; } = DocumentRequestStatus.Requested;
+
+        public DateTime? DueAtUtc { get; set; }
+        public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+        public DateTime? UploadedAtUtc { get; set; }
+        public DateTime? ReviewedAtUtc { get; set; }
+
+        public int? ReviewedByUserId { get; set; }
+        public ApplicationUser? ReviewedByUser { get; set; }
+
+        public string? MissingItemsNote { get; set; }
+
+        public ICollection<Document> Documents { get; set; } = [];
+    }
+
+    public enum DocumentRequestStatus
+    {
+        Requested,
+        Uploaded,
+        MissingItems,
+        Fulfilled
     }
 
     public class DocumentShare

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SimplexLawFirm.Data;
 
@@ -11,9 +12,11 @@ using SimplexLawFirm.Data;
 namespace SimplexLawFirm.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810231134_AddDocumentRequests")]
+    partial class AddDocumentRequests
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1465,55 +1468,6 @@ namespace SimplexLawFirm.Migrations
                     b.HasIndex("CaseId", "Status");
 
                     b.ToTable("CaseHandovers");
-                });
-
-            modelBuilder.Entity("SimplexLawFirm.Models.CaseHandoverRequest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CaseId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CaseReassignmentId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("DecidedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("DecidedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("DeclineReason")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("RequestedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CaseReassignmentId");
-
-                    b.HasIndex("DecidedByUserId");
-
-                    b.HasIndex("RequestedByUserId");
-
-                    b.HasIndex("CaseId", "Status");
-
-                    b.ToTable("CaseHandoverRequests");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.CaseNote", b =>
@@ -5480,39 +5434,6 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("OutgoingAttorney");
 
                     b.Navigation("ReceivingAttorney");
-                });
-
-            modelBuilder.Entity("SimplexLawFirm.Models.CaseHandoverRequest", b =>
-                {
-                    b.HasOne("SimplexLawFirm.Models.Case", "Case")
-                        .WithMany()
-                        .HasForeignKey("CaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SimplexLawFirm.Models.CaseReassignment", "CaseReassignment")
-                        .WithMany()
-                        .HasForeignKey("CaseReassignmentId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "DecidedByUser")
-                        .WithMany()
-                        .HasForeignKey("DecidedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "RequestedByUser")
-                        .WithMany()
-                        .HasForeignKey("RequestedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Case");
-
-                    b.Navigation("CaseReassignment");
-
-                    b.Navigation("DecidedByUser");
-
-                    b.Navigation("RequestedByUser");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.CaseNote", b =>

@@ -1,0 +1,19 @@
+@model List<SimplexLawFirm.Models.ServiceComplaint>
+@using SimplexLawFirm.Models
+@{ ViewData["Title"] = "My complaints"; Layout = "_ClientLayout"; }
+<div class="breadcrumb-line"><a href="/Dashboard/Client">Dashboard</a><span>/</span><span>My complaints</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Service complaints</span><h1>My complaints</h1><p>Track the status of complaints you have lodged and read the firm's response once reviewed.</p></div>
+ <a class="btn-primary-modern" href="/Practice/LodgeComplaint">Lodge a new complaint</a>
+</div>
+@if (!Model.Any()) {
+ <div class="empty-state">You haven't lodged any complaints. If you're unhappy with any aspect of our service, you can lodge one confidentially from here.</div>
+} else {
+ <div class="workspace-grid">
+  @foreach (var c in Model) {
+   <a class="record-row" href="/Practice/ComplaintReceipt/@c.Id">
+    <span><b>@c.ReferenceNumber</b><small>@c.Category · @c.Case.CaseNumber · lodged @c.SubmittedAtUtc.ToLocalTime().ToString("dd MMM yyyy")</small></span>
+    <span class="status-pill">@c.Status</span>
+   </a>
+  }
+ </div>
+}

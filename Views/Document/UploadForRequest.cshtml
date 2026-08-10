@@ -1,0 +1,38 @@
+@model SimplexLawFirm.Models.DocumentRequest
+@using SimplexLawFirm.Models
+@{ ViewData["Title"] = "Upload requested document"; Layout = "_ClientLayout"; }
+<div class="breadcrumb-line"><a href="/Document/ClientRequests">Requested documents</a><span>/</span><span>@Model.Title</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">@Model.Case.CaseNumber</span><h1>@Model.Title</h1><p>Requested by @Model.RequestedByUser.FullName on @Model.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy")@(Model.DueAtUtc.HasValue ? $" · due {Model.DueAtUtc.Value:dd MMM yyyy}" : "")</p></div><span class="status-pill large">@Model.Status</span></div>
+
+<div class="workspace-grid">
+ @if (!string.IsNullOrWhiteSpace(Model.Instructions)) {
+ <section class="surface"><span class="eyebrow">Instructions</span><p class="pre-wrap">@Model.Instructions</p></section>
+ }
+ @if (!string.IsNullOrWhiteSpace(Model.MissingItemsNote)) {
+ <section class="surface"><span class="eyebrow">Still needed</span><div class="alert alert-warning">@Model.MissingItemsNote</div></section>
+ }
+
+ <section class="surface">
+  <span class="eyebrow">Uploaded so far</span><h2>@Model.Documents.Count file(s)</h2>
+  @if (!Model.Documents.Any()) {
+   <div class="empty-state">You haven't uploaded anything for this request yet.</div>
+  } else {
+   @foreach (var doc in Model.Documents.OrderByDescending(d => d.UploadedAt)) {
+    <div class="record-row"><span><b>@doc.FileName</b><small>@doc.FileType · @doc.FileSize · uploaded @doc.UploadedAt.ToString("dd MMM yyyy HH:mm")</small></span></div>
+   }
+  }
+ </section>
+
+ @if (Model.Status != DocumentRequestStatus.Fulfilled) {
+ <section class="surface">
+  <span class="eyebrow">Upload</span><h2>Add a document</h2>
+  <form method="post" action="/Document/UploadForRequest/@Model.Id" enctype="multipart/form-data" class="stack-form">
+   @Html.AntiForgeryToken()
+   <label>Choose file (PDF, Word, Excel, image, text — max 50MB)<input type="file" name="file" required/></label>
+   <button type="submit" class="btn-primary-modern">Upload</button>
+  </form>
+ </section>
+ } else {
+ <div class="empty-state">This request has been marked as fulfilled by your attorney. No further uploads are needed.</div>
+ }
+</div>

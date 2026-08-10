@@ -1044,7 +1044,112 @@ namespace SimplexLawFirm.Data
             EnsureBeneficiaryDocumentAssignments(context);
             EnsureDirectorIdentity(context);
             if (isDevelopment) EnsureCostEstimatorSeedData(context);
+            if (isDevelopment) EnsureExpansionSeedData(context);
             ApplyRequestedDevelopmentPasswords(context, sharedPassword);
+        }
+
+        private static void EnsureExpansionSeedData(ApplicationDbContext context)
+        {
+            // Expense policies — without these every reimbursement claim fails validation at proof-submission time.
+            if (!context.ExpensePolicies.Any())
+            {
+                context.ExpensePolicies.AddRange(
+                    new ExpensePolicy { ExpenseType = ReimbursementExpenseType.Travel, PerItemLimit = 3500m, DelegatedApprovalLimit = 1200m, DefaultClassification = ExpenseClassification.ClientRecoverable, IsActive = true },
+                    new ExpensePolicy { ExpenseType = ReimbursementExpenseType.CourtFiling, PerItemLimit = 5000m, DelegatedApprovalLimit = 2000m, DefaultClassification = ExpenseClassification.ClientRecoverable, IsActive = true },
+                    new ExpensePolicy { ExpenseType = ReimbursementExpenseType.SheriffService, PerItemLimit = 4000m, DelegatedApprovalLimit = 1500m, DefaultClassification = ExpenseClassification.ClientRecoverable, IsActive = true },
+                    new ExpensePolicy { ExpenseType = ReimbursementExpenseType.Courier, PerItemLimit = 800m, DelegatedApprovalLimit = 500m, DefaultClassification = ExpenseClassification.ClientRecoverable, IsActive = true },
+                    new ExpensePolicy { ExpenseType = ReimbursementExpenseType.Accommodation, PerItemLimit = 6000m, DelegatedApprovalLimit = 2500m, DefaultClassification = ExpenseClassification.ClientRecoverable, IsActive = true },
+                    new ExpensePolicy { ExpenseType = ReimbursementExpenseType.Meals, PerItemLimit = 700m, DelegatedApprovalLimit = 700m, DefaultClassification = ExpenseClassification.FirmOverhead, IsActive = true },
+                    new ExpensePolicy { ExpenseType = ReimbursementExpenseType.Parking, PerItemLimit = 300m, DelegatedApprovalLimit = 300m, DefaultClassification = ExpenseClassification.FirmOverhead, IsActive = true },
+                    new ExpensePolicy { ExpenseType = ReimbursementExpenseType.Printing, PerItemLimit = 500m, DelegatedApprovalLimit = 500m, DefaultClassification = ExpenseClassification.FirmOverhead, IsActive = true },
+                    new ExpensePolicy { ExpenseType = ReimbursementExpenseType.Other, PerItemLimit = 1000m, DelegatedApprovalLimit = 500m, DefaultClassification = ExpenseClassification.FirmOverhead, IsActive = true }
+                );
+                context.SaveChanges();
+            }
+
+            var naledi = context.Users.SingleOrDefault(x => x.Email == "naledi.khumalo@simplex.com");
+            var piCase = context.Cases.SingleOrDefault(x => x.CaseNumber == "PI-2026-0001");
+            var director = context.Users.FirstOrDefault(x => x.Role == UserRole.Director || x.Role == UserRole.Admin);
+
+            // A completed court appearance for Naledi to validate her expense claim against.
+            CalendarEvent nalediCourtEvent = null;
+            if (naledi != null && piCase != null)
+            {
+                nalediCourtEvent = context.CalendarEvents.SingleOrDefault(x => x.CaseId == piCase.Id && x.AssignedToUserId == naledi.Id && x.Title == "RAF hearing — Mthembu");
+                if (nalediCourtEvent is null)
+                {
+                    nalediCourtEvent = new CalendarEvent
+                    {
+                        Title = "RAF hearing — Mthembu", Description = "Motion hearing before the Road Accident Fund tribunal.", Location = "Durban High Court",
+                        StartDateTime = DateTime.Today.AddDays(-9).AddHours(9), EndDateTime = DateTime.Today.AddDays(-9).AddHours(11),
+                        Type = EventType.CourtAppearance, Status = EventStatus.Completed, AssignedToUserId = naledi.Id, CaseId = piCase.Id,
+                        ActualStartTime = DateTime.Today.AddDays(-9).AddHours(9), ActualEndTime = DateTime.Today.AddDays(-9).AddHours(11),
+                        CreatedByUserId = naledi.Id, CreatedAt = DateTime.Today.AddDays(-10), Attendees = [], Reminders = [], ChildEvents = []
+                    };
+                    context.CalendarEvents.Add(nalediCourtEvent);
+                    context.SaveChanges();
+                }
+
+                // A due-dated task so the calendar's merged Events + Tasks feed has something to show.
+                if (!context.Tasks.Any(x => x.Title == "Prepare RAF settlement bundle"))
+                {
+                    context.Tasks.Add(new TaskItem
+                    {
+                        Title = "Prepare RAF settlement bundle", Description = "Compile medical reports and loss-of-income schedule for settlement negotiation.",
+                        Priority = TaskPriority.High, Status = SimplexLawFirm.Models.TaskStatus.InProgress, DueDate = DateTime.Today.AddDays(4),
+                        AssignedToId = naledi.Id, CreatedById = naledi.Id, CaseId = piCase.Id, IsBillable = true, CreatedAt = DateTime.Now,
+                        Comments = [], Attachments = [], SubTasks = []
+                    });
+                    context.SaveChanges();
+                }
+
+                // A reimbursement claim for Naledi, already through proof submission and awaiting director decision.
+                if (director != null && !context.ReimbursementClaims.Any(x => x.ClaimNumber == "RMB-2026-NALEDI01"))
+                {
+                    var policy = context.ExpensePolicies.Single(x => x.ExpenseType == ReimbursementExpenseType.Travel);
+                    context.ReimbursementClaims.Add(new ReimbursementClaim
+                    {
+                        ClaimNumber = "RMB-2026-NALEDI01", CaseId = piCase.Id, AttorneyId = naledi.Id,
+                        ExpenseType = ReimbursementExpenseType.Travel, ExpenseDate = nalediCourtEvent.StartDateTime.Date, Amount = 1450m,
+                        Description = "Return mileage Durban CBD to Durban High Court for the RAF motion hearing.",
+                        Status = ReimbursementStatus.PendingDirector,
+                        MatchedActivityType = ReimbursementActivityType.CourtEvent, MatchedActivityId = nalediCourtEvent.Id,
+                        ProofOriginalFileName = "mileage-log.pdf", ProofRelativePath = "seed/mileage-log.pdf", ProofContentType = "application/pdf",
+                        ProofSizeBytes = 48213, ProofSha256Hash = "seed-naledi-travel-2026-01",
+                        PolicyLimitSnapshot = policy.PerItemLimit, DelegatedLimitSnapshot = policy.DelegatedApprovalLimit, ExceedsPolicyLimit = false,
+                        Classification = ExpenseClassification.ClientRecoverable, ClassificationReason = "Classified by the active Travel expense policy.",
+                        SubmittedAtUtc = DateTime.UtcNow.AddDays(-2), AuditEntries = []
+                    });
+                    context.SaveChanges();
+                }
+            }
+
+            // A document request in progress so both the lawyer and client views have real data.
+            var thabo = context.Clients.SingleOrDefault(x => x.Email == "thabo.mthembu@example.com");
+            if (naledi != null && piCase != null && thabo != null && !context.DocumentRequests.Any(x => x.Title == "Updated medical report"))
+            {
+                context.DocumentRequests.Add(new DocumentRequest
+                {
+                    CaseId = piCase.Id, ClientId = thabo.Id, RequestedByUserId = naledi.Id,
+                    Title = "Updated medical report", Instructions = "Please upload the specialist's follow-up report from your most recent consultation.",
+                    Status = DocumentRequestStatus.Requested, DueAtUtc = DateTime.UtcNow.AddDays(7), CreatedAtUtc = DateTime.UtcNow.AddDays(-3)
+                });
+                context.SaveChanges();
+            }
+
+            // A handover request awaiting director review so the director's queue isn't empty.
+            var sipho = context.Users.SingleOrDefault(x => x.Email == "sipho.nkosi@simplex.com");
+            var divorceCase = context.Cases.SingleOrDefault(x => x.CaseNumber == "FM-2026-0002");
+            if (sipho != null && divorceCase != null && !context.CaseHandoverRequests.Any(x => x.CaseId == divorceCase.Id && x.Status == HandoverRequestStatus.Pending))
+            {
+                context.CaseHandoverRequests.Add(new CaseHandoverRequest
+                {
+                    CaseId = divorceCase.Id, RequestedByUserId = sipho.Id,
+                    Reason = "I have a scheduling conflict with an extended trial in another matter and cannot give this matter the attention the mediation phase needs.",
+                    Status = HandoverRequestStatus.Pending, CreatedAtUtc = DateTime.UtcNow.AddDays(-1)
+                });
+                context.SaveChanges();
+            }
         }
 
         private static void EnsureCostEstimatorSeedData(ApplicationDbContext context)
@@ -1089,25 +1194,41 @@ namespace SimplexLawFirm.Data
             }
 
             var matterTypes = new[] { "Personal Injury", "Family Law", "Commercial", "General" };
+            const int comparablesPerType = 8;
+            var hourVariance = new[] { 1.0m, 1.4m, .7m, 1.9m, 1.1m, .85m, 1.6m, 1.25m };
             for (var typeIndex = 0; typeIndex < matterTypes.Length; typeIndex++)
             {
                 var matterType = matterTypes[typeIndex];
                 var prefix = matterType.Replace(" ", "").ToUpperInvariant()[..Math.Min(4, matterType.Replace(" ", "").Length)];
-                for (var index = 1; index <= MatterCostEstimateService.MinimumComparableMatters; index++)
+                for (var index = 1; index <= comparablesPerType; index++)
                 {
                     var caseNumber = $"EST-HIST-{prefix}-{index:00}";
                     var matter = context.Cases.SingleOrDefault(x => x.CaseNumber == caseNumber);
                     if (matter is null)
                     {
-                        matter = new Case { CaseNumber = caseNumber, Title = $"Closed {matterType} estimate precedent {index}", Description = "Development-only closed matter providing deterministic estimator history.", CaseType = matterType, ClientId = client.Id, LawyerId = lawyerIds[(typeIndex + index - 1) % lawyerIds.Count], Status = CaseStatus.Closed, CreatedAt = new DateTime(2025, index + 1, 10), UpdatedAt = new DateTime(2025, index + 3, 20), MatterValue = 250000m * index };
+                        matter = new Case { CaseNumber = caseNumber, Title = $"Closed {matterType} estimate precedent {index}", Description = "Development-only closed matter providing deterministic estimator history.", CaseType = matterType, ClientId = client.Id, LawyerId = lawyerIds[(typeIndex + index - 1) % lawyerIds.Count], Status = CaseStatus.Closed, CreatedAt = new DateTime(2025, index % 12 + 1, 10), UpdatedAt = new DateTime(2025, (index + 2) % 12 + 1, 20), MatterValue = 180000m * index * hourVariance[index - 1] };
                         context.Cases.Add(matter);
                         context.SaveChanges();
                     }
                     if (!context.TimeEntries.Any(x => x.CaseId == matter.Id && x.Description == "Estimator historical legal work"))
                     {
                         var rate = context.LawyerProfiles.Where(x => x.UserId == matter.LawyerId).Select(x => x.HourlyRate).Single();
-                        var hours = 8m + typeIndex * 3m + index * 2m;
-                        context.TimeEntries.Add(new TimeEntry { CaseId = matter.Id, LawyerId = matter.LawyerId!.Value, Description = "Estimator historical legal work", Date = new DateTime(2025, index + 2, 15), Hours = hours, HourlyRate = rate, TotalAmount = hours * rate, IsBillable = true, IsBilled = true, CreatedAt = new DateTime(2025, index + 2, 15) });
+                        var hours = Math.Round((10m + typeIndex * 4m + index * 3m) * hourVariance[index - 1], 1);
+                        var revenue = hours * rate;
+                        context.TimeEntries.Add(new TimeEntry { CaseId = matter.Id, LawyerId = matter.LawyerId!.Value, Description = "Estimator historical legal work", Date = new DateTime(2025, index % 12 + 1, 15), Hours = hours, HourlyRate = rate, TotalAmount = revenue, IsBillable = true, IsBilled = true, CreatedAt = new DateTime(2025, index % 12 + 1, 15) });
+                        if (!context.Invoices.Any(x => x.CaseId == matter.Id && x.InvoiceNumber == $"INV-{caseNumber}"))
+                        {
+                            var vat = Math.Round(revenue * .15m, 2);
+                            context.Invoices.Add(new Invoice
+                            {
+                                ClientId = client.Id, CaseId = matter.Id, InvoiceNumber = $"INV-{caseNumber}",
+                                Amount = revenue, TaxAmount = vat, TotalAmount = revenue + vat,
+                                IssueDate = new DateTime(2025, index % 12 + 1, 20), DueDate = new DateTime(2025, index % 12 + 1, 20).AddDays(30),
+                                PaidDate = new DateTime(2025, index % 12 + 1, 20).AddDays(21), IsPaid = true, Status = InvoiceStatus.Paid,
+                                CreatedDate = new DateTime(2025, index % 12 + 1, 20), CreatedAt = new DateTime(2025, index % 12 + 1, 20),
+                                Description = $"Closed matter revenue — {matterType} precedent {index}", Notes = "Development seed revenue for matter cost estimation."
+                            });
+                        }
                     }
                 }
             }

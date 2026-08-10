@@ -1,0 +1,20 @@
+@model SimplexLawFirm.Models.Case
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Supporting documentation"; Layout = Context.Session.GetString("UserRole") == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    var forecast = (CaseForecast)ViewBag.Forecast;
+}
+<div class="breadcrumb-line"><a href="/Practice/Forecast/@forecast.CaseId">Outcome forecast</a><span>/</span><span>@Model.CaseNumber</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Comparable matter</span><h1>@Model.CaseNumber — @Model.Title</h1><p>@Model.CaseType · Outcome: @Model.RecordedOutcome · This closed matter contributed to the forecast for @forecast.Case.CaseNumber.</p></div></div>
+
+<section class="surface">
+ <span class="eyebrow">Supporting documentation</span><h2>@Model.Documents.Count file(s) from this comparable matter</h2>
+ @if (!Model.Documents.Any()) {
+  <div class="empty-state">No documents were attached to this closed matter — the forecast relied on its recorded outcome and billing history only.</div>
+ } else {
+  @foreach (var doc in Model.Documents.OrderByDescending(d => d.UploadedAt)) {
+   <a class="record-row" href="/Document/Details/@doc.Id"><span><b>@doc.FileName</b><small>@doc.FileType · @doc.FileSize · @doc.Category</small></span><span>View →</span></a>
+  }
+ }
+ <small class="muted d-block mt-2">Shown because this matter was used as a comparable for your forecast — access is limited to the documents of the specific closed matters that informed it.</small>
+</section>

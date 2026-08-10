@@ -4,7 +4,7 @@ using SimplexLawFirm.Models;
 namespace SimplexLawFirm.ViewModels;
 
 public record ForecastFactor(string Label, decimal Weight, string Rationale);
-public record ComparableMatter(string CaseNumber, string Title, ForecastResult Outcome);
+public record ComparableMatter(string CaseNumber, string Title, ForecastResult Outcome, int CaseId = 0);
 
 public class ForecastPageViewModel
 {

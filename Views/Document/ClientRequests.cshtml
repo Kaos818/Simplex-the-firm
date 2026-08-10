@@ -1,0 +1,18 @@
+@model List<SimplexLawFirm.Models.DocumentRequest>
+@using SimplexLawFirm.Models
+@{ ViewData["Title"] = "Requested documents"; Layout = "_ClientLayout"; }
+<div class="breadcrumb-line"><a href="/Dashboard/Client">Dashboard</a><span>/</span><span>Requested documents</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Case management</span><h1>Documents your attorney needs</h1><p>When your attorney needs something for your case, it will show up here with instructions on what to upload.</p></div></div>
+
+@if (!Model.Any()) {
+ <div class="empty-state">No documents have been requested from you yet.</div>
+} else {
+ <div class="workspace-grid">
+  @foreach (var r in Model) {
+   <a class="record-row" href="/Document/UploadForRequest/@r.Id">
+    <span><b>@r.Title</b><small>@r.Case.CaseNumber · requested by @r.RequestedByUser.FullName · @r.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy")@(r.DueAtUtc.HasValue ? $" · due {r.DueAtUtc.Value:dd MMM yyyy}" : "")</small></span>
+    <span class="status-pill" style="@(r.Status == DocumentRequestStatus.Fulfilled ? "background:#dcf5e6;color:#0a7a3d" : r.Status == DocumentRequestStatus.MissingItems ? "background:#fbe4e4;color:#a11" : "")">@r.Status</span>
+   </a>
+  }
+ </div>
+}

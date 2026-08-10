@@ -85,6 +85,22 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
         return RedirectToAction(nameof(Forecast), new { id = caseId });
     }
 
+    public async Task<IActionResult> ForecastEvidence(int forecastId, int caseId, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        var role = HttpContext.Session.GetString("UserRole");
+        if (userId is null || role is not ("Admin" or "Lawyer")) return Forbid();
+        var forecast = await db.CaseForecasts.Include(x => x.Case).SingleOrDefaultAsync(x => x.Id == forecastId, ct);
+        if (forecast == null) return NotFound();
+        if (role != "Admin" && forecast.AttorneyId != userId) return Forbid();
+        var comparables = System.Text.Json.JsonSerializer.Deserialize<List<ComparableMatter>>(forecast.ComparableCasesJson) ?? [];
+        if (!comparables.Any(x => x.CaseId == caseId)) return Forbid();
+        var evidenceCase = await db.Cases.Include(x => x.Documents).SingleOrDefaultAsync(x => x.Id == caseId, ct);
+        if (evidenceCase == null) return NotFound();
+        ViewBag.Forecast = forecast;
+        return View(evidenceCase);
+    }
+
     public async Task<IActionResult> Reassign(int id, CancellationToken ct)
     {
         if (HttpContext.Session.GetString("UserRole") != "Admin") return Forbid();
@@ -102,6 +118,59 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
         if (!ModelState.IsValid) return RedirectToAction(nameof(Reassign), new { id = input.CaseId });
         try { var handover = await service.ApproveReassignmentAsync(input.CaseId, input.ReceivingAttorneyId, HttpContext.Session.GetInt32("UserId")!.Value, input.Reason, ct); return RedirectToAction(nameof(Handover), new { id = handover.Id }); }
         catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; return RedirectToAction(nameof(Reassign), new { id = input.CaseId }); }
+    }
+
+    [RequireSessionRole("Lawyer")]
+    public async Task<IActionResult> RequestHandover(int? caseId, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        ViewBag.Cases = await db.Cases.Where(x => x.LawyerId == userId && x.Status == CaseStatus.Active).OrderBy(x => x.CaseNumber).ToListAsync(ct);
+        ViewBag.SelectedCaseId = caseId;
+        return View();
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Lawyer")]
+    public async Task<IActionResult> RequestHandover(int caseId, string reason, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId")!.Value;
+        try { await service.RequestHandoverAsync(caseId, userId, reason, ct); TempData["Success"] = "Handover request sent to the director for review."; return RedirectToAction(nameof(MyHandoverRequests)); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) { TempData["Error"] = ex.Message; return RedirectToAction(nameof(RequestHandover), new { caseId }); }
+    }
+
+    [RequireSessionRole("Lawyer")]
+    public async Task<IActionResult> MyHandoverRequests(CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        var requests = await db.CaseHandoverRequests.Include(x => x.Case).Include(x => x.DecidedByUser)
+            .Where(x => x.RequestedByUserId == userId).OrderByDescending(x => x.CreatedAtUtc).ToListAsync(ct);
+        return View(requests);
+    }
+
+    [RequireSessionRole("Admin")]
+    public async Task<IActionResult> HandoverRequests(CancellationToken ct)
+    {
+        var requests = await db.CaseHandoverRequests.Include(x => x.Case).Include(x => x.RequestedByUser)
+            .Where(x => x.Status == HandoverRequestStatus.Pending).OrderBy(x => x.CreatedAtUtc).ToListAsync(ct);
+        ViewBag.Lawyers = await db.Users.Where(x => x.Role == UserRole.Lawyer && x.IsActive).OrderBy(x => x.FullName).ToListAsync(ct);
+        return View(requests);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Admin")]
+    public async Task<IActionResult> ApproveHandoverRequest(int id, int receivingAttorneyId, CancellationToken ct)
+    {
+        var directorId = HttpContext.Session.GetInt32("UserId")!.Value;
+        try { var handover = await service.ApproveHandoverRequestAsync(id, receivingAttorneyId, directorId, ct); TempData["Success"] = "Handover request approved."; return RedirectToAction(nameof(Handover), new { id = handover.Id }); }
+        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) { TempData["Error"] = ex.Message; return RedirectToAction(nameof(HandoverRequests)); }
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Admin")]
+    public async Task<IActionResult> DeclineHandoverRequest(int id, string reason, CancellationToken ct)
+    {
+        var directorId = HttpContext.Session.GetInt32("UserId")!.Value;
+        try { await service.DeclineHandoverRequestAsync(id, directorId, reason, ct); TempData["Success"] = "Handover request declined and the attorney notified."; }
+        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(HandoverRequests));
     }
 
     public async Task<IActionResult> Handover(int id, CancellationToken ct)
@@ -278,6 +347,28 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
         return View(new LodgeComplaintViewModel());
     }
 
+    [RequireSessionRole("Client")]
+    public async Task<IActionResult> CaseHandoverStatus(CancellationToken ct)
+    {
+        var client = await currentClient.GetAsync(ct);
+        if (client == null) return Forbid();
+        var cases = await db.Cases.Include(x => x.Lawyer).Where(x => x.ClientId == client.Id && x.Status != CaseStatus.Archived).OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+        var caseIds = cases.Select(x => x.Id).ToList();
+        var handovers = await db.CaseHandovers.Include(x => x.OutgoingAttorney).Include(x => x.ReceivingAttorney)
+            .Where(x => caseIds.Contains(x.CaseId) && x.Status != HandoverStatus.Accepted).OrderByDescending(x => x.CreatedAtUtc).ToListAsync(ct);
+        ViewBag.Handovers = handovers.GroupBy(x => x.CaseId).ToDictionary(g => g.Key, g => g.First());
+        return View(cases);
+    }
+
+    public async Task<IActionResult> MyComplaints(CancellationToken ct)
+    {
+        var client = await currentClient.GetAsync(ct);
+        if (client == null) return Forbid();
+        var complaints = await db.ServiceComplaints.Include(x => x.Case).Include(x => x.Appointments)
+            .Where(x => x.ClientId == client.Id).OrderByDescending(x => x.SubmittedAtUtc).ToListAsync(ct);
+        return View(complaints);
+    }
+
     public async Task<IActionResult> Prospects(CancellationToken ct)
     {
         var client = await currentClient.GetAsync(ct);
@@ -353,21 +444,20 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
         var complaint = await db.ServiceComplaints.Include(x => x.Case).Include(x => x.Client).Include(x => x.RoutedToUser).Include(x => x.Attachments)
             .Include(x => x.ResolvedByUser).Include(x => x.Appointments).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (complaint == null) return NotFound();
-        var restricted = complaint.RestrictedUserIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToHashSet();
-        if (userId is null || complaint.RoutedToUserId != userId || restricted.Contains(userId.Value)) return Forbid();
+        if (userId is null || complaint.RoutedToUserId != userId) return Forbid();
         ViewBag.ServiceRecords = await db.StaffServiceRecordEntries.Include(x => x.StaffUser).Where(x => x.ServiceComplaintId == id).ToListAsync(ct);
         return View(complaint);
     }
 
     public async Task<IActionResult> DownloadComplaintAttachment(int id, CancellationToken ct)
     {
-        var userId = HttpContext.Session.GetInt32("UserId")!.Value;
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null) return Forbid();
         var attachment = await db.ComplaintAttachments.Include(x => x.ServiceComplaint).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (attachment == null) return NotFound();
         var complaint = attachment.ServiceComplaint;
-        var restricted = complaint.RestrictedUserIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToHashSet();
         var client = await currentClient.GetAsync(ct);
-        if ((complaint.RoutedToUserId != userId || restricted.Contains(userId)) && client?.Id != complaint.ClientId) return Forbid();
+        if (complaint.RoutedToUserId != userId.Value && client?.Id != complaint.ClientId) return Forbid();
         return File(await complaintFiles.OpenReadAsync(attachment.RelativePath, ct), attachment.ContentType, attachment.OriginalFileName);
     }
 

@@ -72,7 +72,7 @@ namespace SimplexLawFirm.Controllers
 
             var eventsJson = events.Select(e => new
             {
-                id = e.Id,
+                id = $"event-{e.Id}",
                 title = e.Title,
                 start = e.StartDateTime.ToString("yyyy-MM-ddTHH:mm:ss"),
                 end = e.EndDateTime.ToString("yyyy-MM-ddTHH:mm:ss"),
@@ -82,10 +82,29 @@ namespace SimplexLawFirm.Controllers
                 status = e.Status.ToString(),
                 clientName = e.Client?.FullName,
                 assignedTo = e.AssignedToUser == null ? "Unassigned" : e.AssignedToUser.FullName,
-                location = e.Location
+                location = e.Location,
+                editable = true
             });
 
-            ViewBag.EventsJson = Newtonsoft.Json.JsonConvert.SerializeObject(eventsJson);
+            var taskQuery = _context.Tasks.Include(t => t.AssignedTo).Where(t => t.DueDate != null && t.Status != TaskItemStatus.Completed);
+            if (!HasFirmWideCalendarAccess(userRole)) taskQuery = taskQuery.Where(t => t.AssignedToId == userId || t.CreatedById == userId);
+            var tasksJson = (await taskQuery.ToListAsync()).Select(t => new
+            {
+                id = $"task-{t.Id}",
+                title = $"Task: {t.Title}",
+                start = t.DueDate!.Value.ToString("yyyy-MM-ddTHH:mm:ss"),
+                end = t.DueDate!.Value.ToString("yyyy-MM-ddTHH:mm:ss"),
+                allDay = true,
+                color = t.Priority == TaskPriority.Urgent || t.Priority == TaskPriority.High ? "#b42318" : "#6941c6",
+                type = "Task",
+                status = t.Status.ToString(),
+                clientName = (string?)null,
+                assignedTo = t.AssignedTo == null ? "Unassigned" : t.AssignedTo.FullName,
+                location = (string?)null,
+                editable = false
+            });
+
+            ViewBag.EventsJson = Newtonsoft.Json.JsonConvert.SerializeObject(eventsJson.Concat(tasksJson));
 
             return View();
         }
@@ -621,7 +640,7 @@ namespace SimplexLawFirm.Controllers
                 .OrderByDescending(t => t.CreatedAt)
                 .AsQueryable();
 
-            if (userRole != "Admin")
+            if (!HasFirmWideCalendarAccess(userRole))
             {
                 query = query.Where(t => t.AssignedToId == userId || t.CreatedById == userId);
             }
@@ -969,7 +988,7 @@ namespace SimplexLawFirm.Controllers
                 .OrderBy(e => e.StartDateTime)
                 .Take(count);
 
-            if (userRole != "Admin")
+            if (!HasFirmWideCalendarAccess(userRole))
             {
                 query = query.Where(e => e.AssignedToUserId == userId || e.CreatedByUserId == userId);
             }
@@ -997,7 +1016,7 @@ namespace SimplexLawFirm.Controllers
 
             var query = _context.Tasks.AsQueryable();
 
-            if (userRole != "Admin")
+            if (!HasFirmWideCalendarAccess(userRole))
             {
                 query = query.Where(t => t.AssignedToId == userId || t.CreatedById == userId);
             }
@@ -1027,7 +1046,7 @@ namespace SimplexLawFirm.Controllers
             var query = _context.CalendarEvents
                 .Where(e => e.StartDateTime >= DateTime.Now.AddMonths(-1) && e.StartDateTime <= DateTime.Now.AddMonths(3));
 
-            if (userRole != "Admin")
+            if (!HasFirmWideCalendarAccess(userRole))
             {
                 query = query.Where(e => e.AssignedToUserId == userId || e.CreatedByUserId == userId);
             }

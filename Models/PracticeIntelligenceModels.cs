@@ -8,6 +8,7 @@ public enum HandoverStatus { Preparing, Ready, Accepted, Overdue, PendingDirecto
 public enum ComplaintStatus { Submitted, Acknowledged, Escalated, Resolved }
 public enum ComplaintCategory { Communication, Conduct, Billing, Delay, QualityOfService, Other }
 public enum ReassignmentStatus { Approved, HandoverPreparing, Completed, Cancelled }
+public enum HandoverRequestStatus { Pending, Approved, Declined }
 public enum ForecastRequestStatus { Pending, Fulfilled, Cancelled }
 
 public class CaseForecast
@@ -76,6 +77,24 @@ public class CaseReassignment
     public string Reason { get; set; } = "";
     public ReassignmentStatus Status { get; set; } = ReassignmentStatus.Approved;
     public DateTime ApprovedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+public class CaseHandoverRequest
+{
+    public int Id { get; set; }
+    public int CaseId { get; set; }
+    public Case Case { get; set; } = null!;
+    public int RequestedByUserId { get; set; }
+    public ApplicationUser RequestedByUser { get; set; } = null!;
+    public string Reason { get; set; } = "";
+    public HandoverRequestStatus Status { get; set; } = HandoverRequestStatus.Pending;
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public int? DecidedByUserId { get; set; }
+    public ApplicationUser? DecidedByUser { get; set; }
+    public DateTime? DecidedAtUtc { get; set; }
+    public string? DeclineReason { get; set; }
+    public int? CaseReassignmentId { get; set; }
+    public CaseReassignment? CaseReassignment { get; set; }
 }
 
 public class CaseHandover

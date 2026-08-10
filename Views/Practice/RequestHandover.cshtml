@@ -1,0 +1,26 @@
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Hand over a case"; Layout = "_LawyerLayout";
+    var cases = (List<Case>)ViewBag.Cases;
+    var selectedCaseId = ViewBag.SelectedCaseId as int?;
+}
+<div class="breadcrumb-line"><a href="/Practice/MyHandoverRequests">Handover requests</a><span>/</span><span>Request a handover</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Case management</span><h1>Hand over a case</h1><p>Ask the director to reassign one of your active matters to another attorney. The director will review your reason and choose a receiving attorney.</p></div></div>
+
+@if (!cases.Any()) {
+ <div class="empty-state">You have no active matters eligible for handover.</div>
+} else {
+<div class="surface" style="max-width:640px">
+ <form method="post" action="/Practice/RequestHandover" class="stack-form">
+  @Html.AntiForgeryToken()
+  <label>Which matter?
+   <select name="caseId" class="form-select" required>
+    <option value="">-- Select a matter --</option>
+    @foreach (var c in cases) { <option value="@c.Id" selected="@(selectedCaseId == c.Id)">@c.CaseNumber — @c.Title</option> }
+   </select>
+  </label>
+  <label>Reason for the handover (required)<textarea name="reason" rows="4" required placeholder="e.g. Conflict of interest has arisen, I'm going on extended leave, workload reassignment…"></textarea></label>
+  <button type="submit" class="btn-primary-modern">Submit for director review</button>
+ </form>
+</div>
+}
