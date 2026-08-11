@@ -160,7 +160,12 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<ApplicationDbContext>();
-        if (app.Environment.IsDevelopment() && context.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+        // The schema strategy follows the provider, not the environment. The migration
+        // history is authored against SQL Server, so a SQLite database - whether a
+        // developer's local file or a deployed demo instance - builds its schema from
+        // the current model instead. Keying this on IsDevelopment() meant a deployed
+        // SQLite instance took the migration path and refused to start.
+        if (context.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
         {
             await context.Database.EnsureCreatedAsync();
             await DevelopmentDatabaseSchema.EnsureBeneficiaryPortalCredentialsAsync(context);

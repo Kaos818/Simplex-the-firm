@@ -20,3 +20,7 @@ tmp/
 
 wwwroot/uploads/
 tmp/
+
+# Local publish output used for manual Azure deployments
+/publish/
+/publish.zip

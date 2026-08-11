@@ -1063,8 +1063,12 @@ namespace SimplexLawFirm.Data
 
             EnsureBeneficiaryDocumentAssignments(context);
             EnsureDirectorIdentity(context);
-            if (isDevelopment) EnsureCostEstimatorSeedData(context);
-            if (isDevelopment) EnsureExpansionSeedData(context);
+            // Fee rules and recorded venue coordinates are reference data that the cost
+            // estimator and the check-in geofence read at runtime, so they are required
+            // wherever the app runs. Gating them to development left a deployed site with
+            // an empty venue list and no basis for verifying an attorney's location.
+            EnsureCostEstimatorSeedData(context);
+            EnsureExpansionSeedData(context);
             ApplyRequestedDevelopmentPasswords(context, sharedPassword);
         }
 
