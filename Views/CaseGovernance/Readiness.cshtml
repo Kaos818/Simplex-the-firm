@@ -2,41 +2,69 @@
 @using SimplexLawFirm.Models
 @{
     Layout = Context.Session.GetString("UserRole") == "Admin" ? "_AdminLayout" : "_LawyerLayout";
+    ViewData["Title"] = "Document readiness";
     var mayAct = Context.Session.GetString("UserRole") == "Lawyer" && Context.Session.GetInt32("UserId") == Model.Case.LawyerId && Model.Case.Status == CaseStatus.Active;
 }
-<div class="container-fluid py-4">
-    <div class="d-flex justify-content-between">
-        <div><span class="badge bg-primary">UC12</span><h1>Case document readiness</h1><p>@Model.Case.CaseNumber · @(Model.CourtReady ? "Ready for court" : "Not court-ready")</p></div>
-        <div class="d-flex gap-2 align-items-start">
-        <a class="btn btn-outline-secondary" href="/CaseGovernance/ReadinessHistory?caseId=@Model.Case.Id">Review history</a>
-        @if (mayAct && !Model.CourtReady)
-        {
-            <form asp-action="MarkCourtReady" method="post">@Html.AntiForgeryToken()<input name="caseId" value="@Model.Case.Id" type="hidden"/><button type="submit" class="btn btn-success">Mark court-ready</button></form>
-        }
-        </div>
-    </div>
-    @if (!Model.HasAuthorisedStrategy) { <div class="alert alert-danger">Court-ready status is blocked because no authorised litigation strategy is recorded.</div> }
-    @if (Model.MissingMandatory.Any()) { <div class="alert alert-warning"><b>Mandatory documents outstanding:</b> @string.Join(", ", Model.MissingMandatory.Select(x => x.Requirement.Name))</div> }
-    <div class="row g-3">
-    @foreach (var item in Model.Items)
-    {
-        var held = item.IsHeld;
-        var waived = item.Waiver?.Status == DocumentWaiverStatus.Approved;
-        <div class="col-lg-6"><div class="card h-100 border-0 shadow-sm"><div class="card-body">
-            <div class="d-flex justify-content-between"><h4>@item.Requirement.Name</h4><span class="badge @(held || waived ? "bg-success" : item.Requirement.Importance == DocumentRequirementImportance.Mandatory ? "bg-danger" : "bg-warning text-dark")">@(held ? "Held" : waived ? "Waived" : $"Missing {item.Requirement.Importance}")</span></div>
-            <p>@item.Requirement.Description</p>
-            @if (item.Document != null) { <a href="/Document/Download/@item.Document.Id">@item.Document.FileName</a> }
-            else if (item.ExternalDocument != null) { <a href="/ExternalEvidence/Download/@item.ExternalDocument.Id">@item.ExternalDocument.OriginalFileName</a><small class="d-block">Externally supplied: @item.ExternalDocument.Purpose</small> }
-            else if (mayAct)
-            {
-                <a class="btn btn-primary btn-sm mb-2" href="/Document/Upload?caseId=@Model.Case.Id&requirementCode=@item.Requirement.Code">Upload @item.Requirement.Name</a>
-                @if (item.Requirement.Importance == DocumentRequirementImportance.Mandatory && item.Waiver?.Status != DocumentWaiverStatus.PendingDirector)
-                {
-                    <form asp-action="RequestWaiver" method="post">@Html.AntiForgeryToken()<input name="caseId" value="@Model.Case.Id" type="hidden"/><input name="requirementId" value="@item.Requirement.Id" type="hidden"/><textarea name="reason" required class="form-control mb-2" placeholder="Why this document cannot be obtained"></textarea><button type="submit" class="btn btn-outline-danger btn-sm">Request Director waiver</button></form>
-                }
-            }
-            @if (item.Waiver != null) { <small class="d-block mt-2">Waiver: @item.Waiver.Status · @item.Waiver.DirectorReason@(item.Waiver.DeadlineAtUtc.HasValue ? $" · due {item.Waiver.DeadlineAtUtc.Value:dd MMM yyyy}" : "")</small> }
-        </div></div></div>
-    }
-    </div>
+<div class="breadcrumb-line"><a href="/CaseGovernance/ReadinessDashboard">Document readiness</a><span>/</span><span>@Model.Case.CaseNumber</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">UC-06 · Case execution</span><h1>@Model.Case.Title</h1><p>@Model.Case.CaseNumber · @(Model.CourtReady ? "Complete — all mandatory documents held" : "Not court-ready")</p></div><span class="status-pill large">@(Model.CourtReady ? "Court-ready" : "Not ready")</span></div>
+
+<div class="d-flex gap-2 flex-wrap mb-3">
+ <a class="btn-secondary-modern" href="/CaseGovernance/ReadinessHistory?caseId=@Model.Case.Id">Review history</a>
+ <a class="btn-secondary-modern" href="/CaseGovernance/SubmissionReport?reviewId=@Model.ReviewId">View saved submission report</a>
+ @if (mayAct && !Model.CourtReady)
+ {
+     <form asp-action="MarkCourtReady" method="post">@Html.AntiForgeryToken()<input name="caseId" value="@Model.Case.Id" type="hidden"/><button type="submit" class="btn-primary-modern">Mark court-ready</button></form>
+ }
+</div>
+
+@if (!Model.HasAuthorisedStrategy) { <div class="alert alert-danger">Court-ready status is blocked because no authorised litigation strategy is recorded.</div> }
+@if (Model.MissingMandatory.Any()) { <div class="alert alert-warning"><strong>Mandatory documents outstanding:</strong> @string.Join(", ", Model.MissingMandatory.Select(x => x.Requirement.Name))</div> }
+
+<div class="workspace-grid">
+@foreach (var item in Model.Items)
+{
+    var held = item.IsHeld;
+    var waived = item.Waiver?.Status == DocumentWaiverStatus.Approved;
+    <section class="surface">
+     <div class="section-heading"><div><span class="eyebrow">@item.Requirement.Importance</span><h2>@item.Requirement.Name</h2></div><span class="status-pill" style="@(held || waived ? "background:#e3f3e9;color:#1e7d4a" : item.Requirement.Importance == DocumentRequirementImportance.Mandatory ? "background:#fbe4e4;color:#a11" : "background:#fff3cd;color:#7a5b00")">@(held ? "Held" : waived ? "Waived" : $"Missing · {item.Requirement.Importance}")</span></div>
+     <p class="muted">@item.Requirement.Description</p>
+
+     @if (item.Document != null)
+     {
+         <a class="record-row" href="/Document/Download/@item.Document.Id"><span><b>@item.Document.FileName</b><small>Submitted @item.SubmittedAtUtc?.ToLocalTime().ToString("dd MMM yyyy")</small></span><span class="muted">Download →</span></a>
+     }
+     else if (item.ExternalDocument != null)
+     {
+         <a class="record-row" href="/ExternalEvidence/Download/@item.ExternalDocument.Id"><span><b>@item.ExternalDocument.OriginalFileName</b><small>Externally supplied: @item.ExternalDocument.Purpose · submitted @item.SubmittedAtUtc?.ToLocalTime().ToString("dd MMM yyyy")</small></span><span class="muted">Download →</span></a>
+     }
+     else if (mayAct)
+     {
+         <div class="d-flex gap-2 flex-wrap mb-2">
+          <a class="btn-primary-modern btn-sm" href="/Document/Upload?caseId=@Model.Case.Id&requirementCode=@item.Requirement.Code">Upload @item.Requirement.Name</a>
+         </div>
+         @if (item.Requirement.Importance == DocumentRequirementImportance.Mandatory && item.Waiver?.Status != DocumentWaiverStatus.PendingDirector)
+         {
+             <details><summary class="muted cursor-pointer">⚠ Report to Director — this document hasn't been uploaded yet</summary>
+              <form asp-action="RequestWaiver" method="post" class="stack-form mt-2">@Html.AntiForgeryToken()<input name="caseId" value="@Model.Case.Id" type="hidden"/><input name="requirementId" value="@item.Requirement.Id" type="hidden"/>
+               <label>Explain why this document hasn't been uploaded yet<textarea name="reason" required rows="3" placeholder="e.g. Client has not yet provided this document; followed up on…"></textarea></label>
+               <button type="submit" class="btn-secondary-modern btn-sm">Send report to Director</button>
+              </form>
+             </details>
+         }
+     }
+     else if (item.Requirement.Importance == DocumentRequirementImportance.Mandatory)
+     {
+         <p class="muted">Not yet submitted.</p>
+     }
+
+     @if (item.Waiver != null)
+     {
+         <div class="alert @(item.Waiver.Status == DocumentWaiverStatus.Deferred ? "alert-warning" : item.Waiver.Status == DocumentWaiverStatus.Approved ? "alert-success" : item.Waiver.Status == DocumentWaiverStatus.Refused ? "alert-danger" : "alert-secondary") mt-2">
+          <b>Report status: @item.Waiver.Status</b>
+          @if (!string.IsNullOrWhiteSpace(item.Waiver.Reason)) { <p class="mb-1"><small>Attorney's report: @item.Waiver.Reason</small></p> }
+          @if (!string.IsNullOrWhiteSpace(item.Waiver.DirectorReason)) { <p class="mb-0"><small>Director's response: @item.Waiver.DirectorReason@(item.Waiver.DeadlineAtUtc.HasValue ? $" — submit by {item.Waiver.DeadlineAtUtc.Value:dd MMM yyyy}." : "")</small></p> }
+         </div>
+     }
+    </section>
+}
 </div>

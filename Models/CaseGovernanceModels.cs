@@ -58,6 +58,7 @@ public sealed class CaseDocumentWaiver
     public int RequirementId { get; set; }
     public CaseDocumentRequirement Requirement { get; set; } = null!;
     public int RequestedByAttorneyId { get; set; }
+    public ApplicationUser RequestedByAttorney { get; set; } = null!;
     [MaxLength(3000)] public string Reason { get; set; } = "";
     public DocumentWaiverStatus Status { get; set; }
     public DateTime RequestedAtUtc { get; set; } = DateTime.UtcNow;

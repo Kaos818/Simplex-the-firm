@@ -81,7 +81,7 @@ public sealed class CaseGovernanceService(ApplicationDbContext db, INotification
         var decision = await db.LitigationStrategyDecisions.SingleOrDefaultAsync(x => x.Id == decisionId && x.Status == StrategyDecisionStatus.PendingDirectorAuthorisation, ct) ?? throw new InvalidOperationException("Strategy is not awaiting authorisation.");
         decision.Status = authorise ? StrategyDecisionStatus.Authorised : StrategyDecisionStatus.Refused; decision.DirectorId = directorId; decision.DirectorReason = reason.Trim(); decision.DirectorDecidedAtUtc = DateTime.UtcNow;
         db.AuditEntries.Add(new() { ActorUserId = directorId, EntityType = nameof(LitigationStrategyDecision), EntityId = decision.Id.ToString(), Action = authorise ? "Strategy authorised" : "Strategy refused" });
-        await notifications.QueueAsync(decision.AttorneyId, "StrategyDecision", authorise ? "Strategy authorised" : "Strategy refused", reason.Trim(), $"/CaseGovernance/Strategy/{decision.CaseId}", $"strategy-decision:{decision.Id}", ct);
+        await notifications.QueueAsync(decision.AttorneyId, "StrategyDecision", authorise ? "Strategy authorised" : "Strategy refused", reason.Trim(), $"/CaseGovernance/Strategy?caseId={decision.CaseId}", $"strategy-decision:{decision.Id}", ct);
         await db.SaveChangesAsync(ct);
     }
 
@@ -95,7 +95,7 @@ public sealed class CaseGovernanceService(ApplicationDbContext db, INotification
         if (!materiallyChanged) return false;
         decision.Status = StrategyDecisionStatus.RequiresReview; matter.StrategyReviewRequired = true; matter.IsCourtReady = false; matter.CourtReadyAtUtc = null;
         db.AuditEntries.Add(new() { EntityType = nameof(LitigationStrategyDecision), EntityId = decision.Id.ToString(), Action = "Strategy reopened after material change" });
-        await notifications.QueueAsync(decision.AttorneyId, "StrategyReview", "Litigation strategy must be reviewed", $"Costs or prospects changed materially for {matter.CaseNumber}.", $"/CaseGovernance/Strategy/{caseId}", $"strategy-retest:{decision.Id}:{costs}:{prospects}", ct);
+        await notifications.QueueAsync(decision.AttorneyId, "StrategyReview", "Litigation strategy must be reviewed", $"Costs or prospects changed materially for {matter.CaseNumber}.", $"/CaseGovernance/Strategy?caseId={caseId}", $"strategy-retest:{decision.Id}:{costs}:{prospects}", ct);
         await db.SaveChangesAsync(ct); return true;
     }
 
@@ -109,8 +109,13 @@ public sealed class CaseGovernanceService(ApplicationDbContext db, INotification
         var items = requirements.Select(r => new DocumentReadinessItemViewModel(r, matter.Documents.Where(d => d.RequirementCode == r.Code).OrderByDescending(d => d.UploadedAt).FirstOrDefault(), external.Where(d => d.RequirementCode == r.Code).OrderByDescending(d => d.UploadedAtUtc).FirstOrDefault(), waivers.FirstOrDefault(w => w.RequirementId == r.Id))).ToList();
         var authorised = await db.LitigationStrategyDecisions.AnyAsync(x => x.CaseId == caseId && x.Status == StrategyDecisionStatus.Authorised, ct);
         var ready = authorised && items.All(x => x.Requirement.Importance != DocumentRequirementImportance.Mandatory || x.IsHeld || x.Waiver?.Status == DocumentWaiverStatus.Approved);
-        db.CaseReadinessReviews.Add(new() { CaseId = caseId, ReviewedByUserId = userId, HeldCount = items.Count(x => x.IsHeld), MissingMandatoryCount = items.Count(x => x.Requirement.Importance == DocumentRequirementImportance.Mandatory && !x.IsHeld && x.Waiver?.Status != DocumentWaiverStatus.Approved), MissingAdvisoryCount = items.Count(x => x.Requirement.Importance == DocumentRequirementImportance.Advisory && !x.IsHeld), CourtReady = ready, SnapshotJson = JsonSerializer.Serialize(items.Select(x => new { x.Requirement.Code, x.Requirement.Importance, Held = x.IsHeld, Waiver = x.Waiver?.Status })) });
-        await db.SaveChangesAsync(ct); return new(matter, items, authorised, ready);
+        // The snapshot is the saved submission report: which documents were held, their filename
+        // and the date each was actually submitted, as they stood at the moment of this review -
+        // so a later change to the case's live documents never rewrites an already-saved report.
+        var snapshot = items.Select(x => new ReadinessSnapshotItem(x.Requirement.Code, x.Requirement.Name, x.Requirement.Importance, x.IsHeld, x.Waiver?.Status, x.SubmittedAtUtc, x.FileName)).ToList();
+        var review = new CaseReadinessReview { CaseId = caseId, ReviewedByUserId = userId, HeldCount = items.Count(x => x.IsHeld), MissingMandatoryCount = items.Count(x => x.Requirement.Importance == DocumentRequirementImportance.Mandatory && !x.IsHeld && x.Waiver?.Status != DocumentWaiverStatus.Approved), MissingAdvisoryCount = items.Count(x => x.Requirement.Importance == DocumentRequirementImportance.Advisory && !x.IsHeld), CourtReady = ready, SnapshotJson = JsonSerializer.Serialize(snapshot) };
+        db.CaseReadinessReviews.Add(review);
+        await db.SaveChangesAsync(ct); return new(matter, items, authorised, ready, review.Id);
     }
 
     /// <summary>
@@ -160,7 +165,9 @@ public sealed class CaseGovernanceService(ApplicationDbContext db, INotification
             throw new InvalidOperationException("A Director waiver request for this document is already pending.");
         var waiver = new CaseDocumentWaiver { CaseId = caseId, RequirementId = requirementId, RequestedByAttorneyId = attorneyId, Reason = reason.Trim(), Status = DocumentWaiverStatus.PendingDirector };
         db.Add(waiver); await db.SaveChangesAsync(ct);
-        foreach (var director in await db.Users.Where(x => x.Role == UserRole.Admin && x.IsActive).Select(x => x.Id).ToListAsync(ct)) await notifications.QueueAsync(director, "DocumentWaiver", "Mandatory document waiver requested", requirement.Name, $"/CaseGovernance/WaiverReview/{waiver.Id}", $"waiver:{waiver.Id}:{director}", ct);
+        var matterNumber = (await db.Cases.Where(x => x.Id == caseId).Select(x => x.CaseNumber).SingleAsync(ct));
+        foreach (var director in await db.Users.Where(x => x.Role == UserRole.Admin && x.IsActive).Select(x => x.Id).ToListAsync(ct))
+            await notifications.QueueAsync(director, "DocumentWaiver", $"{matterNumber}: \"{requirement.Name}\" not yet uploaded", reason.Trim(), "/CaseGovernance/WaiverQueue", $"waiver:{waiver.Id}:{director}", ct);
         await db.SaveChangesAsync(ct); return waiver;
     }
 
@@ -184,7 +191,7 @@ public sealed class CaseGovernanceService(ApplicationDbContext db, INotification
         var action = approve ? "Mandatory document waiver approved" : deferring ? "Mandatory document waiver deferred — deadline set" : "Mandatory document waiver refused";
         db.AuditEntries.Add(new() { ActorUserId = directorId, EntityType = nameof(CaseDocumentWaiver), EntityId = waiver.Id.ToString(), Action = action });
         var message = deferring ? $"{reason.Trim()} Submit the document by {deferDeadlineUtc:dd MMM yyyy}." : reason.Trim();
-        await notifications.QueueAsync(waiver.RequestedByAttorneyId, "DocumentWaiverDecision", approve ? "Document waiver approved" : deferring ? "Document deadline set — action required" : "Document waiver refused", message, $"/CaseGovernance/Readiness/{waiver.CaseId}", $"waiver-decision:{waiver.Id}", ct); await db.SaveChangesAsync(ct);
+        await notifications.QueueAsync(waiver.RequestedByAttorneyId, "DocumentWaiverDecision", approve ? "Document waiver approved" : deferring ? "Director's report: deadline set for this document" : "Document waiver refused", message, $"/CaseGovernance/Readiness?caseId={waiver.CaseId}", $"waiver-decision:{waiver.Id}", ct); await db.SaveChangesAsync(ct);
     }
 
     public async Task MarkCourtReadyAsync(int attorneyId, int caseId, CancellationToken ct = default)

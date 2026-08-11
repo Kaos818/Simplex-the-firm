@@ -15,11 +15,19 @@ public sealed record StrategyOptionViewModel(LitigationStrategyType Strategy, de
 public sealed record DocumentReadinessItemViewModel(CaseDocumentRequirement Requirement, Document? Document, ExternalEvidenceDocument? ExternalDocument, CaseDocumentWaiver? Waiver)
 {
     public bool IsHeld => Document is not null || ExternalDocument is not null;
+    public DateTime? SubmittedAtUtc => Document?.UploadedAt ?? ExternalDocument?.UploadedAtUtc;
+    public string? FileName => Document?.FileName ?? ExternalDocument?.OriginalFileName;
 }
-public sealed record CaseReadinessReportViewModel(Case Case, IReadOnlyList<DocumentReadinessItemViewModel> Items, bool HasAuthorisedStrategy, bool CourtReady)
+public sealed record CaseReadinessReportViewModel(Case Case, IReadOnlyList<DocumentReadinessItemViewModel> Items, bool HasAuthorisedStrategy, bool CourtReady, long ReviewId)
 {
     public IReadOnlyList<DocumentReadinessItemViewModel> MissingMandatory => Items.Where(x => x.Requirement.Importance == DocumentRequirementImportance.Mandatory && !x.IsHeld && x.Waiver?.Status != DocumentWaiverStatus.Approved).ToList();
 }
+
+/// <summary>A single requirement's state as captured in a CaseReadinessReview.SnapshotJson,
+/// so a past submission report can be viewed exactly as it was decided at the time - including
+/// the date each document was actually submitted - rather than reflecting the case's current
+/// (possibly since-changed) document state.</summary>
+public sealed record ReadinessSnapshotItem(string Code, string Name, DocumentRequirementImportance Importance, bool Held, DocumentWaiverStatus? Waiver, DateTime? SubmittedAtUtc, string? FileName);
 
 public enum ReadinessDashboardStatus { CourtReady, Escalated, Blocked, OnTrack }
 

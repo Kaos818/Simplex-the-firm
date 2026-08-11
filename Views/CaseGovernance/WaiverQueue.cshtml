@@ -1,29 +1,41 @@
 @model IReadOnlyList<SimplexLawFirm.Models.CaseDocumentWaiver>
-@{ Layout="_AdminLayout"; }
-<div class="container-fluid py-4">
-<h1>Mandatory document waiver queue</h1>
-@if (!Model.Any()) { <p class="text-muted">No waiver requests are awaiting a decision.</p> }
-@foreach(var item in Model){
-<div class="card border-0 shadow-sm mb-3"><div class="card-body">
- <h4>@item.Case.CaseNumber · @item.Requirement.Name</h4>
- <p>@item.Reason</p>
- <form asp-action="DecideWaiver" method="post" class="mb-2">
-  @Html.AntiForgeryToken()<input name="id" value="@item.Id" type="hidden"/>
-  <textarea name="reason" required class="form-control mb-2" placeholder="Director reasons"></textarea>
-  <button name="approve" value="true" class="btn btn-success">Approve waiver</button>
-  <button name="approve" value="false" class="btn btn-danger">Refuse waiver</button>
- </form>
- <details>
-  <summary class="text-primary" style="cursor:pointer">Or set a deadline and return to the attorney</summary>
-  <form asp-action="DecideWaiver" method="post" class="mt-2">
-   @Html.AntiForgeryToken()<input name="id" value="@item.Id" type="hidden"/><input type="hidden" name="approve" value="false"/>
-   <div class="row g-2">
-    <div class="col-md-4"><input type="date" name="deadlineAtUtc" required class="form-control" min="@DateTime.Today.ToString("yyyy-MM-dd")"/></div>
-    <div class="col-md-8"><input type="text" name="reason" required class="form-control" placeholder="What must the attorney do before this deadline?"/></div>
-   </div>
-   <button type="submit" class="btn btn-warning mt-2">Set Deadline &amp; Return to Attorney</button>
-  </form>
- </details>
-</div></div>
+@{ Layout = "_AdminLayout"; ViewData["Title"] = "Document reports"; }
+<div class="page-hero compact"><div><span class="eyebrow">UC-06 · Case execution</span><h1>Attorney reports on missing documents</h1><p>An attorney has reported that a mandatory document hasn't been uploaded yet. Review why, then either accept it as waived, refuse it, or set a deadline and send it back.</p></div></div>
+
+@if (!Model.Any())
+{
+    <div class="empty-state">No reports are currently awaiting a decision.</div>
 }
-</div>
+else
+{
+    <div class="workspace-grid">
+    @foreach (var item in Model)
+    {
+        <section class="surface">
+         <span class="eyebrow">@item.Case.CaseNumber</span><h2>@item.Requirement.Name</h2>
+         <p>Reported by @item.RequestedByAttorney.FullName on @item.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy")</p>
+         <p class="pre-wrap"><b>Why it hasn't been uploaded:</b> @item.Reason</p>
+
+         <details open><summary class="muted cursor-pointer">Set a deadline &amp; report back to the attorney</summary>
+          <form asp-action="DecideWaiver" method="post" class="stack-form mt-2">
+           @Html.AntiForgeryToken()<input name="id" value="@item.Id" type="hidden"/><input type="hidden" name="approve" value="false"/>
+           <label>Deadline for submission<input type="date" name="deadlineAtUtc" required class="form-control" min="@DateTime.Today.ToString("yyyy-MM-dd")"/></label>
+           <label>Your report back to the attorney<textarea name="reason" required rows="3" placeholder="What must the attorney do before this deadline?"></textarea></label>
+           <button type="submit" class="btn-primary-modern btn-sm">Set deadline &amp; send report</button>
+          </form>
+         </details>
+
+         <details class="mt-2"><summary class="muted cursor-pointer">Or decide without a deadline</summary>
+          <form asp-action="DecideWaiver" method="post" class="stack-form mt-2">
+           @Html.AntiForgeryToken()<input name="id" value="@item.Id" type="hidden"/>
+           <label>Reason (required either way)<textarea name="reason" required rows="2"></textarea></label>
+           <div class="d-flex gap-2">
+            <button name="approve" value="true" class="btn-secondary-modern btn-sm">Waive — document not required</button>
+            <button name="approve" value="false" class="btn btn-outline-danger btn-sm">Refuse — document is still required</button>
+           </div>
+          </form>
+         </details>
+        </section>
+    }
+    </div>
+}

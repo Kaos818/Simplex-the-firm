@@ -1,0 +1,41 @@
+@model SimplexLawFirm.Models.CaseReadinessReview
+@using SimplexLawFirm.Models
+@using SimplexLawFirm.ViewModels
+@{
+    Layout = Context.Session.GetString("UserRole") == "Admin" ? "_AdminLayout" : "_LawyerLayout";
+    ViewData["Title"] = "Document submission report";
+    var matter = (Case)ViewBag.Case;
+    var items = System.Text.Json.JsonSerializer.Deserialize<List<ReadinessSnapshotItem>>(Model.SnapshotJson) ?? [];
+}
+<div class="breadcrumb-line d-print-none"><a href="/CaseGovernance/ReadinessHistory?caseId=@matter.Id">Review history</a><span>/</span><span>Submission report</span></div>
+<div class="page-hero compact d-print-none"><div><span class="eyebrow">UC-06 · Document submission report</span><h1>@matter.CaseNumber</h1><p>@matter.Title — saved @Model.ReviewedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm").</p></div><button class="btn-primary-modern" onclick="window.print()">🖨 Save / print report</button></div>
+
+<section class="surface">
+ @if (Model.CourtReady) {
+  <div class="alert alert-success"><strong>Complete — all mandatory documents held.</strong> This matter was court-ready at the time of this review.</div>
+ } else {
+  <div class="alert alert-warning"><strong>Incomplete — @Model.MissingMandatoryCount mandatory document(s) missing</strong> at the time of this review.</div>
+ }
+ <div style="overflow-x:auto;">
+ <table class="table" style="min-width:640px;">
+  <thead><tr><th>Document</th><th>Importance</th><th>Status</th><th>Submitted</th></tr></thead>
+  <tbody>
+  @foreach (var item in items) {
+   <tr>
+    <td><b>@item.Name</b>@if(!string.IsNullOrWhiteSpace(item.FileName)){<small class="d-block muted">@item.FileName</small>}</td>
+    <td>@item.Importance</td>
+    <td>
+     @if (item.Held) { <span class="status-pill" style="background:#e3f3e9;color:#1e7d4a">Held</span> }
+     else if (item.Waiver == DocumentWaiverStatus.Approved) { <span class="status-pill" style="background:#e9e6fb;color:#4b2fa5">Waived</span> }
+     else { <span class="status-pill" style="background:#fbe4e4;color:#a11">Missing</span> }
+    </td>
+    <td>@(item.SubmittedAtUtc.HasValue ? item.SubmittedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy") : "—")</td>
+   </tr>
+  }
+  </tbody>
+ </table>
+ </div>
+ <small class="muted d-block mt-2">Reviewed by user #@Model.ReviewedByUserId. This report reflects document state exactly as it stood at the time of the review — it does not change if documents are added or removed afterwards.</small>
+</section>
+
+<style>@@media print { .d-print-none, nav, .sidebar { display:none !important; } }</style>

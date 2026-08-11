@@ -35,7 +35,7 @@
                                 <td>@doc.FileName</td>
                                 <td>@doc.Category</td>
                                 <td>@doc.FileSize</td>
-                                <td>@doc.Case?.Title ?? "General"</td>
+                                <td>@(doc.Case?.Title ?? "General")</td>
                                 <td>@doc.UploadedBy?.FullName</td>
                                 <td>@doc.UploadedAt.ToString("dd MMM yyyy")</td>
                                 <td>

@@ -392,7 +392,8 @@ namespace SimplexLawFirm.Data
                         LawyerId = nalediLawyer.Id,
                         CreatedAt = new DateTime(2026, 3, 12),
                         CaseNumber = "PI-2026-0001",
-                        Description = "Motor vehicle accident claim against Road Accident Fund. Client was involved in a collision in Durban on 10 March 2026. Seeking compensation for medical expenses, loss of income, and general damages."
+                        Description = "Motor vehicle accident claim against Road Accident Fund. Client was involved in a collision in Durban on 10 March 2026. Seeking compensation for medical expenses, loss of income, and general damages.",
+                        MatterValue = 850000m
                     });
                 }
 
@@ -407,7 +408,8 @@ namespace SimplexLawFirm.Data
                         LawyerId = siphoLawyer.Id,
                         CreatedAt = new DateTime(2026, 2, 5),
                         CaseNumber = "FM-2026-0002",
-                        Description = "Divorce and child custody proceedings. Client seeking divorce and primary custody of minor children. Mediation phase ongoing."
+                        Description = "Divorce and child custody proceedings. Client seeking divorce and primary custody of minor children. Mediation phase ongoing.",
+                        MatterValue = 420000m
                     });
                 }
 
@@ -422,7 +424,8 @@ namespace SimplexLawFirm.Data
                         LawyerId = davidLawyer.Id,
                         CreatedAt = new DateTime(2026, 1, 18),
                         CaseNumber = "BC-2026-0003",
-                        Description = "Breach of contract dispute with supplier. Client claims supplier failed to deliver goods as per signed agreement. Litigation phase."
+                        Description = "Breach of contract dispute with supplier. Client claims supplier failed to deliver goods as per signed agreement. Litigation phase.",
+                        MatterValue = 1250000m
                     });
                 }
 
@@ -433,6 +436,14 @@ namespace SimplexLawFirm.Data
             var piCase = context.Cases.FirstOrDefault(c => c.CaseNumber == "PI-2026-0001");
             var divorceCase = context.Cases.FirstOrDefault(c => c.CaseNumber == "FM-2026-0002");
             var contractCase = context.Cases.FirstOrDefault(c => c.CaseNumber == "BC-2026-0003");
+
+            // Backfill for databases seeded before MatterValue was set above. Litigation strategy
+            // selection refuses to run without a matter value, which silently blocked court-ready
+            // status on every one of these three matters.
+            if (piCase != null && piCase.MatterValue <= 0) piCase.MatterValue = 850000m;
+            if (divorceCase != null && divorceCase.MatterValue <= 0) divorceCase.MatterValue = 420000m;
+            if (contractCase != null && contractCase.MatterValue <= 0) contractCase.MatterValue = 1250000m;
+            context.SaveChanges();
 
             // ========== SEED RETAINERS ==========
             if (!context.Retainers.Any())

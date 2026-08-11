@@ -437,6 +437,7 @@ namespace SimplexLawFirm.Data
                 e.HasIndex(x => new { x.CaseId, x.RequirementId, x.Status });
                 e.HasOne(x => x.Case).WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.Requirement).WithMany().HasForeignKey(x => x.RequirementId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.RequestedByAttorney).WithMany().HasForeignKey(x => x.RequestedByAttorneyId).OnDelete(DeleteBehavior.Restrict);
             });
             modelBuilder.Entity<CaseReadinessReview>(e => e.HasIndex(x => new { x.CaseId, x.ReviewedAtUtc }));
             modelBuilder.Entity<Case>().Property(x => x.MatterValue).HasPrecision(18,2);

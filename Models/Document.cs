@@ -25,7 +25,7 @@ namespace SimplexLawFirm.Models
         public int? UploadedById { get; set; }
         public ApplicationUser UploadedBy { get; set; }
 
-        public string Description { get; set; }
+        public string Description { get; set; } = "";
         [MaxLength(80)] public string? RequirementCode { get; set; }
 
         public DocumentCategory Category { get; set; }

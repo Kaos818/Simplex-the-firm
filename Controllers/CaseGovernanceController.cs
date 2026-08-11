@@ -69,10 +69,25 @@ public sealed class CaseGovernanceController(ApplicationDbContext db, ICaseGover
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
     }
+    /// <summary>The saved submission report for a specific readiness review - the document
+    /// state, filenames and submission dates exactly as they stood when that review ran, so it
+    /// reads correctly even if the case's live documents have changed since.</summary>
+    public async Task<IActionResult> SubmissionReport(long reviewId, CancellationToken ct)
+    {
+        var review = await db.CaseReadinessReviews.SingleOrDefaultAsync(x => x.Id == reviewId, ct);
+        if (review is null) return NotFound();
+        var matter = await db.Cases.Include(x => x.Lawyer).SingleOrDefaultAsync(x => x.Id == review.CaseId, ct);
+        if (matter is null) return NotFound();
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null || (HttpContext.Session.GetString("UserRole") != "Admin" && matter.LawyerId != userId)) return Forbid();
+        ViewBag.Case = matter;
+        return View(review);
+    }
+
     [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Lawyer")]
-    public async Task<IActionResult> RequestWaiver(int caseId, int requirementId, string reason, CancellationToken ct) { try { await governance.RequestWaiverAsync(HttpContext.Session.GetInt32("UserId")!.Value, caseId, requirementId, reason, ct); TempData["Success"] = "Waiver request sent to the Director."; } catch (Exception ex) { TempData["Error"] = ex.Message; } return RedirectToAction(nameof(Readiness), new { caseId }); }
+    public async Task<IActionResult> RequestWaiver(int caseId, int requirementId, string reason, CancellationToken ct) { try { await governance.RequestWaiverAsync(HttpContext.Session.GetInt32("UserId")!.Value, caseId, requirementId, reason, ct); TempData["Success"] = "Report sent to the Director."; } catch (Exception ex) { TempData["Error"] = ex.Message; } return RedirectToAction(nameof(Readiness), new { caseId }); }
     [RequireSessionRole("Admin")]
-    public async Task<IActionResult> WaiverQueue(CancellationToken ct) => View(await db.CaseDocumentWaivers.Include(x => x.Case).Include(x => x.Requirement).Where(x => x.Status == DocumentWaiverStatus.PendingDirector).OrderBy(x => x.RequestedAtUtc).ToListAsync(ct));
+    public async Task<IActionResult> WaiverQueue(CancellationToken ct) => View(await db.CaseDocumentWaivers.Include(x => x.Case).Include(x => x.Requirement).Include(x => x.RequestedByAttorney).Where(x => x.Status == DocumentWaiverStatus.PendingDirector).OrderBy(x => x.RequestedAtUtc).ToListAsync(ct));
     [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Admin")]
     public async Task<IActionResult> DecideWaiver(int id, bool approve, string reason, DateTime? deadlineAtUtc, CancellationToken ct) { var waiver = await db.CaseDocumentWaivers.FindAsync([id], ct); if (waiver is null) return NotFound(); try { await governance.DecideWaiverAsync(HttpContext.Session.GetInt32("UserId")!.Value, id, approve, reason, deadlineAtUtc, ct); TempData["Success"] = deadlineAtUtc.HasValue && !approve ? "Deadline set and returned to the attorney." : "Waiver decision recorded."; } catch (Exception ex) { TempData["Error"] = ex.Message; } return RedirectToAction(nameof(Readiness), new { caseId = waiver.CaseId }); }
     [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Lawyer")]
