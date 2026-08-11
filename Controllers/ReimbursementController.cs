@@ -120,7 +120,15 @@ public class ReimbursementController(
         var claim = await db.ReimbursementClaims.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (claim == null || string.IsNullOrWhiteSpace(claim.ProofRelativePath)) return NotFound();
         if (!userId.HasValue || (role != "Admin" && !(role == "Lawyer" && claim.AttorneyId == userId))) return Forbid();
-        return File(await storage.OpenReadAsync(claim.ProofRelativePath, ct), claim.ProofContentType!, claim.ProofOriginalFileName);
+        try
+        {
+            return File(await storage.OpenReadAsync(claim.ProofRelativePath, ct), claim.ProofContentType!, claim.ProofOriginalFileName);
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            // A claim can outlive its stored document. That is a missing file, not a server fault.
+            return NotFound();
+        }
     }
 
     [HttpGet]

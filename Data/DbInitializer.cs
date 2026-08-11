@@ -8,7 +8,7 @@ namespace SimplexLawFirm.Data
 {
     public static class DbInitializer
     {
-        public static void Seed(ApplicationDbContext context, bool isDevelopment = false, string? kaoticPortalPassword = null, string? sharedPassword = null)
+        public static void Seed(ApplicationDbContext context, bool isDevelopment = false, string? kaoticPortalPassword = null, string? sharedPassword = null, string? contentRootPath = null)
         {
             if (!context.LegalAuthorities.Any())
             {
@@ -1068,11 +1068,160 @@ namespace SimplexLawFirm.Data
             // wherever the app runs. Gating them to development left a deployed site with
             // an empty venue list and no basis for verifying an attorney's location.
             EnsureCostEstimatorSeedData(context);
-            EnsureExpansionSeedData(context);
+            EnsureExpansionSeedData(context, contentRootPath);
+            EnsureCaseNoteSeedData(context);
             ApplyRequestedDevelopmentPasswords(context, sharedPassword);
         }
 
-        private static void EnsureExpansionSeedData(ApplicationDbContext context)
+        /// <summary>
+        /// Writes the mileage log that the seeded reimbursement claim cites as its proof and
+        /// returns its size. Returns a nominal size when no content root is supplied, which is
+        /// the case under tests that never serve the file.
+        /// </summary>
+        /// <summary>
+        /// Outcomes for the closed-matter library, spread so the forecaster reports a
+        /// realistic mixed success rate rather than a uniform one.
+        /// </summary>
+        /// <summary>
+        /// Case notes for the live matters. Research is triggered by highlighting a passage in
+        /// a note, so without notes that entry point cannot be exercised at all. Each note is
+        /// written to contain a recognisable legal issue for the extraction step to pick up.
+        /// </summary>
+        private static void EnsureCaseNoteSeedData(ApplicationDbContext context)
+        {
+            var notes = new (string CaseNumber, string Content, bool Privileged)[]
+            {
+                ("PI-2026-0001", "Consultation with the client on 14 March. The client was a passenger in a vehicle struck from behind at the intersection of Umgeni Road and Argyle Road. The central question is whether the insured driver was negligent in failing to keep a proper lookout and whether that negligence caused the collision. The client sustained a fractured tibia and soft-tissue injury to the cervical spine. We must also consider whether the plaintiff is entitled to general damages for pain and suffering, and how loss of earning capacity is to be assessed where the client is self-employed.", false),
+                ("PI-2026-0001", "Medico-legal report received from the orthopaedic surgeon. The report records a 14% whole person impairment. The question arises whether the injury meets the serious injury threshold for general damages under the Road Accident Fund Act, and whether the Fund is liable where the identity of the negligent driver is disputed.", true),
+                ("FM-2026-0002", "Attendance on the client regarding the divorce action. The parties were married in community of property. The issue is whether the maintenance claimed for the two minor children is reasonable having regard to the respondent's disclosed income, and whether the client is entitled to a redistribution of the joint estate. The respondent has failed to make full financial disclosure, which raises the question whether an adverse inference may be drawn.", false),
+                ("FM-2026-0002", "The respondent's attorney has proposed a settlement on maintenance but not on the patrimonial claim. We must advise whether accepting a partial settlement prejudices the client's remaining claim, and whether the best interests of the minor children require a family advocate's report before any consent paper is signed.", true),
+                ("BC-2026-0003", "Review of the supply agreement. The dispute concerns late delivery of stock over the 2025 financial year. The question is whether the defendant breached a material term of the agreement, and whether the damages claimed for lost profit were within the contemplation of the parties at the time of contracting. The agreement contains a limitation of liability clause, so we must consider whether that clause is enforceable against a claim founded on gross negligence.", false),
+                ("BC-2026-0003", "Client instructs that cancellation was communicated telephonically. The issue is whether valid cancellation occurred where the agreement requires written notice, and whether the client's continued acceptance of deliveries after the alleged breach amounts to an election to uphold the contract.", false)
+            };
+
+            foreach (var note in notes)
+            {
+                var matter = context.Cases.SingleOrDefault(x => x.CaseNumber == note.CaseNumber);
+                if (matter is null) continue;
+                if (context.CaseNotes.Any(x => x.CaseId == matter.Id && x.Content == note.Content)) continue;
+                context.CaseNotes.Add(new CaseNote
+                {
+                    CaseId = matter.Id,
+                    Content = note.Content,
+                    IsPrivileged = note.Privileged,
+                    CreatedAt = new DateTime(2026, 3, 14 + Array.IndexOf(notes, note))
+                });
+            }
+            context.SaveChanges();
+        }
+
+        private static ForecastResult ClosedMatterOutcome(int index) => (index % 6) switch
+        {
+            0 => ForecastResult.Unsuccessful,
+            2 or 5 => ForecastResult.PartlySuccessful,
+            _ => ForecastResult.Successful
+        };
+
+        private static decimal ClosedMatterEvidenceStrength(int index) =>
+            Math.Round(.35m + (index % 6) * .1m, 2);
+
+        private static string ClosedMatterTitle(string matterType, int index)
+        {
+            var parties = matterType switch
+            {
+                "Personal Injury" => new[] { "Ngcobo vs Road Accident Fund", "Naidoo vs Ethekwini Metro", "Botha vs Coastal Transport", "Sithole vs Road Accident Fund", "Adams vs Blue Line Couriers", "Maharaj vs Road Accident Fund", "Khoza vs Umgeni Municipality", "Pillay vs Southern Freight", "Dlomo vs Road Accident Fund", "Petersen vs Harbour Logistics", "Zulu vs Metro Bus Services", "Reddy vs Road Accident Fund" },
+                "Family Law" => new[] { "Mbatha Divorce Proceedings", "Govender Maintenance Application", "Steyn Custody Variation", "Ndlovu Divorce Proceedings", "Fourie Guardianship Application", "Cele Maintenance Enforcement", "Jacobs Divorce Proceedings", "Mkhize Custody Dispute", "Roux Patrimonial Claim", "Sibiya Maintenance Review", "Daniels Divorce Proceedings", "Ngubane Relocation Application" },
+                "Commercial" => new[] { "Zenith Supplies vs Kruger Holdings", "Ubuntu Trading vs Delta Freight", "Highpoint Ltd vs Marais Group", "Coastal Foods vs Naicker Wholesale", "Vantage Systems vs Orbit Media", "Summit Steel vs Reddy Fabrication", "Anchor Retail vs Pioneer Distributors", "Meridian Tech vs Cascade Software", "Sandton Estates vs Verwey Construction", "Nexus Logistics vs Harbour Cranes", "Silverline Mining vs Trans-Rand Plant", "Kingfisher Foods vs Apex Packaging" },
+                _ => new[] { "Estate Late Mahlangu", "Xaba Contractual Dispute", "Van Wyk Property Transfer", "Molefe Labour Referral", "Abrahams Estate Administration", "Nkosi Lease Dispute", "Brand Servitude Application", "Radebe Insurance Claim", "Olivier Sectional Title Dispute", "Sithembiso Trust Variation", "Coetzee Debt Review", "Hadebe Municipal Objection" }
+            };
+            return parties[(index - 1) % parties.Length];
+        }
+
+        private static string ClosedMatterDescription(string matterType) => matterType switch
+        {
+            "Personal Injury" => "Closed delictual claim for bodily injury, pleaded on negligence with quantum supported by medico-legal assessment.",
+            "Family Law" => "Closed matrimonial matter dealing with the dissolution of the marriage and the ancillary relief sought by the parties.",
+            "Commercial" => "Closed commercial dispute concerning breach of a written agreement and the damages flowing from that breach.",
+            _ => "Closed general litigation matter retained in the firm's precedent library for comparison and research."
+        };
+
+        private static string ClosedMatterOutcomeSummary(string matterType, ForecastResult outcome)
+        {
+            var issue = matterType switch
+            {
+                "Personal Injury" => "whether the defendant's negligent driving caused the plaintiff's injuries, and the quantum of general damages",
+                "Family Law" => "whether the maintenance sought was reasonable having regard to the means of the parties and the needs of the minor children",
+                "Commercial" => "whether the defendant breached a material term of the agreement, and whether the damages claimed were within the contemplation of the parties",
+                _ => "whether the applicant established the relief sought on the papers before the court"
+            };
+            return outcome switch
+            {
+                ForecastResult.Successful => $"The court found for our client on the central issue: {issue}. Liability was determined in the client's favour and costs followed the result.",
+                ForecastResult.PartlySuccessful => $"The court accepted part of our client's case on the question of {issue}. Relief was granted on a reduced basis and each party bore its own costs.",
+                _ => $"The court found against our client on the question of {issue}. The claim was dismissed and an adverse costs order was made."
+            };
+        }
+
+        private static long EnsureSeedReimbursementProof(string? contentRootPath)
+        {
+            if (string.IsNullOrWhiteSpace(contentRootPath)) return 48213;
+            try
+            {
+                var path = Path.Combine(contentRootPath, "App_Data", "SecureReimbursementProofs", "seed", "mileage-log.pdf");
+                if (File.Exists(path)) return new FileInfo(path).Length;
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllBytes(path, BuildMileageLogPdf());
+                return new FileInfo(path).Length;
+            }
+            catch (Exception)
+            {
+                // A read-only or unavailable data directory must not stop the rest of the seeding.
+                return 48213;
+            }
+        }
+
+        private static byte[] BuildMileageLogPdf()
+        {
+            var lines = new[]
+            {
+                "(Simplex Law - Travel Reimbursement Proof) Tj",
+                "0 -28 Td (Claim: RMB-2026-NALEDI01) Tj",
+                "0 -20 Td (Attorney: Naledi Khumalo) Tj",
+                "0 -20 Td (Matter: PI-2026-0001 Mthembu vs Road Accident Fund) Tj",
+                "0 -20 Td (Route: Durban CBD to Durban High Court \\(return\\)) Tj",
+                "0 -20 Td (Distance: 38.2 km at R38.00 per km) Tj",
+                "0 -20 Td (Amount claimed: R1 450.00) Tj"
+            };
+            var content = "BT /F1 12 Tf 60 760 Td " + string.Join(" ", lines) + " ET";
+
+            var objects = new List<string>
+            {
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                $"<< /Length {content.Length} >>\nstream\n{content}\nendstream"
+            };
+
+            var builder = new System.Text.StringBuilder("%PDF-1.4\n");
+            var offsets = new List<int>();
+            for (var i = 0; i < objects.Count; i++)
+            {
+                offsets.Add(builder.Length);
+                builder.Append(i + 1).Append(" 0 obj\n").Append(objects[i]).Append("\nendobj\n");
+            }
+
+            var xrefOffset = builder.Length;
+            builder.Append("xref\n0 ").Append(objects.Count + 1).Append('\n');
+            builder.Append("0000000000 65535 f \n");
+            foreach (var offset in offsets) builder.Append(offset.ToString("D10")).Append(" 00000 n \n");
+            builder.Append("trailer\n<< /Size ").Append(objects.Count + 1).Append(" /Root 1 0 R >>\nstartxref\n")
+                   .Append(xrefOffset).Append("\n%%EOF");
+
+            return System.Text.Encoding.ASCII.GetBytes(builder.ToString());
+        }
+
+        private static void EnsureExpansionSeedData(ApplicationDbContext context, string? contentRootPath = null)
         {
             // Known venue coordinates — needed for GPS geofence verification on attorney check-in.
             if (!context.KnownVenues.Any())
@@ -1142,6 +1291,9 @@ namespace SimplexLawFirm.Data
                 if (director != null && !context.ReimbursementClaims.Any(x => x.ClaimNumber == "RMB-2026-NALEDI01"))
                 {
                     var policy = context.ExpensePolicies.Single(x => x.ExpenseType == ReimbursementExpenseType.Travel);
+                    // The claim points at a stored proof document, so the document has to exist:
+                    // without it the download action throws instead of returning the file.
+                    var proofSize = EnsureSeedReimbursementProof(contentRootPath);
                     context.ReimbursementClaims.Add(new ReimbursementClaim
                     {
                         ClaimNumber = "RMB-2026-NALEDI01", CaseId = piCase.Id, AttorneyId = naledi.Id,
@@ -1150,7 +1302,7 @@ namespace SimplexLawFirm.Data
                         Status = ReimbursementStatus.PendingDirector,
                         MatchedActivityType = ReimbursementActivityType.CourtEvent, MatchedActivityId = nalediCourtEvent.Id,
                         ProofOriginalFileName = "mileage-log.pdf", ProofRelativePath = "seed/mileage-log.pdf", ProofContentType = "application/pdf",
-                        ProofSizeBytes = 48213, ProofSha256Hash = "seed-naledi-travel-2026-01",
+                        ProofSizeBytes = proofSize, ProofSha256Hash = "seed-naledi-travel-2026-01",
                         PolicyLimitSnapshot = policy.PerItemLimit, DelegatedLimitSnapshot = policy.DelegatedApprovalLimit, ExceedsPolicyLimit = false,
                         Classification = ExpenseClassification.ClientRecoverable, ClassificationReason = "Classified by the active Travel expense policy.",
                         SubmittedAtUtc = DateTime.UtcNow.AddDays(-2), AuditEntries = []
@@ -1229,8 +1381,11 @@ namespace SimplexLawFirm.Data
             }
 
             var matterTypes = new[] { "Personal Injury", "Family Law", "Commercial", "General" };
-            const int comparablesPerType = 8;
-            var hourVariance = new[] { 1.0m, 1.4m, .7m, 1.9m, 1.1m, .85m, 1.6m, 1.25m };
+            // Twelve per type clears the forecaster's "High" confidence threshold of ten
+            // comparables, so a demonstration reaches the strongest band rather than
+            // sitting on "Developing" with a bare quorum.
+            const int comparablesPerType = 12;
+            var hourVariance = new[] { 1.0m, 1.4m, .7m, 1.9m, 1.1m, .85m, 1.6m, 1.25m, .95m, 1.75m, 1.15m, .8m };
             for (var typeIndex = 0; typeIndex < matterTypes.Length; typeIndex++)
             {
                 var matterType = matterTypes[typeIndex];
@@ -1239,10 +1394,27 @@ namespace SimplexLawFirm.Data
                 {
                     var caseNumber = $"EST-HIST-{prefix}-{index:00}";
                     var matter = context.Cases.SingleOrDefault(x => x.CaseNumber == caseNumber);
+                    var closedOutcome = ClosedMatterOutcome(index);
+                    var matterValue = 180000m * index * hourVariance[index - 1];
                     if (matter is null)
                     {
-                        matter = new Case { CaseNumber = caseNumber, Title = $"Closed {matterType} estimate precedent {index}", Description = "Development-only closed matter providing deterministic estimator history.", CaseType = matterType, ClientId = client.Id, LawyerId = lawyerIds[(typeIndex + index - 1) % lawyerIds.Count], Status = CaseStatus.Closed, CreatedAt = new DateTime(2025, index % 12 + 1, 10), UpdatedAt = new DateTime(2025, (index + 2) % 12 + 1, 20), MatterValue = 180000m * index * hourVariance[index - 1] };
+                        matter = new Case { CaseNumber = caseNumber, Title = ClosedMatterTitle(matterType, index), Description = ClosedMatterDescription(matterType), CaseType = matterType, ClientId = client.Id, LawyerId = lawyerIds[(typeIndex + index - 1) % lawyerIds.Count], Status = CaseStatus.Closed, CreatedAt = new DateTime(2025, index % 12 + 1, 10), UpdatedAt = new DateTime(2025, (index + 2) % 12 + 1, 20), MatterValue = matterValue };
                         context.Cases.Add(matter);
+                        context.SaveChanges();
+                    }
+                    // The forecaster only counts a closed matter as comparable once it carries a
+                    // recorded outcome, so backfill any matter seeded before outcomes were stored.
+                    if (matter.RecordedOutcome is null)
+                    {
+                        matter.RecordedOutcome = closedOutcome;
+                        matter.OutcomeSummary = ClosedMatterOutcomeSummary(matterType, closedOutcome);
+                        matter.EvidenceStrength = ClosedMatterEvidenceStrength(index);
+                        matter.SettlementAmount = closedOutcome switch
+                        {
+                            ForecastResult.Successful => Math.Round(matterValue * .78m, 2),
+                            ForecastResult.PartlySuccessful => Math.Round(matterValue * .41m, 2),
+                            _ => 0m
+                        };
                         context.SaveChanges();
                     }
                     if (!context.TimeEntries.Any(x => x.CaseId == matter.Id && x.Description == "Estimator historical legal work"))

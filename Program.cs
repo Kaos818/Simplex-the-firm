@@ -172,7 +172,7 @@ using (var scope = app.Services.CreateScope())
         }
         else
             await context.Database.MigrateAsync();
-        DbInitializer.Seed(context, app.Environment.IsDevelopment(), builder.Configuration["Seed:KaoticPortalPassword"], builder.Configuration["Seed:SharedPassword"]);
+        DbInitializer.Seed(context, app.Environment.IsDevelopment(), builder.Configuration["Seed:KaoticPortalPassword"], builder.Configuration["Seed:SharedPassword"], app.Environment.ContentRootPath);
     }
     catch (Exception ex)
     {
