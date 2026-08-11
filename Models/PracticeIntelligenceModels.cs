@@ -4,7 +4,7 @@ namespace SimplexLawFirm.Models;
 
 public enum ForecastResult { Unsuccessful, PartlySuccessful, Successful }
 public enum ForecastStatus { Refused, Draft, Locked, Scored }
-public enum HandoverStatus { Preparing, Ready, Accepted, Overdue, PendingDirectorReview }
+public enum HandoverStatus { Preparing, PendingDirectorReview, Overdue, Accepted, Cancelled }
 public enum ComplaintStatus { Submitted, Acknowledged, Escalated, Resolved, Rejected, RequiresMoreInformation }
 public enum ComplaintCategory { Communication, Conduct, Billing, Delay, QualityOfService, Other }
 public enum ReassignmentStatus { Approved, HandoverPreparing, Completed, Cancelled }
@@ -104,31 +104,32 @@ public class CaseHandover
     public Case Case { get; set; } = null!;
     public int OutgoingAttorneyId { get; set; }
     public ApplicationUser OutgoingAttorney { get; set; } = null!;
-    public int ReceivingAttorneyId { get; set; }
-    public ApplicationUser ReceivingAttorney { get; set; } = null!;
+    // Null until a Director assigns a receiver as part of approving the handover - the outgoing
+    // attorney prepares the case without knowing who will receive it, which is what lets them
+    // finish notes and the checklist before anyone in management is involved.
+    public int? ReceivingAttorneyId { get; set; }
+    public ApplicationUser? ReceivingAttorney { get; set; }
     public HandoverStatus Status { get; set; } = HandoverStatus.Preparing;
     public DateTime DueAtUtc { get; set; }
     public string? Notes { get; set; }
     public string? UrgentMatters { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? SubmittedForReviewAtUtc { get; set; }
-    public DateTime? ReadyAtUtc { get; set; }
+    // Set the instant the Director approves - responsibility transfers immediately, there is no
+    // separate acceptance step for the receiving attorney.
     public DateTime? AcceptedAtUtc { get; set; }
-    public int CaseReassignmentId { get; set; }
-    public CaseReassignment CaseReassignment { get; set; } = null!;
+    public DateTime? ClientNotifiedAtUtc { get; set; }
+    public int? CaseReassignmentId { get; set; }
+    public CaseReassignment? CaseReassignment { get; set; }
     public ICollection<HandoverItem> Items { get; set; } = new List<HandoverItem>();
 
-    // Director review (the gate between outgoing preparation and receiving acceptance)
+    // Director review (the single gate between outgoing preparation and the case actually moving)
     public int? DirectorReviewedByUserId { get; set; }
     public ApplicationUser? DirectorReviewedByUser { get; set; }
     public string? DirectorSummary { get; set; }
     public string? DirectorRiskFlags { get; set; }
     public DateTime? DirectorReviewedAtUtc { get; set; }
     public string? DirectorReturnReason { get; set; }
-
-    // Receiving attorney acceptance
-    public bool RiskFlagsAcknowledgedByReceiving { get; set; }
-    public string? ReceivingSignature { get; set; }
 
     public ICollection<HandoverQuery> Queries { get; set; } = new List<HandoverQuery>();
 }
@@ -144,7 +145,6 @@ public class HandoverItem
     public bool IsResolved { get; set; }
     public string? ResolutionNote { get; set; }
     public string SourceFingerprint { get; set; } = "";
-    public bool AcknowledgedByReceiving { get; set; }
 
     // The Director may re-open a specific item the outgoing attorney marked resolved, stating what's
     // actually missing. This reopens just that item (not the whole handover's checklist) and notifies

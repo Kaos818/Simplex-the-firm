@@ -8,7 +8,9 @@
  <div class="surface action-panel"><div><h2>Ready to assess prospects?</h2><p>The system will use comparable closed matters, firm performance, attorney performance, and the evidence profile. It will refuse rather than guess.</p></div>
  <form method="post" action="/Practice/RequestForecast">@Html.AntiForgeryToken()<input type="hidden" name="caseId" value="@Model.Case.Id"/><button class="btn-primary-modern">Generate forecast</button></form></div>
 } else if(Model.Forecast.Status == ForecastStatus.Refused){
- <div class="surface refusal"><span class="eyebrow">Forecast refused</span><h2>No adequate basis</h2><p>@Model.Forecast.RefusalReason</p><small>The refusal has been recorded for governance.</small></div>
+ <div class="surface refusal"><span class="eyebrow">Forecast refused</span><h2>No adequate basis</h2><p>@Model.Forecast.RefusalReason</p><small class="d-block mb-3">Refused @Model.Forecast.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") and recorded for governance. More comparable matters may exist now — request a fresh assessment to check.</small>
+ @if(Context.Session.GetString("UserRole") == "Lawyer"){<form method="post" action="/Practice/RequestForecast">@Html.AntiForgeryToken()<input type="hidden" name="caseId" value="@Model.Case.Id"/><button class="btn-primary-modern">Try again</button></form>}
+ </div>
 } else {
  var factors=JsonSerializer.Deserialize<List<ForecastFactor>>(Model.Forecast.FactorsJson) ?? [];
  var comparables=JsonSerializer.Deserialize<List<ComparableMatter>>(Model.Forecast.ComparableCasesJson) ?? [];

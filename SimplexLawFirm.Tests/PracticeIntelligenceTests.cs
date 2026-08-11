@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SimplexLawFirm.Data;
 using SimplexLawFirm.Models;
 using SimplexLawFirm.Services;
+using SimplexLawFirm.Services.Email;
 using SimplexLawFirm.Services.Notifications;
 using SimplexLawFirm.ViewModels;
 using Xunit;
@@ -56,7 +57,7 @@ public class PracticeIntelligenceTests
     }
 
     [Fact]
-    public async Task Approved_reassignment_creates_live_handover_and_transfers_nothing_before_acceptance()
+    public async Task Approved_reassignment_creates_live_handover_with_receiver_already_assigned()
     {
         await using var fixture = await Fixture.CreateAsync();
         var (matter, outgoing, _) = await fixture.SeedMatterAsync();
@@ -68,73 +69,105 @@ public class PracticeIntelligenceTests
         var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation", default);
 
         Assert.Equal(outgoing.Id, matter.LawyerId);
+        Assert.Equal(receiver.Id, handover.ReceivingAttorneyId);
         Assert.Equal(5, handover.Items.Count);
         Assert.Equal(ReassignmentStatus.HandoverPreparing, (await fixture.Db.CaseReassignments.SingleAsync()).Status);
-        Assert.True(await fixture.Service.MarkHandoverReadyAsync(handover.Id));
     }
 
     [Fact]
-    public async Task Live_mandatory_blockers_prevent_readiness_until_the_outgoing_attorney_records_positions()
+    public async Task StartHandover_leaves_the_receiving_attorney_unset_until_director_review()
     {
         await using var fixture = await Fixture.CreateAsync();
         var (matter, outgoing, _) = await fixture.SeedMatterAsync();
-        var receiver = new ApplicationUser { FullName = "Attorney Two", Email = "two@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
-        var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
-        fixture.Db.AddRange(receiver, director, new CalendarEvent { Title = "Court deadline", Description = "File answering papers", Location = "Court", CaseId = matter.Id, Type = EventType.Deadline, Status = EventStatus.Scheduled, StartDateTime = DateTime.UtcNow.AddDays(2), EndDateTime = DateTime.UtcNow.AddDays(2).AddHours(1) });
+
+        var handover = await fixture.Service.StartHandoverAsync(matter.Id, outgoing.Id, "Going on extended leave.");
+
+        Assert.Null(handover.ReceivingAttorneyId);
+        Assert.Equal("Going on extended leave.", handover.Notes);
+        Assert.Equal(HandoverStatus.Preparing, handover.Status);
+        Assert.Equal(5, handover.Items.Count);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.StartHandoverAsync(matter.Id, outgoing.Id, "Second attempt while one is already open."));
+    }
+
+    [Fact]
+    public async Task Notes_and_every_mandatory_item_are_required_before_a_handover_can_reach_the_director()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var (matter, outgoing, _) = await fixture.SeedMatterAsync();
+        fixture.Db.Add(new CalendarEvent { Title = "Court deadline", Description = "File answering papers", Location = "Court", CaseId = matter.Id, Type = EventType.Deadline, Status = EventStatus.Scheduled, StartDateTime = DateTime.UtcNow.AddDays(2), EndDateTime = DateTime.UtcNow.AddDays(2).AddHours(1) });
         await fixture.Db.SaveChangesAsync();
 
-        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
+        var handover = await fixture.Service.StartHandoverAsync(matter.Id, outgoing.Id, "Workload reallocation.");
         Assert.False(await fixture.Service.MarkHandoverReadyAsync(handover.Id));
         Assert.Equal(HandoverStatus.Preparing, handover.Status);
         Assert.Contains(handover.Items, x => x.Type == "Deadlines" && x.IsMandatory && !x.IsResolved);
 
         foreach (var item in handover.Items.Where(x => x.IsMandatory)) { item.IsResolved = true; item.ResolutionNote = "Position recorded for the receiving attorney."; }
+        handover.Notes = null;
+        await fixture.Db.SaveChangesAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.MarkHandoverReadyAsync(handover.Id));
+
+        handover.Notes = "Full briefing for whoever receives this matter.";
         await fixture.Db.SaveChangesAsync();
         Assert.True(await fixture.Service.MarkHandoverReadyAsync(handover.Id));
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.MarkHandoverReadyAsync(handover.Id));
     }
 
     [Fact]
-    public async Task Ready_handover_requires_director_review_before_receiving_attorney_can_see_it()
+    public async Task Director_approval_assigns_the_receiver_transfers_the_case_immediately_and_notifies_the_client()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var (matter, outgoing, _) = await fixture.SeedMatterAsync();
+        var (matter, outgoing, client) = await fixture.SeedMatterAsync();
+        var clientUser = new ApplicationUser { FullName = client.FullName, Email = client.Email, PasswordHash = "x", Role = UserRole.Client, IsActive = true };
         var receiver = new ApplicationUser { FullName = "Attorney Two", Email = "two@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
         var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
-        fixture.Db.AddRange(receiver, director);
+        fixture.Db.AddRange(clientUser, receiver, director);
         await fixture.Db.SaveChangesAsync();
 
-        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
+        var handover = await fixture.Service.StartHandoverAsync(matter.Id, outgoing.Id, "Workload reallocation.");
+        foreach (var item in handover.Items.Where(x => x.IsMandatory)) { item.IsResolved = true; item.ResolutionNote = "Done."; }
+        await fixture.Db.SaveChangesAsync();
         Assert.True(await fixture.Service.MarkHandoverReadyAsync(handover.Id));
         Assert.Equal(HandoverStatus.PendingDirectorReview, handover.Status);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.AcceptHandoverAsync(handover.Id, receiver.Id, "Attorney Two", false));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, "", null, null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, null, "", null, null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, null, "Missing a receiver.", null, null));
 
-        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, "Prepared and reviewed; proceed.", "Client is anxious, call within 24h.", null);
-        Assert.Equal(HandoverStatus.Ready, handover.Status);
+        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, receiver.Id, "Prepared and reviewed; proceed.", "Client is anxious, call within 24h.", null);
+
+        Assert.Equal(HandoverStatus.Accepted, handover.Status);
+        Assert.Equal(receiver.Id, handover.ReceivingAttorneyId);
+        Assert.Equal(receiver.Id, matter.LawyerId);
         Assert.Equal(director.Id, handover.DirectorReviewedByUserId);
         Assert.Equal("Client is anxious, call within 24h.", handover.DirectorRiskFlags);
-        var reloaded = await fixture.Db.CaseHandovers.AsNoTracking().SingleAsync(x => x.Id == handover.Id);
-        Assert.Equal("Client is anxious, call within 24h.", reloaded.DirectorRiskFlags);
+        Assert.NotNull(handover.ClientNotifiedAtUtc);
+        Assert.Equal(ReassignmentStatus.Completed, (await fixture.Db.CaseReassignments.SingleAsync()).Status);
+        Assert.Single(fixture.SentEmails, m => m.To == client.Email);
     }
 
     [Fact]
-    public async Task Director_can_return_handover_to_outgoing_attorney_with_a_reason()
+    public async Task Director_can_return_handover_with_a_reason_and_outgoing_attorney_can_cancel_instead_of_retrying()
     {
         await using var fixture = await Fixture.CreateAsync();
         var (matter, outgoing, _) = await fixture.SeedMatterAsync();
-        var receiver = new ApplicationUser { FullName = "Attorney Two", Email = "two@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
         var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
-        fixture.Db.AddRange(receiver, director);
+        fixture.Db.Add(director);
         await fixture.Db.SaveChangesAsync();
-        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
+        var handover = await fixture.Service.StartHandoverAsync(matter.Id, outgoing.Id, "Workload reallocation.");
+        foreach (var item in handover.Items.Where(x => x.IsMandatory)) item.IsResolved = true;
+        await fixture.Db.SaveChangesAsync();
         await fixture.Service.MarkHandoverReadyAsync(handover.Id);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, false, null, null, ""));
-        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, false, null, null, "Notes are too thin, expand the briefing.");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, false, null, null, null, ""));
+        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, false, null, null, null, "Notes are too thin, expand the briefing.");
         Assert.Equal(HandoverStatus.Preparing, handover.Status);
         Assert.Contains("too thin", handover.DirectorReturnReason);
+
+        await fixture.Service.CancelHandoverAsync(handover.Id, outgoing.Id);
+        Assert.Equal(HandoverStatus.Cancelled, handover.Status);
+        // Cancelling frees the matter for a fresh attempt.
+        var restarted = await fixture.Service.StartHandoverAsync(matter.Id, outgoing.Id, "Trying again with a fuller briefing.");
+        Assert.NotEqual(handover.Id, restarted.Id);
     }
 
     [Fact]
@@ -146,7 +179,9 @@ public class PracticeIntelligenceTests
         var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
         fixture.Db.AddRange(receiver, director);
         await fixture.Db.SaveChangesAsync();
-        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
+        var handover = await fixture.Service.StartHandoverAsync(matter.Id, outgoing.Id, "Workload reallocation.");
+        foreach (var item in handover.Items.Where(x => x.IsMandatory)) { item.IsResolved = true; item.ResolutionNote = "Done."; }
+        await fixture.Db.SaveChangesAsync();
         await fixture.Service.MarkHandoverReadyAsync(handover.Id);
         Assert.Equal(HandoverStatus.PendingDirectorReview, handover.Status);
         var disputedItem = handover.Items.First(x => x.IsMandatory);
@@ -164,56 +199,20 @@ public class PracticeIntelligenceTests
         await fixture.Db.SaveChangesAsync();
         await fixture.Service.MarkHandoverReadyAsync(handover.Id);
         Assert.Equal(HandoverStatus.PendingDirectorReview, handover.Status);
-        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, "Reviewed and approved.", null, null);
+        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, receiver.Id, "Reviewed and approved.", null, null);
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.DisputeHandoverItemAsync(handover.Id, disputedItem.Id, director.Id, "Too late."));
     }
 
     [Fact]
-    public async Task Acceptance_requires_every_mandatory_item_acknowledged_and_a_signature()
+    public async Task A_query_can_be_raised_on_a_handover_that_is_still_in_progress()
     {
         await using var fixture = await Fixture.CreateAsync();
         var (matter, outgoing, _) = await fixture.SeedMatterAsync();
-        var receiver = new ApplicationUser { FullName = "Attorney Two", Email = "two@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
-        var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
-        fixture.Db.AddRange(receiver, director);
-        await fixture.Db.SaveChangesAsync();
-        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
-        await fixture.Service.MarkHandoverReadyAsync(handover.Id);
-        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, "Reviewed and ready.", "Watch the deadline closely.", null);
+        var handover = await fixture.Service.StartHandoverAsync(matter.Id, outgoing.Id, "Workload reallocation.");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.AcceptHandoverAsync(handover.Id, receiver.Id, "Attorney Two", true));
-
-        foreach (var item in handover.Items.Where(x => x.IsMandatory))
-            await fixture.Service.AcknowledgeHandoverItemAsync(handover.Id, item.Id, receiver.Id);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.AcceptHandoverAsync(handover.Id, receiver.Id, "Attorney Two", false));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.AcceptHandoverAsync(handover.Id, receiver.Id, "", true));
-
-        await fixture.Service.AcceptHandoverAsync(handover.Id, receiver.Id, "Attorney Two", true);
-        Assert.Equal(HandoverStatus.Accepted, handover.Status);
-        Assert.Equal(receiver.Id, matter.LawyerId);
-        Assert.Equal(ReassignmentStatus.Completed, (await fixture.Db.CaseReassignments.SingleAsync()).Status);
-    }
-
-    [Fact]
-    public async Task Receiving_attorney_can_query_or_decline_and_decline_loops_back_to_director()
-    {
-        await using var fixture = await Fixture.CreateAsync();
-        var (matter, outgoing, _) = await fixture.SeedMatterAsync();
-        var receiver = new ApplicationUser { FullName = "Attorney Two", Email = "two@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
-        var director = new ApplicationUser { FullName = "Director", Email = "director@test", PasswordHash = "x", Role = UserRole.Admin, IsActive = true };
-        fixture.Db.AddRange(receiver, director);
-        await fixture.Db.SaveChangesAsync();
-        var handover = await fixture.Service.ApproveReassignmentAsync(matter.Id, receiver.Id, director.Id, "Workload reallocation");
-        await fixture.Service.MarkHandoverReadyAsync(handover.Id);
-        await fixture.Service.SubmitDirectorReviewAsync(handover.Id, director.Id, true, "Reviewed.", null, null);
-
-        await fixture.Service.RaiseHandoverQueryAsync(handover.Id, receiver.Id, "What happened with the settlement offer?");
+        await fixture.Service.RaiseHandoverQueryAsync(handover.Id, outgoing.Id, "Does anyone know the status of the settlement offer?");
         Assert.Single(await fixture.Db.HandoverQueries.ToListAsync());
-
-        await fixture.Service.DeclineHandoverAcceptanceAsync(handover.Id, receiver.Id, "The financial exposure notes are unclear.");
-        Assert.Equal(HandoverStatus.PendingDirectorReview, handover.Status);
-        Assert.Contains("unclear", handover.DirectorReturnReason);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Service.RaiseHandoverQueryAsync(handover.Id, 999999, "Not party to this handover."));
     }
 
     [Fact]
@@ -316,7 +315,12 @@ public class PracticeIntelligenceTests
         private readonly SqliteConnection connection;
         public ApplicationDbContext Db { get; }
         public IPracticeIntelligenceService Service { get; }
-        private Fixture(SqliteConnection connection, ApplicationDbContext db) { this.connection = connection; Db = db; Service = new PracticeIntelligenceService(db, new FakeNotifications()); }
+        public List<(string To, string Subject)> SentEmails { get; } = [];
+        private Fixture(SqliteConnection connection, ApplicationDbContext db)
+        {
+            this.connection = connection; Db = db;
+            Service = new PracticeIntelligenceService(db, new FakeNotifications(), new FakeEmail(SentEmails));
+        }
         public static async Task<Fixture> CreateAsync()
         {
             var connection = new SqliteConnection("Data Source=:memory:"); await connection.OpenAsync();
@@ -338,5 +342,13 @@ public class PracticeIntelligenceTests
     private sealed class FakeNotifications : INotificationService
     {
         public Task QueueAsync(int userId, string type, string title, string message, string? actionUrl, string? deduplicationKey, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+    private sealed class FakeEmail(List<(string To, string Subject)> sent) : IEmailService
+    {
+        public Task QueueAsync(string to, string subject, string html, string text, string deduplicationKey, CancellationToken cancellationToken = default)
+        {
+            sent.Add((to, subject));
+            return Task.CompletedTask;
+        }
     }
 }

@@ -16,7 +16,7 @@
    <div class="record-row">
     <span><b>@c.CaseNumber — @c.Title</b>
      <small>Current attorney: @(c.Lawyer?.FullName ?? "Unassigned")</small>
-     @if (handover != null) { <small class="d-block mt-1">Being handed over from <b>@handover.OutgoingAttorney.FullName</b> to <b>@handover.ReceivingAttorney.FullName</b></small> }
+     @if (handover != null) { <small class="d-block mt-1">Being handed over from <b>@handover.OutgoingAttorney.FullName</b>@(handover.ReceivingAttorney != null ? $" to {handover.ReceivingAttorney.FullName}" : " — receiving attorney not yet assigned")</small> }
     </span>
     @if (handover != null) { <span class="status-pill large">@handover.Status</span> }
    </div>

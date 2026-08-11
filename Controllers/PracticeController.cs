@@ -38,12 +38,12 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
         ViewBag.Role = role;
         ViewBag.Handovers = await db.CaseHandovers.Include(x => x.Case).Include(x => x.OutgoingAttorney).Include(x => x.ReceivingAttorney)
             .Where(x => role == "Admin" || x.OutgoingAttorneyId == userId || x.ReceivingAttorneyId == userId).OrderByDescending(x => x.CreatedAtUtc).ToListAsync(ct);
-        ViewBag.HandoverRequestCount = role == "Admin"
-            ? await db.CaseHandoverRequests.CountAsync(x => x.Status == HandoverRequestStatus.Pending, ct)
-            : await db.CaseHandoverRequests.CountAsync(x => x.RequestedByUserId == userId && x.Status == HandoverRequestStatus.Pending, ct);
+        ViewBag.PendingReviewCount = role == "Admin"
+            ? await db.CaseHandovers.CountAsync(x => x.Status == HandoverStatus.PendingDirectorReview, ct)
+            : await db.CaseHandovers.CountAsync(x => x.OutgoingAttorneyId == userId && x.Status == HandoverStatus.PendingDirectorReview, ct);
         if (role == "Admin")
         {
-            var busyCaseIds = await db.CaseHandovers.Where(x => x.Status != HandoverStatus.Accepted).Select(x => x.CaseId).ToListAsync(ct);
+            var busyCaseIds = await db.CaseHandovers.Where(x => x.Status != HandoverStatus.Accepted && x.Status != HandoverStatus.Cancelled).Select(x => x.CaseId).ToListAsync(ct);
             ViewBag.ReassignableCases = await db.Cases.Include(x => x.Lawyer).Where(x => x.LawyerId != null
                 && x.Status != CaseStatus.Closed && x.Status != CaseStatus.Archived && !busyCaseIds.Contains(x.Id))
                 .OrderBy(x => x.CaseNumber).ToListAsync(ct);
@@ -134,7 +134,7 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
     }
 
     [RequireSessionRole("Lawyer")]
-    public async Task<IActionResult> RequestHandover(int? caseId, CancellationToken ct)
+    public async Task<IActionResult> StartHandover(int? caseId, CancellationToken ct)
     {
         var userId = HttpContext.Session.GetInt32("UserId");
         ViewBag.Cases = await db.Cases.Where(x => x.LawyerId == userId && x.Status == CaseStatus.Active).OrderBy(x => x.CaseNumber).ToListAsync(ct);
@@ -143,47 +143,31 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
     }
 
     [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Lawyer")]
-    public async Task<IActionResult> RequestHandover(int caseId, string reason, CancellationToken ct)
+    public async Task<IActionResult> StartHandover(int caseId, string reason, CancellationToken ct)
     {
         var userId = HttpContext.Session.GetInt32("UserId")!.Value;
-        try { await service.RequestHandoverAsync(caseId, userId, reason, ct); TempData["Success"] = "Handover request sent to the director for review."; return RedirectToAction(nameof(MyHandoverRequests)); }
+        try { var handover = await service.StartHandoverAsync(caseId, userId, reason, ct); return RedirectToAction(nameof(Handover), new { id = handover.Id }); }
         catch (UnauthorizedAccessException) { return Forbid(); }
-        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) { TempData["Error"] = ex.Message; return RedirectToAction(nameof(RequestHandover), new { caseId }); }
+        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) { TempData["Error"] = ex.Message; return RedirectToAction(nameof(StartHandover), new { caseId }); }
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Lawyer")]
+    public async Task<IActionResult> CancelHandover(int id, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId")!.Value;
+        try { await service.CancelHandoverAsync(id, userId, ct); TempData["Success"] = "Handover cancelled."; return RedirectToAction(nameof(HandoverHub)); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; return RedirectToAction(nameof(Handover), new { id }); }
     }
 
     [RequireSessionRole("Lawyer")]
-    public async Task<IActionResult> MyHandoverRequests(CancellationToken ct)
+    public async Task<IActionResult> HandedToMe(CancellationToken ct)
     {
         var userId = HttpContext.Session.GetInt32("UserId");
-        var requests = await db.CaseHandoverRequests.Include(x => x.Case).Include(x => x.DecidedByUser)
-            .Where(x => x.RequestedByUserId == userId).OrderByDescending(x => x.CreatedAtUtc).ToListAsync(ct);
-        return View(requests);
-    }
-
-    [RequireSessionRole("Admin")]
-    public async Task<IActionResult> HandoverRequests(CancellationToken ct)
-    {
-        var requests = await db.CaseHandoverRequests.Include(x => x.Case).Include(x => x.RequestedByUser)
-            .Where(x => x.Status == HandoverRequestStatus.Pending).OrderBy(x => x.CreatedAtUtc).ToListAsync(ct);
-        ViewBag.Lawyers = await db.Users.Where(x => x.Role == UserRole.Lawyer && x.IsActive).OrderBy(x => x.FullName).ToListAsync(ct);
-        return View(requests);
-    }
-
-    [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Admin")]
-    public async Task<IActionResult> ApproveHandoverRequest(int id, int receivingAttorneyId, CancellationToken ct)
-    {
-        var directorId = HttpContext.Session.GetInt32("UserId")!.Value;
-        try { var handover = await service.ApproveHandoverRequestAsync(id, receivingAttorneyId, directorId, ct); TempData["Success"] = "Handover request approved."; return RedirectToAction(nameof(Handover), new { id = handover.Id }); }
-        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException) { TempData["Error"] = ex.Message; return RedirectToAction(nameof(HandoverRequests)); }
-    }
-
-    [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Admin")]
-    public async Task<IActionResult> DeclineHandoverRequest(int id, string reason, CancellationToken ct)
-    {
-        var directorId = HttpContext.Session.GetInt32("UserId")!.Value;
-        try { await service.DeclineHandoverRequestAsync(id, directorId, reason, ct); TempData["Success"] = "Handover request declined and the attorney notified."; }
-        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { TempData["Error"] = ex.Message; }
-        return RedirectToAction(nameof(HandoverRequests));
+        var handovers = await db.CaseHandovers.Include(x => x.Case).Include(x => x.OutgoingAttorney).Include(x => x.DirectorReviewedByUser)
+            .Include(x => x.Items).Where(x => x.ReceivingAttorneyId == userId && x.Status == HandoverStatus.Accepted)
+            .OrderByDescending(x => x.AcceptedAtUtc).ToListAsync(ct);
+        return View(handovers);
     }
 
     public async Task<IActionResult> Handover(int id, CancellationToken ct)
@@ -192,7 +176,10 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
             .Include(x => x.Items).Include(x => x.Queries).ThenInclude(x => x.RaisedByUser).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (handover == null) return NotFound();
         var userId = HttpContext.Session.GetInt32("UserId");
-        if (userId is null || (HttpContext.Session.GetString("UserRole") != "Admin" && handover.OutgoingAttorneyId != userId && handover.ReceivingAttorneyId != userId)) return Forbid();
+        var role = HttpContext.Session.GetString("UserRole");
+        if (userId is null || (role != "Admin" && handover.OutgoingAttorneyId != userId && handover.ReceivingAttorneyId != userId)) return Forbid();
+        if (role == "Admin" && handover.ReceivingAttorneyId is null)
+            ViewBag.Lawyers = await db.Users.Where(x => x.Role == UserRole.Lawyer && x.IsActive && x.Id != handover.OutgoingAttorneyId).OrderBy(x => x.FullName).ToListAsync(ct);
         return View(new HandoverPageViewModel { Handover = handover });
     }
 
@@ -293,38 +280,16 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> AcceptHandover(int id, string signature, bool riskFlagsAcknowledged, CancellationToken ct)
-    {
-        var userId = HttpContext.Session.GetInt32("UserId");
-        if (userId is null) return Forbid();
-        try { await service.AcceptHandoverAsync(id, userId.Value, signature, riskFlagsAcknowledged, ct); TempData["Success"] = "Handover accepted. Responsibility has transferred to you."; }
-        catch (UnauthorizedAccessException) { return Forbid(); }
-        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
-        return RedirectToAction(nameof(Handover), new { id });
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> SubmitDirectorReview(int handoverId, bool approve, bool checksConfirmed, string? summary, string? riskFlags, string? returnReason, CancellationToken ct)
+    public async Task<IActionResult> SubmitDirectorReview(int handoverId, bool approve, bool checksConfirmed, int? receivingAttorneyId, string? summary, string? riskFlags, string? returnReason, CancellationToken ct)
     {
         var userId = HttpContext.Session.GetInt32("UserId");
         if (userId is null || HttpContext.Session.GetString("UserRole") != "Admin") return Forbid();
         if (approve && !checksConfirmed) { TempData["Error"] = "All director verification checks must be confirmed before approval."; return RedirectToAction(nameof(Handover), new { id = handoverId }); }
         try
         {
-            await service.SubmitDirectorReviewAsync(handoverId, userId.Value, approve, summary, riskFlags, returnReason, ct);
-            TempData["Success"] = approve ? "Handover approved and released to the receiving attorney." : "Handover returned to the outgoing attorney.";
+            await service.SubmitDirectorReviewAsync(handoverId, userId.Value, approve, receivingAttorneyId, summary, riskFlags, returnReason, ct);
+            TempData["Success"] = approve ? "Handover approved. The case has transferred and the receiving attorney and client have been notified." : "Handover returned to the outgoing attorney.";
         }
-        catch (UnauthorizedAccessException) { return Forbid(); }
-        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
-        return RedirectToAction(nameof(Handover), new { id = handoverId });
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> AcknowledgeItem(int handoverId, int itemId, CancellationToken ct)
-    {
-        var userId = HttpContext.Session.GetInt32("UserId");
-        if (userId is null) return Forbid();
-        try { await service.AcknowledgeHandoverItemAsync(handoverId, itemId, userId.Value, ct); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Handover), new { id = handoverId });
@@ -336,17 +301,6 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
         var userId = HttpContext.Session.GetInt32("UserId");
         if (userId is null) return Forbid();
         try { await service.RaiseHandoverQueryAsync(handoverId, userId.Value, question, ct); TempData["Success"] = "Query sent."; }
-        catch (UnauthorizedAccessException) { return Forbid(); }
-        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
-        return RedirectToAction(nameof(Handover), new { id = handoverId });
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeclineHandover(int handoverId, string reason, CancellationToken ct)
-    {
-        var userId = HttpContext.Session.GetInt32("UserId");
-        if (userId is null) return Forbid();
-        try { await service.DeclineHandoverAcceptanceAsync(handoverId, userId.Value, reason, ct); TempData["Success"] = "Acceptance declined. The handover has been returned to the director."; }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Handover), new { id = handoverId });

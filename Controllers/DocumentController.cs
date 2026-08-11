@@ -783,7 +783,7 @@ namespace SimplexLawFirm.Controllers
                 if (currentLawyerId == userId) return true;
                 // A case being handed over is visible to both the outgoing and receiving attorney
                 // for the life of the handover, not just whoever currently owns the case record.
-                if (await _context.CaseHandovers.AnyAsync(x => x.CaseId == document.CaseId && x.Status != HandoverStatus.Accepted
+                if (await _context.CaseHandovers.AnyAsync(x => x.CaseId == document.CaseId && x.Status != HandoverStatus.Accepted && x.Status != HandoverStatus.Cancelled
                     && (x.OutgoingAttorneyId == userId || x.ReceivingAttorneyId == userId))) return true;
                 // A closed matter used as a comparable in one of this lawyer's own forecasts is visible
                 // so the forecast's supporting documentation can be read, without opening full case access.

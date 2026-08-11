@@ -1,0 +1,29 @@
+@model List<SimplexLawFirm.Models.CaseHandover>
+@{
+    ViewData["Title"] = "Cases handed to me"; Layout = "_LawyerLayout";
+}
+<div class="breadcrumb-line"><a href="/Practice/HandoverHub">Case handover</a><span>/</span><span>Cases handed to me</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Case management</span><h1>Cases handed to me</h1><p>Every matter a director has transferred to you, with the outgoing attorney's notes and checklist so you can pick it up quickly.</p></div></div>
+
+@if (!Model.Any()) {
+ <div class="empty-state">No matters have been handed to you yet.</div>
+} else {
+ @foreach (var h in Model) {
+  <section class="surface mb-3">
+   <div class="section-heading"><div><span class="eyebrow">@h.Case.CaseNumber</span><h2>@h.Case.Title</h2></div><small class="muted">Received @h.AcceptedAtUtc?.ToLocalTime().ToString("dd MMM yyyy")</small></div>
+   <p>Handed over by <b>@h.OutgoingAttorney.FullName</b>@if(h.DirectorReviewedByUser != null){<text>, approved by <b>@h.DirectorReviewedByUser.FullName</b></text>}</p>
+   @if (!string.IsNullOrWhiteSpace(h.UrgentMatters)) {<div class="alert alert-warning"><strong>Urgent matters:</strong> @h.UrgentMatters</div>}
+   @if (!string.IsNullOrWhiteSpace(h.DirectorRiskFlags)) {<div class="alert alert-warning"><strong>⚠ Risk flags:</strong> @h.DirectorRiskFlags</div>}
+   @if (!string.IsNullOrWhiteSpace(h.Notes)) {<div><b>Handover notes from @h.OutgoingAttorney.FullName</b><p class="pre-wrap">@h.Notes</p></div>}
+   @if (!string.IsNullOrWhiteSpace(h.DirectorSummary)) {<div><b>Director's summary</b><p class="pre-wrap">@h.DirectorSummary</p></div>}
+   <details class="mt-2"><summary class="muted cursor-pointer">Checklist as prepared by @h.OutgoingAttorney.FullName (@h.Items.Count(x => x.IsResolved)/@h.Items.Count)</summary>
+    <div class="mt-2">
+    @foreach (var item in h.Items) {
+     <div class="checklist-item done"><span class="check-button" aria-hidden="true">@(item.IsResolved ? "✓" : "○")</span><div class="item-copy"><b>@item.Type</b><p>@item.Description</p>@if(!string.IsNullOrWhiteSpace(item.ResolutionNote)){<em>@item.ResolutionNote</em>}</div></div>
+    }
+    </div>
+   </details>
+   <a class="btn-secondary-modern btn-sm mt-2" href="/Practice/Handover/@h.Id">View full handover record →</a>
+  </section>
+ }
+}

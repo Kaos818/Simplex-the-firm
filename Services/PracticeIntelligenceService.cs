@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using SimplexLawFirm.Data;
 using SimplexLawFirm.Models;
+using SimplexLawFirm.Services.Email;
 using SimplexLawFirm.Services.Notifications;
 using SimplexLawFirm.ViewModels;
 
@@ -13,25 +14,21 @@ public interface IPracticeIntelligenceService
     Task LockForecastAsync(int forecastId, decimal assessmentPercent, bool agrees, string? notes, CancellationToken ct = default);
     Task ScoreForecastAsync(int caseId, ForecastResult outcome, CancellationToken ct = default);
     Task<CaseHandover> ApproveReassignmentAsync(int caseId, int receivingAttorneyId, int directorId, string reason, CancellationToken ct = default);
+    Task<CaseHandover> StartHandoverAsync(int caseId, int lawyerId, string reason, CancellationToken ct = default);
+    Task CancelHandoverAsync(int handoverId, int lawyerId, CancellationToken ct = default);
     Task RefreshHandoverAsync(CaseHandover handover, CancellationToken ct = default);
     Task<bool> MarkHandoverReadyAsync(int handoverId, CancellationToken ct = default);
-    Task SubmitDirectorReviewAsync(int handoverId, int directorId, bool approve, string? summary, string? riskFlags, string? returnReason, CancellationToken ct = default);
-    Task AcknowledgeHandoverItemAsync(int handoverId, int itemId, int receivingAttorneyId, CancellationToken ct = default);
+    Task SubmitDirectorReviewAsync(int handoverId, int directorId, bool approve, int? receivingAttorneyId, string? summary, string? riskFlags, string? returnReason, CancellationToken ct = default);
     Task DisputeHandoverItemAsync(int handoverId, int itemId, int directorId, string note, CancellationToken ct = default);
-    Task AcceptHandoverAsync(int handoverId, int receivingAttorneyId, string signature, bool riskFlagsAcknowledged, CancellationToken ct = default);
     Task RaiseHandoverQueryAsync(int handoverId, int userId, string question, CancellationToken ct = default);
-    Task DeclineHandoverAcceptanceAsync(int handoverId, int receivingAttorneyId, string reason, CancellationToken ct = default);
     Task<ServiceComplaint> LodgeComplaintAsync(int clientId, LodgeComplaintViewModel input, CancellationToken ct = default);
     Task<ServiceComplaint> ResolveComplaintAsync(int complaintId, int reviewerId, ComplaintResolutionOutcome outcome, IReadOnlyList<string> mediationSteps, string formalResponse, string? remedy, CancellationToken ct = default);
     Task RequestMoreInformationAsync(int complaintId, int reviewerId, string note, CancellationToken ct = default);
     Task SubmitAdditionalInformationAsync(int complaintId, int clientId, string information, CancellationToken ct = default);
     Task<ComplaintAppointment> BookComplaintAppointmentAsync(int complaintId, int bookedByUserId, DateTime scheduledAtUtc, AppointmentFormat format, string? notes, CancellationToken ct = default);
-    Task<CaseHandoverRequest> RequestHandoverAsync(int caseId, int lawyerId, string reason, CancellationToken ct = default);
-    Task<CaseHandover> ApproveHandoverRequestAsync(int requestId, int receivingAttorneyId, int directorId, CancellationToken ct = default);
-    Task DeclineHandoverRequestAsync(int requestId, int directorId, string reason, CancellationToken ct = default);
 }
 
-public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotificationService notifications) : IPracticeIntelligenceService
+public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotificationService notifications, IEmailService email) : IPracticeIntelligenceService
 {
     public const int MinimumComparables = 3;
 
@@ -127,7 +124,7 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         var matter = await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId, ct) ?? throw new KeyNotFoundException("Matter not found.");
         if (matter.Status is CaseStatus.Closed or CaseStatus.Archived) throw new InvalidOperationException("Only an active matter can be reassigned.");
         if (!matter.LawyerId.HasValue || matter.LawyerId == receivingAttorneyId) throw new InvalidOperationException("Select a different receiving attorney.");
-        if (await db.CaseHandovers.AnyAsync(x => x.CaseId == caseId && x.Status != HandoverStatus.Accepted, ct))
+        if (await db.CaseHandovers.AnyAsync(x => x.CaseId == caseId && x.Status != HandoverStatus.Accepted && x.Status != HandoverStatus.Cancelled, ct))
             throw new InvalidOperationException("This matter already has an active handover.");
         var receiver = await db.Users.SingleAsync(x => x.Id == receivingAttorneyId && x.Role == UserRole.Lawyer && x.IsActive, ct);
         var director = await db.Users.SingleAsync(x => x.Id == directorId && x.Role == UserRole.Admin && x.IsActive, ct);
@@ -142,51 +139,37 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         return handover;
     }
 
-    public async Task<CaseHandoverRequest> RequestHandoverAsync(int caseId, int lawyerId, string reason, CancellationToken ct = default)
+    /// <summary>
+    /// Starts a handover directly from the outgoing attorney - no director involvement yet. The
+    /// receiving attorney is deliberately left unset: a Director assigns one when they approve,
+    /// so the outgoing attorney can finish notes and the checklist without waiting on anyone.
+    /// </summary>
+    public async Task<CaseHandover> StartHandoverAsync(int caseId, int lawyerId, string reason, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(reason)) throw new InvalidOperationException("State the reason for handing over this matter.");
         var matter = await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId, ct) ?? throw new KeyNotFoundException("Matter not found.");
-        if (matter.LawyerId != lawyerId) throw new UnauthorizedAccessException("Only the assigned attorney may request a handover of this matter.");
+        if (matter.LawyerId != lawyerId) throw new UnauthorizedAccessException("Only the assigned attorney may hand over this matter.");
         if (matter.Status != CaseStatus.Active) throw new InvalidOperationException("Only an active, open matter can be handed over.");
-        if (await db.CaseHandoverRequests.AnyAsync(x => x.CaseId == caseId && x.Status == HandoverRequestStatus.Pending, ct))
-            throw new InvalidOperationException("A handover request for this matter is already awaiting director review.");
-        if (await db.CaseHandovers.AnyAsync(x => x.CaseId == caseId && x.Status != HandoverStatus.Accepted, ct))
+        if (await db.CaseHandovers.AnyAsync(x => x.CaseId == caseId && x.Status != HandoverStatus.Accepted && x.Status != HandoverStatus.Cancelled, ct))
             throw new InvalidOperationException("This matter already has an active handover.");
 
-        var request = new CaseHandoverRequest { CaseId = caseId, RequestedByUserId = lawyerId, Reason = reason.Trim() };
-        db.CaseHandoverRequests.Add(request);
+        var handover = new CaseHandover { CaseId = caseId, OutgoingAttorneyId = lawyerId, DueAtUtc = DateTime.UtcNow.AddDays(2), Notes = reason.Trim() };
+        db.CaseHandovers.Add(handover);
         await db.SaveChangesAsync(ct);
-        foreach (var directorId in await db.Users.Where(x => x.Role == UserRole.Admin && x.IsActive).Select(x => x.Id).ToListAsync(ct))
-            await notifications.QueueAsync(directorId, "HandoverRequest", "Case handover requested", $"A handover was requested for {matter.CaseNumber}.", "/Practice/HandoverRequests", $"handover-request-{request.Id}-{directorId}", ct);
-        return request;
-    }
-
-    public async Task<CaseHandover> ApproveHandoverRequestAsync(int requestId, int receivingAttorneyId, int directorId, CancellationToken ct = default)
-    {
-        var request = await db.CaseHandoverRequests.Include(x => x.Case).SingleOrDefaultAsync(x => x.Id == requestId, ct) ?? throw new KeyNotFoundException("Handover request not found.");
-        if (request.Status != HandoverRequestStatus.Pending) throw new InvalidOperationException("This request has already been decided.");
-        var handover = await ApproveReassignmentAsync(request.CaseId, receivingAttorneyId, directorId, request.Reason, ct);
-        request.Status = HandoverRequestStatus.Approved;
-        request.DecidedByUserId = directorId;
-        request.DecidedAtUtc = DateTime.UtcNow;
-        request.CaseReassignmentId = handover.CaseReassignmentId;
-        await db.SaveChangesAsync(ct);
-        await notifications.QueueAsync(request.RequestedByUserId, "HandoverRequest", "Handover request approved", $"Your handover request for {request.Case.CaseNumber} was approved and is now in preparation.", $"/Practice/Handover/{handover.Id}", $"handover-request-approved-{request.Id}", ct);
+        await RefreshHandoverAsync(handover, ct);
         return handover;
     }
 
-    public async Task DeclineHandoverRequestAsync(int requestId, int directorId, string reason, CancellationToken ct = default)
+    /// <summary>Lets the outgoing attorney withdraw a handover they no longer want to pursue -
+    /// e.g. after a Director's return - freeing the matter for a fresh attempt.</summary>
+    public async Task CancelHandoverAsync(int handoverId, int lawyerId, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(reason)) throw new InvalidOperationException("State why the handover request is being declined.");
-        var director = await db.Users.SingleOrDefaultAsync(x => x.Id == directorId && x.Role == UserRole.Admin && x.IsActive, ct) ?? throw new UnauthorizedAccessException("Only a Director may decide handover requests.");
-        var request = await db.CaseHandoverRequests.Include(x => x.Case).SingleOrDefaultAsync(x => x.Id == requestId, ct) ?? throw new KeyNotFoundException("Handover request not found.");
-        if (request.Status != HandoverRequestStatus.Pending) throw new InvalidOperationException("This request has already been decided.");
-        request.Status = HandoverRequestStatus.Declined;
-        request.DecidedByUserId = director.Id;
-        request.DecidedAtUtc = DateTime.UtcNow;
-        request.DeclineReason = reason.Trim();
+        var handover = await db.CaseHandovers.SingleOrDefaultAsync(x => x.Id == handoverId && x.OutgoingAttorneyId == lawyerId, ct)
+            ?? throw new UnauthorizedAccessException();
+        if (handover.Status is not (HandoverStatus.Preparing or HandoverStatus.Overdue))
+            throw new InvalidOperationException("Only a handover still in preparation can be cancelled.");
+        handover.Status = HandoverStatus.Cancelled;
         await db.SaveChangesAsync(ct);
-        await notifications.QueueAsync(request.RequestedByUserId, "HandoverRequest", "Handover request declined", $"Your handover request for {request.Case.CaseNumber} was declined: {reason.Trim()}", "/Practice/MyHandoverRequests", $"handover-request-declined-{request.Id}", ct);
     }
 
     public async Task RefreshHandoverAsync(CaseHandover handover, CancellationToken ct = default)
@@ -225,32 +208,71 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         var handover = await db.CaseHandovers.Include(x => x.Items).SingleAsync(x => x.Id == handoverId, ct);
         if (handover.Status is not (HandoverStatus.Preparing or HandoverStatus.Overdue))
             throw new InvalidOperationException("Only a preparing or overdue handover can be marked ready.");
+        // Front-load the friction onto the outgoing attorney: notes and every mandatory item
+        // must already be resolved before this ever reaches a Director, so the single director
+        // review that follows is a decision, not more preparation work.
+        if (string.IsNullOrWhiteSpace(handover.Notes))
+            throw new InvalidOperationException("Write handover notes for the receiving attorney before submitting.");
         await RefreshHandoverAsync(handover, ct);
         if (handover.Items.Any(x => x.IsMandatory && !x.IsResolved)) return false;
         handover.Status = HandoverStatus.PendingDirectorReview; handover.SubmittedForReviewAtUtc = DateTime.UtcNow; handover.DirectorReturnReason = null;
         foreach (var directorId in await db.Users.Where(x => x.Role == UserRole.Admin && x.IsActive).Select(x => x.Id).ToListAsync(ct))
-            await notifications.QueueAsync(directorId, "Handover", "Handover awaiting director review", $"The handover for {handover.CaseId} is prepared and needs director review before it can go to the receiving attorney.", $"/Practice/Handover/{handover.Id}", $"handover-review-{handover.Id}-{directorId}", ct);
+            await notifications.QueueAsync(directorId, "Handover", "Handover awaiting director review", $"The handover for {handover.CaseId} is prepared and needs director review.", $"/Practice/Handover/{handover.Id}", $"handover-review-{handover.Id}-{directorId}", ct);
         await db.SaveChangesAsync(ct);
         return true;
     }
 
-    public async Task SubmitDirectorReviewAsync(int handoverId, int directorId, bool approve, string? summary, string? riskFlags, string? returnReason, CancellationToken ct = default)
+    /// <summary>
+    /// The only decision point in the flow. Approving transfers the matter immediately - there is
+    /// no separate acceptance step for the receiving attorney - and notifies both the receiving
+    /// attorney and the client. Declining returns the handover to the outgoing attorney with the
+    /// Director's reason so they can correct it and resubmit, or cancel outright.
+    /// </summary>
+    public async Task SubmitDirectorReviewAsync(int handoverId, int directorId, bool approve, int? receivingAttorneyId, string? summary, string? riskFlags, string? returnReason, CancellationToken ct = default)
     {
-        if (!await db.Users.AnyAsync(x => x.Id == directorId && x.Role == UserRole.Admin && x.IsActive, ct))
-            throw new UnauthorizedAccessException("Only a Director may review a handover.");
-        var handover = await db.CaseHandovers.SingleAsync(x => x.Id == handoverId, ct);
+        var director = await db.Users.SingleOrDefaultAsync(x => x.Id == directorId && x.Role == UserRole.Admin && x.IsActive, ct)
+            ?? throw new UnauthorizedAccessException("Only a Director may review a handover.");
+        var handover = await db.CaseHandovers.Include(x => x.Case).ThenInclude(x => x.Client).Include(x => x.OutgoingAttorney).Include(x => x.CaseReassignment).SingleAsync(x => x.Id == handoverId, ct);
         if (handover.Status != HandoverStatus.PendingDirectorReview)
             throw new InvalidOperationException("This handover is not awaiting director review.");
         if (approve)
         {
             if (string.IsNullOrWhiteSpace(summary))
                 throw new InvalidOperationException("A director summary is required to approve a handover.");
+            if (handover.ReceivingAttorneyId is null)
+            {
+                if (receivingAttorneyId is null) throw new InvalidOperationException("Choose a receiving attorney to approve this handover.");
+                var receiver = await db.Users.SingleOrDefaultAsync(x => x.Id == receivingAttorneyId && x.Role == UserRole.Lawyer && x.IsActive, ct)
+                    ?? throw new InvalidOperationException("The chosen receiving attorney is not a valid, active attorney.");
+                if (receiver.Id == handover.OutgoingAttorneyId) throw new InvalidOperationException("The receiving attorney must be different from the outgoing attorney.");
+                handover.ReceivingAttorneyId = receiver.Id;
+                var reassignment = new CaseReassignment { CaseId = handover.CaseId, OutgoingAttorneyId = handover.OutgoingAttorneyId, ReceivingAttorneyId = receiver.Id, ApprovedByUserId = directorId, Reason = handover.Notes ?? "", Status = ReassignmentStatus.Completed };
+                db.CaseReassignments.Add(reassignment);
+                await db.SaveChangesAsync(ct);
+                handover.CaseReassignmentId = reassignment.Id;
+            }
+            else if (handover.CaseReassignment is not null)
+            {
+                handover.CaseReassignment.Status = ReassignmentStatus.Completed;
+            }
             handover.DirectorSummary = summary.Trim();
             handover.DirectorRiskFlags = string.IsNullOrWhiteSpace(riskFlags) ? null : riskFlags.Trim();
             handover.DirectorReviewedByUserId = directorId;
             handover.DirectorReviewedAtUtc = DateTime.UtcNow;
-            handover.Status = HandoverStatus.Ready; handover.ReadyAtUtc = DateTime.UtcNow;
-            await notifications.QueueAsync(handover.ReceivingAttorneyId, "Handover", "Handover ready for your acceptance", $"The handover for {handover.CaseId} was approved by the director and is ready for you to accept.", $"/Practice/Handover/{handover.Id}", $"handover-ready-{handover.Id}", ct);
+            handover.Status = HandoverStatus.Accepted;
+            handover.AcceptedAtUtc = DateTime.UtcNow;
+            handover.Case.LawyerId = handover.ReceivingAttorneyId;
+            await notifications.QueueAsync(handover.ReceivingAttorneyId!.Value, "Handover", "The Director has handed you a case", $"{handover.Case.CaseNumber} · {handover.Case.Title} is now yours. {handover.OutgoingAttorney?.FullName ?? "The previous attorney"}'s notes are attached to the matter.", "/Practice/HandedToMe", $"handover-received-{handover.Id}", ct);
+            if (handover.Case.Client is not null)
+            {
+                var clientUser = await db.Users.Where(x => x.Role == UserRole.Client && x.Email.ToUpper() == handover.Case.Client.Email.ToUpper()).Select(x => (int?)x.Id).SingleOrDefaultAsync(ct);
+                var receiverName = (await db.Users.Where(x => x.Id == handover.ReceivingAttorneyId).Select(x => x.FullName).SingleAsync(ct));
+                var message = $"Your matter {handover.Case.CaseNumber} is now being handled by {receiverName}.";
+                if (clientUser.HasValue)
+                    await notifications.QueueAsync(clientUser.Value, "Handover", "Your attorney has changed", message, "/Practice/CaseHandoverStatus", $"handover-client-{handover.Id}", ct);
+                await email.QueueAsync(handover.Case.Client.Email, $"Update on your matter {handover.Case.CaseNumber}", $"<p>{message}</p><p>{handover.OutgoingAttorney?.FullName ?? "Your previous attorney"} has handed the matter over, with full notes provided to {receiverName}.</p>", message, $"handover-client-email-{handover.Id}", ct);
+                handover.ClientNotifiedAtUtc = DateTime.UtcNow;
+            }
         }
         else
         {
@@ -260,16 +282,6 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
             handover.Status = HandoverStatus.Preparing;
             await notifications.QueueAsync(handover.OutgoingAttorneyId, "Handover", "Handover returned by director", $"The director returned the handover for {handover.CaseId}: {returnReason.Trim()}", $"/Practice/Handover/{handover.Id}", $"handover-returned-{handover.Id}-{DateTime.UtcNow.Ticks}", ct);
         }
-        await db.SaveChangesAsync(ct);
-    }
-
-    public async Task AcknowledgeHandoverItemAsync(int handoverId, int itemId, int receivingAttorneyId, CancellationToken ct = default)
-    {
-        var handover = await db.CaseHandovers.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == handoverId && x.ReceivingAttorneyId == receivingAttorneyId, ct)
-            ?? throw new UnauthorizedAccessException();
-        if (handover.Status != HandoverStatus.Ready) throw new InvalidOperationException("Items can only be acknowledged once the handover is ready for acceptance.");
-        var item = handover.Items.SingleOrDefault(x => x.Id == itemId) ?? throw new KeyNotFoundException();
-        item.AcknowledgedByReceiving = !item.AcknowledgedByReceiving;
         await db.SaveChangesAsync(ct);
     }
 
@@ -290,26 +302,6 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task AcceptHandoverAsync(int handoverId, int receivingAttorneyId, string signature, bool riskFlagsAcknowledged, CancellationToken ct = default)
-    {
-        var handover = await db.CaseHandovers.Include(x => x.Case).Include(x => x.CaseReassignment).Include(x => x.Items)
-            .SingleOrDefaultAsync(x => x.Id == handoverId && x.ReceivingAttorneyId == receivingAttorneyId, ct)
-            ?? throw new UnauthorizedAccessException();
-        if (handover.Status != HandoverStatus.Ready) throw new InvalidOperationException("This handover is not ready for acceptance.");
-        if (handover.Items.Any(x => x.IsMandatory && !x.AcknowledgedByReceiving))
-            throw new InvalidOperationException("Acknowledge every mandatory item before accepting.");
-        if (!string.IsNullOrWhiteSpace(handover.DirectorRiskFlags) && !riskFlagsAcknowledged)
-            throw new InvalidOperationException("Acknowledge the director's risk flags before accepting.");
-        if (string.IsNullOrWhiteSpace(signature))
-            throw new InvalidOperationException("A digital signature is required to accept the handover.");
-        handover.ReceivingSignature = signature.Trim();
-        handover.RiskFlagsAcknowledgedByReceiving = riskFlagsAcknowledged;
-        handover.Status = HandoverStatus.Accepted; handover.AcceptedAtUtc = DateTime.UtcNow;
-        handover.Case.LawyerId = handover.ReceivingAttorneyId;
-        handover.CaseReassignment.Status = ReassignmentStatus.Completed;
-        await db.SaveChangesAsync(ct);
-    }
-
     public async Task RaiseHandoverQueryAsync(int handoverId, int userId, string question, CancellationToken ct = default)
     {
         var handover = await db.CaseHandovers.SingleOrDefaultAsync(x => x.Id == handoverId && (x.OutgoingAttorneyId == userId || x.ReceivingAttorneyId == userId), ct)
@@ -320,19 +312,6 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         if (notifyOutgoing) await notifications.QueueAsync(handover.OutgoingAttorneyId, "Handover", "Query raised on your handover", question.Trim(), $"/Practice/Handover/{handover.Id}", $"handover-query-{handover.Id}-{DateTime.UtcNow.Ticks}", ct);
         foreach (var directorId in await db.Users.Where(x => x.Role == UserRole.Admin && x.IsActive).Select(x => x.Id).ToListAsync(ct))
             await notifications.QueueAsync(directorId, "Handover", "Query raised on a handover", question.Trim(), $"/Practice/Handover/{handover.Id}", $"handover-query-director-{handover.Id}-{directorId}-{DateTime.UtcNow.Ticks}", ct);
-        await db.SaveChangesAsync(ct);
-    }
-
-    public async Task DeclineHandoverAcceptanceAsync(int handoverId, int receivingAttorneyId, string reason, CancellationToken ct = default)
-    {
-        var handover = await db.CaseHandovers.SingleOrDefaultAsync(x => x.Id == handoverId && x.ReceivingAttorneyId == receivingAttorneyId, ct)
-            ?? throw new UnauthorizedAccessException();
-        if (handover.Status != HandoverStatus.Ready) throw new InvalidOperationException("Only a handover ready for acceptance can be declined.");
-        if (string.IsNullOrWhiteSpace(reason)) throw new InvalidOperationException("State the reason for declining before returning the handover.");
-        handover.Status = HandoverStatus.PendingDirectorReview;
-        handover.DirectorReturnReason = $"Declined by receiving attorney: {reason.Trim()}";
-        var directorId = handover.DirectorReviewedByUserId;
-        if (directorId.HasValue) await notifications.QueueAsync(directorId.Value, "Handover", "Receiving attorney declined acceptance", reason.Trim(), $"/Practice/Handover/{handover.Id}", $"handover-declined-{handover.Id}-{DateTime.UtcNow.Ticks}", ct);
         await db.SaveChangesAsync(ct);
     }
 

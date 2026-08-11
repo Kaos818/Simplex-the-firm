@@ -1324,17 +1324,32 @@ namespace SimplexLawFirm.Data
                 context.SaveChanges();
             }
 
-            // A handover request awaiting director review so the director's queue isn't empty.
+            // A fully-prepared handover awaiting the single director decision, so the queue isn't
+            // empty. The outgoing attorney's side is already done - notes written, every mandatory
+            // item resolved - matching what StartHandoverAsync + MarkHandoverReadyAsync require
+            // before a real handover ever reaches this state.
             var sipho = context.Users.SingleOrDefault(x => x.Email == "sipho.nkosi@simplex.com");
             var divorceCase = context.Cases.SingleOrDefault(x => x.CaseNumber == "FM-2026-0002");
-            if (sipho != null && divorceCase != null && !context.CaseHandoverRequests.Any(x => x.CaseId == divorceCase.Id && x.Status == HandoverRequestStatus.Pending))
+            if (sipho != null && divorceCase != null && !context.CaseHandovers.Any(x => x.CaseId == divorceCase.Id && x.Status != HandoverStatus.Cancelled))
             {
-                context.CaseHandoverRequests.Add(new CaseHandoverRequest
+                var pendingHandover = new CaseHandover
                 {
-                    CaseId = divorceCase.Id, RequestedByUserId = sipho.Id,
-                    Reason = "I have a scheduling conflict with an extended trial in another matter and cannot give this matter the attention the mediation phase needs.",
-                    Status = HandoverRequestStatus.Pending, CreatedAtUtc = DateTime.UtcNow.AddDays(-1)
-                });
+                    CaseId = divorceCase.Id, OutgoingAttorneyId = sipho.Id,
+                    DueAtUtc = DateTime.UtcNow.AddDays(1),
+                    Notes = "I have a scheduling conflict with an extended trial in another matter and cannot give this matter the attention the mediation phase needs. Financial disclosure from the respondent is still outstanding - I've chased it twice, most recently on 6 August. The client is anxious about the maintenance figure and needs regular contact.",
+                    UrgentMatters = "Mediation session must be re-diarised within the next two weeks or the matter risks falling off the court's active roll.",
+                    Status = HandoverStatus.PendingDirectorReview,
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-2), SubmittedForReviewAtUtc = DateTime.UtcNow.AddHours(-6),
+                    Items =
+                    [
+                        new HandoverItem { Type = "Deadlines", Description = "0 open deadline(s) require a recorded position", IsMandatory = true, IsResolved = true, SourceFingerprint = "" },
+                        new HandoverItem { Type = "Unbilled time", Description = "0 unbilled time entries must be billed or explained", IsMandatory = true, IsResolved = true, SourceFingerprint = "0" },
+                        new HandoverItem { Type = "Signatures", Description = "0 document(s) awaiting signature", IsMandatory = true, IsResolved = true, SourceFingerprint = "0" },
+                        new HandoverItem { Type = "Appointments", Description = "0 scheduled appointment(s) must be briefed", IsMandatory = false, IsResolved = true, SourceFingerprint = "" },
+                        new HandoverItem { Type = "Client correspondence", Description = "1 client message(s) remain unanswered", IsMandatory = true, IsResolved = true, ResolutionNote = "Acknowledged by phone on 5 August; written response drafted for the receiving attorney to send.", SourceFingerprint = "1" }
+                    ]
+                };
+                context.CaseHandovers.Add(pendingHandover);
                 context.SaveChanges();
             }
         }
