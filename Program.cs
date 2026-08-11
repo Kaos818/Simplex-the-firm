@@ -93,6 +93,7 @@ builder.Services.AddHostedService<LatePenaltyWorker>();
 builder.Services.AddHostedService<PrecedentIndexWorker>();
 builder.Services.AddHostedService<VulnerableClientGovernanceWorker>();
 builder.Services.AddHostedService<CaseGovernanceWorker>();
+builder.Services.AddHostedService<AttorneySafetyWorker>();
 
 if (!builder.Environment.IsDevelopment())
 {

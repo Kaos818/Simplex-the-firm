@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SimplexLawFirm.Data;
 
@@ -11,9 +12,11 @@ using SimplexLawFirm.Data;
 namespace SimplexLawFirm.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260811015402_AddWhereaboutGeofence")]
+    partial class AddWhereaboutGeofence
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4612,9 +4615,6 @@ namespace SimplexLawFirm.Migrations
                     b.Property<int>("Category")
                         .HasColumnType("int");
 
-                    b.Property<string>("ClientAdditionalInformation")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("ClientId")
                         .HasColumnType("int");
 
@@ -4630,12 +4630,6 @@ namespace SimplexLawFirm.Migrations
 
                     b.Property<string>("FormalResponse")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("InformationRequestNote")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("InformationRequestedAtUtc")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("MediationSteps")
                         .HasColumnType("nvarchar(max)");

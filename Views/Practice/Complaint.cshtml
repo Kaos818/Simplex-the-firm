@@ -17,16 +17,25 @@
  <section class="surface"><span class="eyebrow">Client account</span><h2>@Model.Client.FullName</h2><p class="pre-wrap">@Model.Description</p>@if(Model.Attachments.Any()){<h3>Supporting material</h3>@foreach(var file in Model.Attachments){<a class="record-row" href="/Practice/DownloadComplaintAttachment/@file.Id"><span><b>@file.OriginalFileName</b><small>@((file.SizeBytes/1024d).ToString("N0")) KB · integrity verified</small></span><span>Download</span></a>}}</section>
  <section class="surface"><span class="eyebrow">Response clock</span><h2>Due @Model.ResponseDueAtUtc.ToString("dd MMM yyyy, HH:mm") UTC</h2><p>This complaint is withheld from the matter team and all named staff.</p><div class="privacy-callout"><b>Service record protected</b><span>@(((IEnumerable<SimplexLawFirm.Models.StaffServiceRecordEntry>)ViewBag.ServiceRecords).Count()) confidential staff service record(s) updated. The subjects cannot access this complaint.</span></div>@if(Model.Status == ComplaintStatus.Submitted){<form method="post" action="/Practice/AcknowledgeComplaint" class="mt-3">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Id"/><button class="btn-primary-modern">Acknowledge complaint</button></form>}</section>
 
- @if (Model.Status != ComplaintStatus.Resolved) {
+ @if (Model.Status == ComplaintStatus.RequiresMoreInformation) {
+ <section class="surface">
+  <span class="eyebrow">Awaiting client</span><h2>More information requested</h2>
+  <p class="pre-wrap">@Model.InformationRequestNote</p>
+  <small class="muted">Requested @Model.InformationRequestedAtUtc?.ToLocalTime().ToString("f")</small>
+  @if (!string.IsNullOrWhiteSpace(Model.ClientAdditionalInformation)) {<div class="alert alert-info mt-2"><b>Client's response:</b> @Model.ClientAdditionalInformation</div>}
+ </section>
+ }
+
+ @if (Model.Status is not (ComplaintStatus.Resolved or ComplaintStatus.Rejected)) {
  <section class="surface">
   <span class="eyebrow">Resolution</span><h2>Record the outcome</h2>
   <form method="post" action="/Practice/ResolveComplaint" class="stack-form">
    @Html.AntiForgeryToken()<input type="hidden" name="complaintId" value="@Model.Id"/>
    <label>Outcome
     <div class="d-flex gap-2 flex-wrap mt-1">
-     <label class="check-line"><input type="radio" name="outcome" value="@ComplaintResolutionOutcome.Upheld" required/> Upheld — the complaint is valid</label>
-     <label class="check-line"><input type="radio" name="outcome" value="@ComplaintResolutionOutcome.PartiallyUpheld"/> Partially upheld</label>
-     <label class="check-line"><input type="radio" name="outcome" value="@ComplaintResolutionOutcome.NotUpheld"/> Not upheld</label>
+     <label class="check-line"><input type="radio" name="outcome" value="@ComplaintResolutionOutcome.Upheld" required/> Upheld — resolved in the client's favour</label>
+     <label class="check-line"><input type="radio" name="outcome" value="@ComplaintResolutionOutcome.PartiallyUpheld"/> Partially upheld — resolved</label>
+     <label class="check-line"><input type="radio" name="outcome" value="@ComplaintResolutionOutcome.NotUpheld"/> Not upheld — rejected</label>
     </div>
    </label>
    <label>Mediation steps (select any that apply)
@@ -41,10 +50,17 @@
    <label>Remedy / redress (optional)<textarea name="remedy" rows="2" placeholder="e.g. fee waiver, apology, corrective action…"></textarea></label>
    <button type="submit" class="btn-primary-modern">Record resolution &amp; notify client</button>
   </form>
+  <details class="mt-3"><summary class="cursor-pointer">Or request more information from the client first</summary>
+   <form method="post" action="/Practice/RequestComplaintInformation" class="stack-form mt-2">
+    @Html.AntiForgeryToken()<input type="hidden" name="complaintId" value="@Model.Id"/>
+    <label>What do you need from the client?<textarea name="note" rows="3" required></textarea></label>
+    <button type="submit" class="btn-secondary-modern">Request more information</button>
+   </form>
+  </details>
  </section>
  } else {
  <section class="surface">
-  <span class="eyebrow">Resolution recorded</span><h2>@Model.Outcome · resolved by @Model.ResolvedByUser?.FullName</h2>
+  <span class="eyebrow">@(Model.Status == ComplaintStatus.Rejected ? "Complaint rejected" : "Resolution recorded")</span><h2>@Model.Outcome · @(Model.Status == ComplaintStatus.Rejected ? "rejected" : "resolved") by @Model.ResolvedByUser?.FullName</h2>
   <small class="muted">@Model.ResolvedAtUtc?.ToLocalTime().ToString("f")</small>
   <h3 class="mt-3">Mediation steps</h3>
   <ul>@foreach (var s in (Model.MediationSteps ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries)) {<li>@s</li>}</ul>

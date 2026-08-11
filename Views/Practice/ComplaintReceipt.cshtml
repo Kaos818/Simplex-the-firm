@@ -6,11 +6,27 @@
 }
 <div class="receipt-card"><div class="receipt-check">✓</div><span class="eyebrow">Complaint received</span><h1>@Model.ReferenceNumber</h1><p>We have securely recorded your complaint about <b>@Model.Case.Title</b>.</p><div class="receipt-detail"><span>Response due</span><strong>@Model.ResponseDueAtUtc.ToString("dddd, dd MMMM yyyy")</strong></div><p class="muted">Keep this reference. If the response clock is missed, the system will escalate the matter automatically.</p>
 
-@if (Model.Status == ComplaintStatus.Resolved) {
+@if (Model.Status is ComplaintStatus.Resolved or ComplaintStatus.Rejected) {
 <div class="surface mt-3">
- <span class="eyebrow">Resolved</span><h2>@Model.Outcome</h2>
+ <span class="eyebrow">@(Model.Status == ComplaintStatus.Rejected ? "Not upheld" : "Resolved")</span><h2>@Model.Outcome</h2>
  <p class="pre-wrap">@Model.FormalResponse</p>
  @if (!string.IsNullOrWhiteSpace(Model.Remedy)) {<p><b>Remedy:</b> @Model.Remedy</p>}
+</div>
+}
+
+@if (Model.Status == ComplaintStatus.RequiresMoreInformation) {
+<div class="surface mt-3">
+ <span class="eyebrow">Action needed</span><h2>We need more information from you</h2>
+ <p class="pre-wrap">@Model.InformationRequestNote</p>
+ @if (!string.IsNullOrWhiteSpace(Model.ClientAdditionalInformation)) {
+  <div class="alert alert-info">You already sent: @Model.ClientAdditionalInformation</div>
+ } else {
+  <form method="post" action="/Practice/SubmitComplaintInformation" class="stack-form mt-2">
+   @Html.AntiForgeryToken()<input type="hidden" name="complaintId" value="@Model.Id"/>
+   <label>Your response<textarea name="information" rows="4" required></textarea></label>
+   <button type="submit" class="btn-primary-modern">Submit information</button>
+  </form>
+ }
 </div>
 }
 

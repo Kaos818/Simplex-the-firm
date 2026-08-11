@@ -16,7 +16,7 @@ public interface IOperationalUseCaseService
     Task<(IReadOnlyList<LegalAuthority> Supports, IReadOnlyList<LegalAuthority> Against)> GuidedResearchAsync(int attorneyId, int caseId, string unsure, string view, string approach, CancellationToken ct = default);
     Task<ResearchDisagreement> RecordDisagreementAsync(int attorneyId, int caseId, string topic, string note, CancellationToken ct = default);
     Task<IReadOnlyList<CaseAuthorityReliance>> BuildMemoAsync(int caseId, int attorneyId, CancellationToken ct = default);
-    Task<AttorneyWhereabout> CheckInAsync(int attorneyId, int? eventId, string venue, DateTime expectedReturnUtc, CancellationToken ct = default);
+    Task<AttorneyWhereabout> CheckInAsync(int attorneyId, int? eventId, string venue, DateTime expectedReturnUtc, double? latitude = null, double? longitude = null, string? locationOverrideReason = null, CancellationToken ct = default);
     Task CheckOutAsync(int attorneyId, int whereaboutId, CancellationToken ct = default);
     Task RaiseEmergencyAsync(int attorneyId, int whereaboutId, CancellationToken ct = default);
     Task<IReadOnlyList<AttorneyWhereabout>> GetMyTimelineAsync(int attorneyId, CancellationToken ct = default);
@@ -44,6 +44,29 @@ public sealed class OperationalUseCaseService(ApplicationDbContext db, INotifica
             .Where(x => x.Score > 0).OrderByDescending(x => x.Item.Rank == AuthorityRank.Binding).ThenByDescending(x => x.Score).Select(x => x.Item).Take(20).ToList();
     }
 
+    // Legal-issue extraction: a passage highlighted in case notes is rarely itself a clean search query — it's
+    // surrounding narrative. This picks out the sentence(s) most likely to state the actual legal issue (those
+    // containing an issue-spotting trigger word), falling back to a truncated version of the passage if none
+    // of the trigger words appear, rather than searching on the raw passage verbatim.
+    private static readonly string[] IssueTriggerWords =
+    [
+        "whether", "liable", "liability", "breach", "negligent", "negligence", "unlawful", "duty",
+        "damages", "capacity", "jurisdiction", "prescription", "reasonable", "unreasonable", "wrongful",
+        "entitled", "entitlement", "obligation", "consent", "custody", "dismissal", "unfair", "invalid",
+        "void", "enforceable", "misrepresentation", "fraud", "causation"
+    ];
+
+    internal static string ExtractIssue(string passage)
+    {
+        passage = passage.Trim();
+        if (passage.Length == 0) return passage;
+        var sentences = passage.Split(['.', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var triggerSentences = sentences.Where(s => IssueTriggerWords.Any(w => s.Contains(w, StringComparison.OrdinalIgnoreCase))).ToList();
+        var extracted = triggerSentences.Count > 0 ? string.Join(". ", triggerSentences) : passage;
+        const int maxLength = 220;
+        return extracted.Length > maxLength ? string.Concat(extracted.AsSpan(0, maxLength).ToString().TrimEnd(), "…") : extracted;
+    }
+
     private async Task<Case> RequireActiveMatterAsync(int attorneyId, int caseId, CancellationToken ct) =>
         await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId && x.LawyerId == attorneyId && x.Status == CaseStatus.Active, ct)
             ?? throw new UnauthorizedAccessException("Only the assigned attorney may research an active matter.");
@@ -52,10 +75,12 @@ public sealed class OperationalUseCaseService(ApplicationDbContext db, INotifica
     {
         var matter = await RequireActiveMatterAsync(attorneyId, caseId, ct);
         if (string.IsNullOrWhiteSpace(issue)) throw new InvalidOperationException("A legal issue or source passage is required.");
+        var passage = issue.Trim();
+        var extractedIssue = ExtractIssue(passage);
         var limitedToInternal = !researchOptions.Value.ExternalSourcesAvailable;
-        var ranked = await RankAuthorities(issue, limitedToInternal, ct);
-        db.AuditEntries.Add(new() { ActorUserId=attorneyId, EntityType="LegalResearch", EntityId=matter.Id.ToString(), Action=ranked.Count == 0 ? "Research returned no authority" : "Legal authority research performed", SafeMetadataJson=System.Text.Json.JsonSerializer.Serialize(new { issue, results=ranked.Count, limitedToInternal }) });
-        db.ResearchQueries.Add(new() { CaseId=caseId, AttorneyId=attorneyId, CaseNoteId=caseNoteId, Issue=issue.Trim(), ResultCount=ranked.Count, LimitedToInternal=limitedToInternal });
+        var ranked = await RankAuthorities(extractedIssue, limitedToInternal, ct);
+        db.AuditEntries.Add(new() { ActorUserId=attorneyId, EntityType="LegalResearch", EntityId=matter.Id.ToString(), Action=ranked.Count == 0 ? "Research returned no authority" : "Legal authority research performed", SafeMetadataJson=System.Text.Json.JsonSerializer.Serialize(new { issue=extractedIssue, passage, results=ranked.Count, limitedToInternal }) });
+        db.ResearchQueries.Add(new() { CaseId=caseId, AttorneyId=attorneyId, CaseNoteId=caseNoteId, SourcePassage=passage, Issue=extractedIssue, ResultCount=ranked.Count, LimitedToInternal=limitedToInternal });
         await db.SaveChangesAsync(ct); return ranked;
     }
 
@@ -109,19 +134,46 @@ public sealed class OperationalUseCaseService(ApplicationDbContext db, INotifica
         await db.SaveChangesAsync(ct); return reliance;
     }
 
-    public async Task<AttorneyWhereabout> CheckInAsync(int attorneyId, int? eventId, string venue, DateTime expectedReturnUtc, CancellationToken ct = default)
+    public const double GeofenceRadiusMeters = 500;
+
+    private static double DistanceMeters(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double earthRadius = 6371000;
+        double ToRad(double deg) => deg * Math.PI / 180;
+        var dLat = ToRad(lat2 - lat1); var dLon = ToRad(lon2 - lon1);
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) + Math.Cos(ToRad(lat1)) * Math.Cos(ToRad(lat2)) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        return earthRadius * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+    }
+
+    public async Task<AttorneyWhereabout> CheckInAsync(int attorneyId, int? eventId, string venue, DateTime expectedReturnUtc, double? latitude = null, double? longitude = null, string? locationOverrideReason = null, CancellationToken ct = default)
     {
         if (!await db.Users.AnyAsync(x=>x.Id==attorneyId && x.Role==UserRole.Lawyer && x.IsActive,ct)) throw new UnauthorizedAccessException();
         if (string.IsNullOrWhiteSpace(venue) || expectedReturnUtc <= DateTime.UtcNow) throw new InvalidOperationException("A venue and future expected return time are required.");
         if (await db.AttorneyWhereabouts.AnyAsync(x=>x.AttorneyId==attorneyId && x.CheckedOutAtUtc==null,ct)) throw new InvalidOperationException("Check out of the current engagement first.");
-        var item=new AttorneyWhereabout { AttorneyId=attorneyId,CalendarEventId=eventId,Venue=venue.Trim(),CheckedInAtUtc=DateTime.UtcNow,ExpectedReturnAtUtc=expectedReturnUtc,Status=WhereaboutStatus.Offsite };
-        db.Add(item); db.AuditEntries.Add(new(){ActorUserId=attorneyId,EntityType="AttorneyWhereabout",EntityId=attorneyId.ToString(),Action="Attorney checked in offsite"}); await db.SaveChangesAsync(ct); return item;
+        var item=new AttorneyWhereabout { AttorneyId=attorneyId,CalendarEventId=eventId,Venue=venue.Trim(),CheckedInAtUtc=DateTime.UtcNow,ExpectedReturnAtUtc=expectedReturnUtc,Status=WhereaboutStatus.Offsite,Latitude=latitude,Longitude=longitude };
+        if (latitude.HasValue && longitude.HasValue)
+        {
+            var known = await db.KnownVenues.Where(x => venue.Contains(x.Name) || x.Name.Contains(venue)).ToListAsync(ct);
+            if (known.Count > 0)
+            {
+                var distance = known.Min(v => DistanceMeters(latitude.Value, longitude.Value, v.Latitude, v.Longitude));
+                item.DistanceFromVenueMeters = distance;
+                item.LocationVerified = distance <= GeofenceRadiusMeters;
+                if (!item.LocationVerified.Value)
+                {
+                    if (string.IsNullOrWhiteSpace(locationOverrideReason)) throw new InvalidOperationException($"Your location is {distance:N0}m from {venue} — outside the {GeofenceRadiusMeters:N0}m confirmation radius. State a reason to check in anyway.");
+                    item.LocationOverrideReason = locationOverrideReason.Trim();
+                }
+            }
+        }
+        db.Add(item); db.AuditEntries.Add(new(){ActorUserId=attorneyId,EntityType="AttorneyWhereabout",EntityId=attorneyId.ToString(),Action=item.LocationVerified==true?"Attorney checked in offsite — location verified":item.LocationVerified==false?"Attorney checked in offsite — location outside geofence, reason recorded":"Attorney checked in offsite"}); await db.SaveChangesAsync(ct); return item;
     }
 
     public async Task CheckOutAsync(int attorneyId, int whereaboutId, CancellationToken ct = default)
     {
         var item=await db.AttorneyWhereabouts.SingleOrDefaultAsync(x=>x.Id==whereaboutId && x.AttorneyId==attorneyId && x.CheckedOutAtUtc==null,ct) ?? throw new KeyNotFoundException();
-        item.CheckedOutAtUtc=DateTime.UtcNow; item.Status=WhereaboutStatus.Returned; db.AuditEntries.Add(new(){ActorUserId=attorneyId,EntityType="AttorneyWhereabout",EntityId=item.Id.ToString(),Action="Attorney checked out"}); await db.SaveChangesAsync(ct);
+        var wasEmergency = item.Status == WhereaboutStatus.Emergency;
+        item.CheckedOutAtUtc=DateTime.UtcNow; item.Status=WhereaboutStatus.Returned; db.AuditEntries.Add(new(){ActorUserId=attorneyId,EntityType="AttorneyWhereabout",EntityId=item.Id.ToString(),Action=wasEmergency?"Attorney checked out — emergency status cleared":"Attorney checked out"}); await db.SaveChangesAsync(ct);
     }
 
     public async Task RaiseEmergencyAsync(int attorneyId, int whereaboutId, CancellationToken ct = default)
@@ -223,5 +275,22 @@ public sealed class OperationalUseCaseService(ApplicationDbContext db, INotifica
         db.AuditEntries.Add(new(){ActorUserId=directorId,EntityType="BeneficiaryTrustDisbursementRequest",EntityId=request.ReferenceNumber,Action=approve?"Trust disbursement approved":"Trust disbursement rejected",SafeMetadataJson=System.Text.Json.JsonSerializer.Serialize(new { request.Amount, request.DecisionReason })});
         await email.QueueAsync(request.Beneficiary.Email, $"Trust request {request.ReferenceNumber}: {request.Status}", $"<h2>Trust request decision</h2><p>Your request <strong>{request.ReferenceNumber}</strong> has been <strong>{request.Status}</strong>.</p><p>{System.Net.WebUtility.HtmlEncode(request.DecisionReason)}</p>", $"Your trust request {request.ReferenceNumber} is {request.Status}. Reason: {request.DecisionReason}", $"trust-request-decision:{request.Id}", ct);
         await db.SaveChangesAsync(ct); return request;
+    }
+}
+
+// Runs independently of any page being loaded — the SRS requires overdue detection to work
+// "not dependent on the web application being active", not only when an Admin/Director happens
+// to open the Whereabouts dashboard.
+public sealed class AttorneySafetyWorker(IServiceScopeFactory scopes, ILogger<AttorneySafetyWorker> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try { using var scope = scopes.CreateScope(); await scope.ServiceProvider.GetRequiredService<IOperationalUseCaseService>().EscalateOverdueAsync(stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+            catch (Exception ex) { logger.LogError(ex, "Attorney safety escalation cycle failed."); }
+            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+        }
     }
 }

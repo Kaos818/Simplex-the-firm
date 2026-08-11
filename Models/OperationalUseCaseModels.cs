@@ -37,6 +37,7 @@ public sealed class ResearchQuery
     public int AttorneyId { get; set; }
     public ApplicationUser Attorney { get; set; } = null!;
     public int? CaseNoteId { get; set; }
+    public string? SourcePassage { get; set; }
     public string Issue { get; set; } = "";
     public int ResultCount { get; set; }
     public bool LimitedToInternal { get; set; }
@@ -70,6 +71,19 @@ public sealed class AttorneyWhereabout
     public DateTime? AlertedAtUtc { get; set; }
     public DateTime? DirectorEscalatedAtUtc { get; set; }
     public string? ContactOutcome { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public bool? LocationVerified { get; set; }
+    public double? DistanceFromVenueMeters { get; set; }
+    public string? LocationOverrideReason { get; set; }
+}
+
+public sealed class KnownVenue
+{
+    public int Id { get; set; }
+    [MaxLength(200)] public string Name { get; set; } = "";
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
 }
 
 public enum TrustDisbursementStatus { Draft, ManualIdentityReview, Submitted, Approved, Rejected, Paid }

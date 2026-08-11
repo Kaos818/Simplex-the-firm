@@ -37,7 +37,7 @@
 @if(thread != null && thread.Any()){
 <section class="surface mt-3">
  <h3>🕓 Research thread — this matter's audit trail</h3>
- @foreach(var q in thread){<div class="record-row"><span><b>@q.Issue</b><small>@q.ResultCount result(s)@(q.LimitedToInternal ? " · internal fallback only" : "")</small></span><span class="status-pill">@q.CreatedAtUtc.ToLocalTime().ToString("g")</span></div>}
+ @foreach(var q in thread){<div class="record-row"><span><b>@q.Issue</b><small>@(!string.IsNullOrWhiteSpace(q.SourcePassage) && q.SourcePassage != q.Issue ? "Extracted from selected passage · " : "")@q.ResultCount result(s)@(q.LimitedToInternal ? " · internal fallback only" : "")</small></span><span class="status-pill">@q.CreatedAtUtc.ToLocalTime().ToString("g")</span></div>}
 </section>
 }
 

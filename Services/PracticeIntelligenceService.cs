@@ -23,6 +23,8 @@ public interface IPracticeIntelligenceService
     Task DeclineHandoverAcceptanceAsync(int handoverId, int receivingAttorneyId, string reason, CancellationToken ct = default);
     Task<ServiceComplaint> LodgeComplaintAsync(int clientId, LodgeComplaintViewModel input, CancellationToken ct = default);
     Task<ServiceComplaint> ResolveComplaintAsync(int complaintId, int reviewerId, ComplaintResolutionOutcome outcome, IReadOnlyList<string> mediationSteps, string formalResponse, string? remedy, CancellationToken ct = default);
+    Task RequestMoreInformationAsync(int complaintId, int reviewerId, string note, CancellationToken ct = default);
+    Task SubmitAdditionalInformationAsync(int complaintId, int clientId, string information, CancellationToken ct = default);
     Task<ComplaintAppointment> BookComplaintAppointmentAsync(int complaintId, int bookedByUserId, DateTime scheduledAtUtc, AppointmentFormat format, string? notes, CancellationToken ct = default);
     Task<CaseHandoverRequest> RequestHandoverAsync(int caseId, int lawyerId, string reason, CancellationToken ct = default);
     Task<CaseHandover> ApproveHandoverRequestAsync(int requestId, int receivingAttorneyId, int directorId, CancellationToken ct = default);
@@ -368,7 +370,7 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
     {
         var complaint = await db.ServiceComplaints.SingleOrDefaultAsync(x => x.Id == complaintId && x.RoutedToUserId == reviewerId, ct)
             ?? throw new UnauthorizedAccessException("Only the assigned reviewer may resolve this complaint.");
-        if (complaint.Status == ComplaintStatus.Resolved) throw new InvalidOperationException("This complaint has already been resolved.");
+        if (complaint.Status is ComplaintStatus.Resolved or ComplaintStatus.Rejected) throw new InvalidOperationException("This complaint has already been decided.");
         var steps = mediationSteps.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToList();
         if (steps.Count == 0) throw new InvalidOperationException("Select or record at least one mediation step.");
         if (string.IsNullOrWhiteSpace(formalResponse)) throw new InvalidOperationException("A formal response to the client is required.");
@@ -379,10 +381,38 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         complaint.ResolvedByUserId = reviewerId;
         complaint.ResolvedAtUtc = DateTime.UtcNow;
         complaint.ClientNotifiedOfResolution = true;
-        complaint.Status = ComplaintStatus.Resolved;
-        db.AuditEntries.Add(new() { ActorUserId = reviewerId, EntityType = nameof(ServiceComplaint), EntityId = complaint.ReferenceNumber, Action = "Complaint resolved", SafeMetadataJson = System.Text.Json.JsonSerializer.Serialize(new { outcome }) });
+        complaint.Status = outcome == ComplaintResolutionOutcome.NotUpheld ? ComplaintStatus.Rejected : ComplaintStatus.Resolved;
+        db.AuditEntries.Add(new() { ActorUserId = reviewerId, EntityType = nameof(ServiceComplaint), EntityId = complaint.ReferenceNumber, Action = "Complaint resolved", SafeMetadataJson = System.Text.Json.JsonSerializer.Serialize(new { outcome, status = complaint.Status }) });
         await db.SaveChangesAsync(ct);
         return complaint;
+    }
+
+    public async Task RequestMoreInformationAsync(int complaintId, int reviewerId, string note, CancellationToken ct = default)
+    {
+        var complaint = await db.ServiceComplaints.Include(x => x.Client).SingleOrDefaultAsync(x => x.Id == complaintId && x.RoutedToUserId == reviewerId, ct)
+            ?? throw new UnauthorizedAccessException("Only the assigned reviewer may request more information.");
+        if (complaint.Status is ComplaintStatus.Resolved or ComplaintStatus.Rejected) throw new InvalidOperationException("This complaint has already been decided.");
+        if (string.IsNullOrWhiteSpace(note)) throw new InvalidOperationException("State what additional information is needed.");
+        complaint.Status = ComplaintStatus.RequiresMoreInformation;
+        complaint.InformationRequestNote = note.Trim();
+        complaint.InformationRequestedAtUtc = DateTime.UtcNow;
+        db.AuditEntries.Add(new() { ActorUserId = reviewerId, EntityType = nameof(ServiceComplaint), EntityId = complaint.ReferenceNumber, Action = "Requires more information", SafeMetadataJson = System.Text.Json.JsonSerializer.Serialize(new { note }) });
+        var client = await db.Users.SingleOrDefaultAsync(x => x.Email == complaint.Client.Email, ct);
+        if (client != null) await notifications.QueueAsync(client.Id, "ComplaintMoreInfo", "More information needed for your complaint", note.Trim(), $"/Practice/ComplaintReceipt/{complaint.Id}", $"complaint-more-info-{complaint.Id}-{DateTime.UtcNow.Ticks}", ct);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task SubmitAdditionalInformationAsync(int complaintId, int clientId, string information, CancellationToken ct = default)
+    {
+        var complaint = await db.ServiceComplaints.SingleOrDefaultAsync(x => x.Id == complaintId && x.ClientId == clientId, ct)
+            ?? throw new UnauthorizedAccessException();
+        if (complaint.Status != ComplaintStatus.RequiresMoreInformation) throw new InvalidOperationException("This complaint is not awaiting additional information.");
+        if (string.IsNullOrWhiteSpace(information)) throw new InvalidOperationException("Provide the requested information before submitting.");
+        complaint.ClientAdditionalInformation = information.Trim();
+        complaint.Status = ComplaintStatus.Submitted;
+        db.AuditEntries.Add(new() { ActorUserId = clientId, EntityType = nameof(ServiceComplaint), EntityId = complaint.ReferenceNumber, Action = "Client provided additional information" });
+        await notifications.QueueAsync(complaint.RoutedToUserId, "ComplaintMoreInfo", "Client provided additional information", $"{complaint.ReferenceNumber}: additional information received.", $"/Practice/Complaints/{complaint.Id}", $"complaint-info-received-{complaint.Id}-{DateTime.UtcNow.Ticks}", ct);
+        await db.SaveChangesAsync(ct);
     }
 
     public async Task<ComplaintAppointment> BookComplaintAppointmentAsync(int complaintId, int bookedByUserId, DateTime scheduledAtUtc, AppointmentFormat format, string? notes, CancellationToken ct = default)

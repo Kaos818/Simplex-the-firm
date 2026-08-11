@@ -69,7 +69,9 @@ public class CostEstimateController(ApplicationDbContext db, IMatterCostEstimate
     public async Task<IActionResult> Result(string token, CancellationToken ct)
     {
         var estimate = await db.MatterCostEstimates.Include(x => x.Enquiry).SingleOrDefaultAsync(x => x.Enquiry.PublicToken == token && x.Status != CostEstimateStatus.Declined, ct);
-        return estimate == null ? NotFound() : View(estimate);
+        if (estimate == null) return NotFound();
+        ViewBag.Messages = await db.CostEstimateMessages.Where(x => x.CostEstimateEnquiryId == estimate.CostEstimateEnquiryId).OrderBy(x => x.CreatedAtUtc).ToListAsync(ct);
+        return View(estimate);
     }
 
     [HttpGet]
@@ -114,6 +116,38 @@ public class CostEstimateController(ApplicationDbContext db, IMatterCostEstimate
         return RedirectToAction(isDeclined ? nameof(Declined) : nameof(Result), new { token });
     }
 
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SendMessage(string token, string senderName, string body, CancellationToken ct)
+    {
+        var enquiry = await db.CostEstimateEnquiries.SingleOrDefaultAsync(x => x.PublicToken == token, ct);
+        if (enquiry == null) return NotFound();
+        if (string.IsNullOrWhiteSpace(body)) { TempData["Error"] = "Enter a message before sending."; return RedirectToAction(nameof(Result), new { token }); }
+        db.CostEstimateMessages.Add(new CostEstimateMessage { CostEstimateEnquiryId = enquiry.Id, SenderName = string.IsNullOrWhiteSpace(senderName) ? enquiry.ContactName : senderName.Trim(), Body = body.Trim(), IsFromAdmin = false });
+        await db.SaveChangesAsync(ct);
+        foreach (var admin in await db.Users.Where(x => x.Role == UserRole.Admin && x.IsActive).Select(x => x.Id).ToListAsync(ct))
+            await notifications.QueueAsync(admin, "EstimateChat", "New message about a cost estimate", $"{enquiry.ContactName} sent a message about {enquiry.MatterType}.", "/CostEstimate/Admin", $"estimate-chat-{enquiry.Id}-{DateTime.UtcNow.Ticks}-{admin}", ct);
+        TempData["Success"] = "Your message has been sent to our team.";
+        return RedirectToAction(nameof(Result), new { token });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AdminReply(int enquiryId, string body, CancellationToken ct)
+    {
+        if (HttpContext.Session.GetString("UserRole") != "Admin") return Forbid();
+        var enquiry = await db.CostEstimateEnquiries.SingleOrDefaultAsync(x => x.Id == enquiryId, ct);
+        if (enquiry == null) return NotFound();
+        var adminId = HttpContext.Session.GetInt32("UserId");
+        if (string.IsNullOrWhiteSpace(body)) { TempData["Error"] = "Enter a reply before sending."; return RedirectToAction(nameof(AdminDetails), new { id = await db.MatterCostEstimates.Where(x => x.CostEstimateEnquiryId == enquiryId).Select(x => x.Id).FirstOrDefaultAsync(ct) }); }
+        var admin = await db.Users.SingleOrDefaultAsync(x => x.Id == adminId, ct);
+        db.CostEstimateMessages.Add(new CostEstimateMessage { CostEstimateEnquiryId = enquiry.Id, SenderName = admin?.FullName ?? "Simplex", Body = body.Trim(), IsFromAdmin = true, AdminUserId = adminId });
+        await db.SaveChangesAsync(ct);
+        if (!string.IsNullOrWhiteSpace(enquiry.Email))
+            await email.QueueAsync(enquiry.Email, "Reply from Simplex", $"<p>{System.Net.WebUtility.HtmlEncode(body.Trim())}</p>", body.Trim(), $"estimate-chat-reply-{enquiry.Id}-{DateTime.UtcNow.Ticks}", ct);
+        TempData["Success"] = "Reply sent.";
+        var estimateId = await db.MatterCostEstimates.Where(x => x.CostEstimateEnquiryId == enquiryId).Select(x => x.Id).FirstOrDefaultAsync(ct);
+        return RedirectToAction(nameof(AdminDetails), new { id = estimateId });
+    }
+
     [HttpGet]
     public async Task<IActionResult> Admin(CancellationToken ct)
     {
@@ -133,6 +167,7 @@ public class CostEstimateController(ApplicationDbContext db, IMatterCostEstimate
                 && x.CaseType == estimate.Enquiry.MatterType
                 && x.Client.Email == estimate.Enquiry.Email)
             .ToListAsync(ct);
+        ViewBag.Messages = await db.CostEstimateMessages.Where(x => x.CostEstimateEnquiryId == estimate.CostEstimateEnquiryId).OrderBy(x => x.CreatedAtUtc).ToListAsync(ct);
         return View(estimate);
     }
 

@@ -5,7 +5,7 @@ namespace SimplexLawFirm.Models;
 public enum ForecastResult { Unsuccessful, PartlySuccessful, Successful }
 public enum ForecastStatus { Refused, Draft, Locked, Scored }
 public enum HandoverStatus { Preparing, Ready, Accepted, Overdue, PendingDirectorReview }
-public enum ComplaintStatus { Submitted, Acknowledged, Escalated, Resolved }
+public enum ComplaintStatus { Submitted, Acknowledged, Escalated, Resolved, Rejected, RequiresMoreInformation }
 public enum ComplaintCategory { Communication, Conduct, Billing, Delay, QualityOfService, Other }
 public enum ReassignmentStatus { Approved, HandoverPreparing, Completed, Cancelled }
 public enum HandoverRequestStatus { Pending, Approved, Declined }
@@ -207,6 +207,9 @@ public class ServiceComplaint
     public ApplicationUser? ResolvedByUser { get; set; }
     public DateTime? ResolvedAtUtc { get; set; }
     public bool ClientNotifiedOfResolution { get; set; }
+    public string? InformationRequestNote { get; set; }
+    public DateTime? InformationRequestedAtUtc { get; set; }
+    public string? ClientAdditionalInformation { get; set; }
 }
 
 public class ComplaintAppointment

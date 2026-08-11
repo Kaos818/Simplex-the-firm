@@ -32,7 +32,7 @@
                     <form asp-action="RequestWaiver" method="post">@Html.AntiForgeryToken()<input name="caseId" value="@Model.Case.Id" type="hidden"/><input name="requirementId" value="@item.Requirement.Id" type="hidden"/><textarea name="reason" required class="form-control mb-2" placeholder="Why this document cannot be obtained"></textarea><button type="submit" class="btn btn-outline-danger btn-sm">Request Director waiver</button></form>
                 }
             }
-            @if (item.Waiver != null) { <small class="d-block mt-2">Waiver: @item.Waiver.Status · @item.Waiver.DirectorReason</small> }
+            @if (item.Waiver != null) { <small class="d-block mt-2">Waiver: @item.Waiver.Status · @item.Waiver.DirectorReason@(item.Waiver.DeadlineAtUtc.HasValue ? $" · due {item.Waiver.DeadlineAtUtc.Value:dd MMM yyyy}" : "")</small> }
         </div></div></div>
     }
     </div>

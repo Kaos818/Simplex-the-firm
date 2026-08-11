@@ -1,5 +1,9 @@
 @model SimplexLawFirm.Models.MatterCostEstimate
-@{ ViewData["Title"]="Estimate enquiry"; Layout="_AdminLayout"; }
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"]="Estimate enquiry"; Layout="_AdminLayout";
+    var messages = (List<CostEstimateMessage>)ViewBag.Messages;
+}
 <div class="breadcrumb-line"><a href="/CostEstimate/Admin">Cost estimates</a><span>/</span><span>#@Model.Id.ToString("000000")</span></div><div class="page-hero compact"><div><span class="eyebrow">Locked estimate</span><h1>@Model.Enquiry.MatterType</h1><p>@Model.Enquiry.ContactName · @Model.Enquiry.Email</p></div><span class="status-pill large">@Model.Status</span></div>
 @if (Model.Status == CostEstimateStatus.Declined)
 {
@@ -9,3 +13,22 @@ else
 {
     <div class="workspace-grid"><section class="surface"><h2>R @Model.TotalLow.ToString("N0") - R @Model.TotalHigh.ToString("N0")</h2><p>@Model.ComparableMatterCount comparable matters · @Model.PermittedVarianceTolerance.ToString("P0") permitted invoice tolerance</p><a class="btn-primary-modern" href="/CostEstimate/Download?token=@Model.Enquiry.PublicToken">Download locked PDF</a></section><section class="surface"><h2>Link instructed matter</h2>@if(Model.LinkedCase!=null){<div class="responsibility-note">Linked to <b>@Model.LinkedCase.CaseNumber</b> on @Model.LinkedAtUtc?.ToString("dd MMM yyyy").</div>}else{<form method="post" action="/CostEstimate/Link" class="stack-form">@Html.AntiForgeryToken()<input type="hidden" name="estimateId" value="@Model.Id"/><label>Matching active matter<select name="caseId" required><option value="">Select active instructed matter</option>@foreach(var c in ViewBag.MatchingCases){<option value="@c.Id">@c.CaseNumber — @c.Title</option>}</select></label><button type="submit" class="btn-primary-modern">Link estimate</button></form>}</section></div>
 }
+<section class="surface mt-3">
+ <span class="eyebrow">Client chat</span><h2>@messages.Count message(s)</h2>
+ @if (!messages.Any()) {
+  <div class="empty-state">No messages from this client yet.</div>
+ } else {
+  <div class="d-flex flex-column gap-2 mb-3">
+   @foreach (var m in messages) {
+    <div class="record-row" style="@(m.IsFromAdmin ? "background:#eef6ff" : "")">
+     <span><b>@(m.IsFromAdmin ? "Simplex team" : m.SenderName)</b><small>@m.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small><br/>@m.Body</span>
+    </div>
+   }
+  </div>
+ }
+ <form method="post" action="/CostEstimate/AdminReply" class="stack-form">
+  @Html.AntiForgeryToken()<input type="hidden" name="enquiryId" value="@Model.CostEstimateEnquiryId"/>
+  <label>Reply<textarea class="form-control" name="body" rows="3" required></textarea></label>
+  <button type="submit" class="btn-secondary-modern">Send reply</button>
+ </form>
+</section>

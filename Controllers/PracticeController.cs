@@ -506,6 +506,28 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
     }
 
     [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RequestComplaintInformation(int complaintId, string note, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null) return Forbid();
+        try { await service.RequestMoreInformationAsync(complaintId, userId.Value, note, ct); TempData["Success"] = "Client asked for more information."; }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(Complaint), new { id = complaintId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SubmitComplaintInformation(int complaintId, string information, CancellationToken ct)
+    {
+        var client = await currentClient.GetAsync(ct);
+        if (client == null) return Forbid();
+        try { await service.SubmitAdditionalInformationAsync(complaintId, client.Id, information, ct); TempData["Success"] = "Thank you — your information has been sent for review."; }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(ComplaintReceipt), new { id = complaintId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> BookComplaintAppointment(int complaintId, DateTime scheduledAtUtc, AppointmentFormat format, string? notes, CancellationToken ct)
     {
         var userId = HttpContext.Session.GetInt32("UserId");

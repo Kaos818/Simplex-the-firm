@@ -163,6 +163,8 @@ namespace SimplexLawFirm.Data
         public DbSet<BeneficiaryTrustDisbursementRequest> BeneficiaryTrustDisbursementRequests { get; set; }
         public DbSet<DocumentRequest> DocumentRequests { get; set; }
         public DbSet<CaseHandoverRequest> CaseHandoverRequests { get; set; }
+        public DbSet<CostEstimateMessage> CostEstimateMessages { get; set; }
+        public DbSet<KnownVenue> KnownVenues { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -185,6 +187,7 @@ namespace SimplexLawFirm.Data
                 e.HasIndex(x => new { x.CaseId, x.Status });
             });
             modelBuilder.Entity<Document>().HasOne(x => x.DocumentRequest).WithMany(x => x.Documents).HasForeignKey(x => x.DocumentRequestId).OnDelete(DeleteBehavior.SetNull);
+            modelBuilder.Entity<CostEstimateMessage>().HasOne(x => x.Enquiry).WithMany(x => x.Messages).HasForeignKey(x => x.CostEstimateEnquiryId).OnDelete(DeleteBehavior.Cascade);
             modelBuilder.Entity<CaseHandoverRequest>(e => {
                 e.HasOne(x => x.Case).WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.RequestedByUser).WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);

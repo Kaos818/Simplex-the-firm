@@ -11,6 +11,8 @@
 <div class="surface">
  <span class="eyebrow">Current status</span><h2>Checked in at @active.Venue</h2>
  <p>Expected return: <b>@active.ExpectedReturnAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</b></p>
+ @if(active.LocationVerified == true){<div class="alert alert-success">📍 Location verified — @active.DistanceFromVenueMeters?.ToString("N0")m from @active.Venue.</div>}
+ else if(active.LocationVerified == false){<div class="alert alert-warning">⚠ Checked in @active.DistanceFromVenueMeters?.ToString("N0")m from @active.Venue. Reason recorded: @active.LocationOverrideReason</div>}
  @if(active.Status == WhereaboutStatus.Emergency){
   <div class="alert alert-danger">🚨 Emergency alert active — Admin and Director have been notified with your location.</div>
  }
@@ -22,12 +24,32 @@
  </div>
 </div>
 }else{
-<form method="post" class="surface stack-form">@Html.AntiForgeryToken()
+<form method="post" class="surface stack-form" id="checkInForm">@Html.AntiForgeryToken()
+ <div id="gpsNote" class="gps-note muted">📍 Requesting your location…</div>
+ <input type="hidden" name="latitude" id="latitudeInput"/>
+ <input type="hidden" name="longitude" id="longitudeInput"/>
  <label>Recorded court or client location<select name="recordedVenue"><option value="">Select a recorded location</option>@foreach(var venue in venues){<option value="@venue">@venue</option>}</select></label>
  <label>Or specify venue<input name="venue" placeholder="Court, client office or other recorded venue"/></label>
  <label>Expected return<input type="datetime-local" name="expectedReturnUtc" required/></label>
+ <label>Reason if your location doesn't match the venue (fill in if prompted)<input name="locationOverrideReason" placeholder="e.g. Signal only picked up from the car park across the road"/></label>
  <button type="submit" class="btn-primary-modern">Check in off-site</button>
 </form>
+<script>
+(function(){
+ var note = document.getElementById('gpsNote');
+ if (!navigator.geolocation) { note.textContent = '📍 Location capture is not available on this device — select the venue manually.'; note.className='gps-note muted'; return; }
+ navigator.geolocation.getCurrentPosition(function(pos){
+  document.getElementById('latitudeInput').value = pos.coords.latitude;
+  document.getElementById('longitudeInput').value = pos.coords.longitude;
+  note.textContent = '📍 Location captured — this will be checked against the selected venue on submit.';
+  note.className='gps-note';
+ }, function(){
+  note.textContent = '📍 Location unavailable — you can still check in and select the venue manually.';
+  note.className='gps-note muted';
+ }, { timeout: 8000 });
+})();
+</script>
+<style>.gps-note{padding:8px 12px;border-radius:6px;background:#eef6ff;font-size:.85rem;margin-bottom:10px;}.gps-note.muted{background:#f3f3f3;color:#666;}</style>
 }
 
 <section class="surface mt-3">

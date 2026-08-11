@@ -5,7 +5,10 @@
     ViewData["Title"] = "Attorney whereabouts";
     var urgent = (IEnumerable<CalendarEvent>)ViewBag.UrgentEvents;
     var candidates = (Dictionary<int, IReadOnlyList<ApplicationUser>>)ViewBag.ReplacementCandidates;
+    var mapPinsJson = (string)ViewBag.MapPinsJson;
 }
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <div class="page-hero compact">
     <span class="eyebrow">Safety control room</span>
     <h1>Attorney whereabouts</h1>
@@ -26,7 +29,18 @@
     </div>
 }
 
-<section class="surface mb-4">
+<div class="subtabs mb-3" style="display:flex;gap:6px;">
+    <button type="button" id="viewTableBtn" class="btn btn-sm btn-outline-primary active" onclick="showWhereaboutsView('table')">Table view</button>
+    <button type="button" id="viewMapBtn" class="btn btn-sm btn-outline-primary" onclick="showWhereaboutsView('map')">Map view</button>
+</div>
+
+<section class="surface mb-4" id="mapSection" style="display:none;">
+    <div class="section-heading"><h2>Live map</h2></div>
+    <div id="whereaboutsMap" style="height:420px;border-radius:10px;"></div>
+    <small class="muted d-block mt-2">Pins reflect current off-site attorneys. Red = emergency, orange = overdue/escalated, blue = offsite/other.</small>
+</section>
+
+<section class="surface mb-4" id="tableSection">
     <div class="section-heading"><h2>Off-site status</h2></div>
     @if (!Model.Any())
     {
@@ -38,6 +52,8 @@
             <span>
                 <b>@item.Attorney.FullName</b>
                 <small>@item.Venue · checked in @item.CheckedInAtUtc.ToLocalTime().ToString("g") · expected @item.ExpectedReturnAtUtc.ToLocalTime().ToString("g")</small>
+                @if (item.LocationVerified == true) { <small class="d-block text-success">📍 Location verified (@item.DistanceFromVenueMeters?.ToString("N0")m)</small> }
+                else if (item.LocationVerified == false) { <small class="d-block text-warning">⚠ @item.DistanceFromVenueMeters?.ToString("N0")m from venue — @item.LocationOverrideReason</small> }
                 @if (!string.IsNullOrWhiteSpace(item.ContactOutcome))
                 {
                     <small><b>Contact:</b> @item.ContactOutcome</small>
@@ -76,3 +92,31 @@
         </form>
     }
 </section>
+
+<script>
+function showWhereaboutsView(which) {
+    document.getElementById('tableSection').style.display = which === 'table' ? 'block' : 'none';
+    document.getElementById('mapSection').style.display = which === 'map' ? 'block' : 'none';
+    document.getElementById('viewTableBtn').classList.toggle('active', which === 'table');
+    document.getElementById('viewMapBtn').classList.toggle('active', which === 'map');
+    if (which === 'map' && window.__whereaboutsMap) { setTimeout(function () { window.__whereaboutsMap.invalidateSize(); }, 50); }
+}
+(function () {
+    var pins = @Html.Raw(string.IsNullOrWhiteSpace(mapPinsJson) ? "[]" : mapPinsJson);
+    var mapEl = document.getElementById('whereaboutsMap');
+    if (!mapEl || typeof L === 'undefined') return;
+    var center = pins.length ? [pins[0].lat, pins[0].lng] : [-29.85, 31.02];
+    var map = L.map(mapEl).setView(center, pins.length ? 11 : 6);
+    window.__whereaboutsMap = map;
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 18 }).addTo(map);
+    var colorFor = function (status) {
+        if (status === 'Emergency') return '#c0392b';
+        if (status === 'DirectorEscalated' || status === 'AlertRaised') return '#e8963c';
+        return '#175cd3';
+    };
+    pins.forEach(function (p) {
+        var marker = L.circleMarker([p.lat, p.lng], { radius: 9, color: '#0b0f17', weight: 2, fillColor: colorFor(p.status), fillOpacity: 0.9 }).addTo(map);
+        marker.bindPopup('<b>' + p.name + '</b><br/>' + p.venue + '<br/>' + p.status + ' &middot; checked in ' + p.checkedIn);
+    });
+})();
+</script>

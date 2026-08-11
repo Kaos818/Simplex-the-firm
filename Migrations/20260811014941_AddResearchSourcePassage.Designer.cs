@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SimplexLawFirm.Data;
 
@@ -11,9 +12,11 @@ using SimplexLawFirm.Data;
 namespace SimplexLawFirm.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260811014941_AddResearchSourcePassage")]
+    partial class AddResearchSourcePassage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -338,23 +341,8 @@ namespace SimplexLawFirm.Migrations
                     b.Property<DateTime?>("DirectorEscalatedAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<double?>("DistanceFromVenueMeters")
-                        .HasColumnType("float");
-
                     b.Property<DateTime>("ExpectedReturnAtUtc")
                         .HasColumnType("datetime2");
-
-                    b.Property<double?>("Latitude")
-                        .HasColumnType("float");
-
-                    b.Property<string>("LocationOverrideReason")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool?>("LocationVerified")
-                        .HasColumnType("bit");
-
-                    b.Property<double?>("Longitude")
-                        .HasColumnType("float");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -3032,30 +3020,6 @@ namespace SimplexLawFirm.Migrations
                     b.ToTable("KnowledgeArticles");
                 });
 
-            modelBuilder.Entity("SimplexLawFirm.Models.KnownVenue", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<double>("Latitude")
-                        .HasColumnType("float");
-
-                    b.Property<double>("Longitude")
-                        .HasColumnType("float");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("KnownVenues");
-                });
-
             modelBuilder.Entity("SimplexLawFirm.Models.LawyerProfile", b =>
                 {
                     b.Property<int>("Id")
@@ -4612,9 +4576,6 @@ namespace SimplexLawFirm.Migrations
                     b.Property<int>("Category")
                         .HasColumnType("int");
 
-                    b.Property<string>("ClientAdditionalInformation")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("ClientId")
                         .HasColumnType("int");
 
@@ -4630,12 +4591,6 @@ namespace SimplexLawFirm.Migrations
 
                     b.Property<string>("FormalResponse")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("InformationRequestNote")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("InformationRequestedAtUtc")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("MediationSteps")
                         .HasColumnType("nvarchar(max)");

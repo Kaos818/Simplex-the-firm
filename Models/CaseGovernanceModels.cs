@@ -5,7 +5,7 @@ namespace SimplexLawFirm.Models;
 public enum LitigationStrategyType { Settle, Negotiate, Mediate, Pursue, Trial, Withdraw }
 public enum StrategyDecisionStatus { Authorised, PendingDirectorAuthorisation, Refused, RequiresReview, Superseded }
 public enum DocumentRequirementImportance { Advisory, Mandatory }
-public enum DocumentWaiverStatus { PendingDirector, Approved, Refused }
+public enum DocumentWaiverStatus { PendingDirector, Approved, Refused, Deferred }
 
 public sealed class LitigationStrategyDecision
 {
@@ -64,6 +64,7 @@ public sealed class CaseDocumentWaiver
     public int? DirectorId { get; set; }
     [MaxLength(3000)] public string? DirectorReason { get; set; }
     public DateTime? DecidedAtUtc { get; set; }
+    public DateTime? DeadlineAtUtc { get; set; }
 }
 
 public sealed class CaseReadinessReview

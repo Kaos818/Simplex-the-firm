@@ -1070,6 +1070,17 @@ namespace SimplexLawFirm.Data
 
         private static void EnsureExpansionSeedData(ApplicationDbContext context)
         {
+            // Known venue coordinates — needed for GPS geofence verification on attorney check-in.
+            if (!context.KnownVenues.Any())
+            {
+                context.KnownVenues.AddRange(
+                    new KnownVenue { Name = "Durban High Court", Latitude = -29.8579, Longitude = 31.0292 },
+                    new KnownVenue { Name = "Johannesburg High Court", Latitude = -26.2023, Longitude = 28.0436 },
+                    new KnownVenue { Name = "Pinetown Magistrate's Court", Latitude = -29.8149, Longitude = 30.8676 },
+                    new KnownVenue { Name = "Verulam Magistrate's Court", Latitude = -29.6389, Longitude = 31.0525 });
+                context.SaveChanges();
+            }
+
             // Expense policies — without these every reimbursement claim fails validation at proof-submission time.
             if (!context.ExpensePolicies.Any())
             {

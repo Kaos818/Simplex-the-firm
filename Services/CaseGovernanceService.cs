@@ -15,7 +15,7 @@ public interface ICaseGovernanceService
     Task<bool> RetestStrategyAsync(int caseId, CancellationToken ct = default);
     Task<CaseReadinessReportViewModel> ReviewReadinessAsync(int caseId, int userId, CancellationToken ct = default);
     Task<CaseDocumentWaiver> RequestWaiverAsync(int attorneyId, int caseId, int requirementId, string reason, CancellationToken ct = default);
-    Task DecideWaiverAsync(int directorId, int waiverId, bool approve, string reason, CancellationToken ct = default);
+    Task DecideWaiverAsync(int directorId, int waiverId, bool approve, string reason, DateTime? deferDeadlineUtc = null, CancellationToken ct = default);
     Task MarkCourtReadyAsync(int attorneyId, int caseId, CancellationToken ct = default);
     Task<int> RunGovernanceAsync(DateTime nowUtc, CancellationToken ct = default);
 }
@@ -123,13 +123,27 @@ public sealed class CaseGovernanceService(ApplicationDbContext db, INotification
         await db.SaveChangesAsync(ct); return waiver;
     }
 
-    public async Task DecideWaiverAsync(int directorId, int waiverId, bool approve, string reason, CancellationToken ct = default)
+    public async Task DecideWaiverAsync(int directorId, int waiverId, bool approve, string reason, DateTime? deferDeadlineUtc = null, CancellationToken ct = default)
     {
         await EnsureDirectorAsync(directorId, ct); if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Director reasons are required.");
-        var waiver = await db.CaseDocumentWaivers.SingleOrDefaultAsync(x => x.Id == waiverId && x.Status == DocumentWaiverStatus.PendingDirector, ct) ?? throw new InvalidOperationException("Waiver is not pending.");
-        waiver.Status = approve ? DocumentWaiverStatus.Approved : DocumentWaiverStatus.Refused; waiver.DirectorId = directorId; waiver.DirectorReason = reason.Trim(); waiver.DecidedAtUtc = DateTime.UtcNow;
-        db.AuditEntries.Add(new() { ActorUserId = directorId, EntityType = nameof(CaseDocumentWaiver), EntityId = waiver.Id.ToString(), Action = approve ? "Mandatory document waiver approved" : "Mandatory document waiver refused" });
-        await notifications.QueueAsync(waiver.RequestedByAttorneyId, "DocumentWaiverDecision", approve ? "Document waiver approved" : "Document waiver refused", reason.Trim(), $"/CaseGovernance/Readiness/{waiver.CaseId}", $"waiver-decision:{waiver.Id}", ct); await db.SaveChangesAsync(ct);
+        var waiver = await db.CaseDocumentWaivers.Include(x => x.Case).SingleOrDefaultAsync(x => x.Id == waiverId && x.Status == DocumentWaiverStatus.PendingDirector, ct) ?? throw new InvalidOperationException("Waiver is not pending.");
+        var deferring = !approve && deferDeadlineUtc.HasValue;
+        if (deferring)
+        {
+            if (deferDeadlineUtc!.Value.Date < DateTime.UtcNow.Date) throw new ArgumentException("The deadline cannot be in the past.");
+            if (waiver.Case.CourtReadyAtUtc is null)
+            {
+                var nextHearing = await db.CalendarEvents.Where(x => x.CaseId == waiver.CaseId && (x.Type == EventType.CourtAppearance || x.Type == EventType.Hearing) && x.StartDateTime >= DateTime.UtcNow).OrderBy(x => x.StartDateTime).Select(x => (DateTime?)x.StartDateTime).FirstOrDefaultAsync(ct);
+                if (nextHearing.HasValue && deferDeadlineUtc.Value.Date > nextHearing.Value.Date) throw new ArgumentException("The deadline cannot be after the matter's next court date.");
+            }
+        }
+        waiver.Status = approve ? DocumentWaiverStatus.Approved : deferring ? DocumentWaiverStatus.Deferred : DocumentWaiverStatus.Refused;
+        waiver.DirectorId = directorId; waiver.DirectorReason = reason.Trim(); waiver.DecidedAtUtc = DateTime.UtcNow;
+        waiver.DeadlineAtUtc = deferring ? deferDeadlineUtc : null;
+        var action = approve ? "Mandatory document waiver approved" : deferring ? "Mandatory document waiver deferred — deadline set" : "Mandatory document waiver refused";
+        db.AuditEntries.Add(new() { ActorUserId = directorId, EntityType = nameof(CaseDocumentWaiver), EntityId = waiver.Id.ToString(), Action = action });
+        var message = deferring ? $"{reason.Trim()} Submit the document by {deferDeadlineUtc:dd MMM yyyy}." : reason.Trim();
+        await notifications.QueueAsync(waiver.RequestedByAttorneyId, "DocumentWaiverDecision", approve ? "Document waiver approved" : deferring ? "Document deadline set — action required" : "Document waiver refused", message, $"/CaseGovernance/Readiness/{waiver.CaseId}", $"waiver-decision:{waiver.Id}", ct); await db.SaveChangesAsync(ct);
     }
 
     public async Task MarkCourtReadyAsync(int attorneyId, int caseId, CancellationToken ct = default)

@@ -21,6 +21,19 @@ public class CostEstimateEnquiry
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? ConsultationRequestedAtUtc { get; set; }
     public ICollection<MatterCostEstimate> Estimates { get; set; } = new List<MatterCostEstimate>();
+    public ICollection<CostEstimateMessage> Messages { get; set; } = new List<CostEstimateMessage>();
+}
+
+public class CostEstimateMessage
+{
+    public int Id { get; set; }
+    public int CostEstimateEnquiryId { get; set; }
+    public CostEstimateEnquiry Enquiry { get; set; } = null!;
+    public string SenderName { get; set; } = "";
+    public string Body { get; set; } = "";
+    public bool IsFromAdmin { get; set; }
+    public int? AdminUserId { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
 public class MatterCostEstimate
