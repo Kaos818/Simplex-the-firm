@@ -12,6 +12,20 @@
     <p>Monitor off-site engagements, record contact attempts, and protect imminent court commitments.</p>
 </div>
 
+@{ var emergencies = Model.Where(x => x.CheckedOutAtUtc == null && x.Status == WhereaboutStatus.Emergency).ToList(); }
+@if (emergencies.Any())
+{
+    <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">
+        <span style="font-size:1.3em">🚨</span>
+        <div>
+            @foreach (var e in emergencies)
+            {
+                <div><b>@e.Attorney.FullName</b> raised an emergency alert at <b>@e.Venue</b> — @e.AlertedAtUtc?.ToLocalTime().ToString("g")</div>
+            }
+        </div>
+    </div>
+}
+
 <section class="surface mb-4">
     <div class="section-heading"><h2>Off-site status</h2></div>
     @if (!Model.Any())
@@ -29,9 +43,9 @@
                     <small><b>Contact:</b> @item.ContactOutcome</small>
                 }
             </span>
-            <span class="status-pill">@item.Status</span>
+            <span class="status-pill" style="@(item.Status==WhereaboutStatus.Emergency?"background:#fbe4e4;color:#a11":item.Status is WhereaboutStatus.AlertRaised or WhereaboutStatus.DirectorEscalated?"background:#fff3cd;color:#7a5b00":"")">@item.Status</span>
         </div>
-        @if (item.CheckedOutAtUtc == null && item.Status is WhereaboutStatus.AlertRaised or WhereaboutStatus.DirectorEscalated)
+        @if (item.CheckedOutAtUtc == null && item.Status is WhereaboutStatus.AlertRaised or WhereaboutStatus.DirectorEscalated or WhereaboutStatus.Emergency)
         {
             <form method="post" action="/Operational/RecordSafetyContact" class="surface mb-3 stack-form">
                 @Html.AntiForgeryToken()

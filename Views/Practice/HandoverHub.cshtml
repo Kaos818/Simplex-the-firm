@@ -1,0 +1,53 @@
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Case Handover";
+    Layout = ViewBag.Role == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    var handovers = (IEnumerable<CaseHandover>)ViewBag.Handovers;
+    var isAdmin = ViewBag.Role == "Admin";
+    var pendingCount = (int)ViewBag.HandoverRequestCount;
+}
+<div class="page-hero">
+  <div><span class="eyebrow">Case management</span><h1>Case Handover</h1><p>Transfer responsibility for a matter safely — request, review, and track handovers with a complete audit trail.</p></div>
+  <div class="hero-mark">H.</div>
+</div>
+
+<div class="metric-grid">
+  <div class="metric-card"><span>Active handovers</span><strong>@handovers.Count(x => x.Status is HandoverStatus.Preparing or HandoverStatus.Overdue or HandoverStatus.PendingDirectorReview or HandoverStatus.Ready)</strong><small>Responsibility protected</small></div>
+  <div class="metric-card"><span>@(isAdmin ? "Requests awaiting review" : "My pending requests")</span><strong>@pendingCount</strong><small>@(isAdmin ? "Director decision needed" : "Awaiting director")</small></div>
+  <div class="metric-card"><span>Completed</span><strong>@handovers.Count(x => x.Status == HandoverStatus.Accepted)</strong><small>Fully accepted</small></div>
+</div>
+
+<div class="d-flex gap-2 flex-wrap mb-3">
+  @if (!isAdmin) {
+   <a class="btn-primary-modern" href="/Practice/RequestHandover"><i class="fas fa-people-arrows"></i> Hand Over a Case</a>
+   <a class="btn-secondary-modern" href="/Practice/MyHandoverRequests">My Handover Requests</a>
+  } else {
+   <a class="btn-primary-modern" href="/Practice/HandoverRequests"><i class="fas fa-inbox"></i> Review Handover Requests@(pendingCount > 0 ? $" ({pendingCount})" : "")</a>
+  }
+</div>
+
+@if (isAdmin) {
+ var reassignable = ViewBag.ReassignableCases as IEnumerable<SimplexLawFirm.Models.Case>;
+ <section class="surface mb-3">
+  <span class="eyebrow">Direct reassignment</span><h2>Reassign a case</h2>
+  <p class="muted">Skip the request step and reassign an eligible case directly to another attorney.</p>
+  <form method="get" id="reassignPicker" action="/Practice/Reassign" class="d-flex gap-2 mb-2">
+   <select name="__caseId" class="form-select form-select-sm" onchange="document.getElementById('reassignPicker').action='/Practice/Reassign/'+this.value; if(this.value) this.form.submit();">
+    <option value="">Reassign a case…</option>
+    @foreach(var c in reassignable ?? Enumerable.Empty<SimplexLawFirm.Models.Case>()){<option value="@c.Id">@c.CaseNumber · @c.Title (@c.Lawyer?.FullName)</option>}
+   </select>
+  </form>
+  @if(reassignable != null && !reassignable.Any()){<small class="muted d-block">No case is currently eligible — every active, assigned case already has a handover in progress.</small>}
+ </section>
+}
+
+<section class="surface">
+ <span class="eyebrow">Handovers</span><h2>@(isAdmin ? "All handovers" : "My handovers")</h2>
+ @foreach(var item in handovers){
+  <a class="record-row" href="/Practice/Handover/@item.Id">
+   <span><b>@item.Case.CaseNumber</b><small>@item.OutgoingAttorney.FullName → @item.ReceivingAttorney.FullName</small></span>
+   <span class="status-pill">@item.Status</span>
+  </a>
+ }
+ @if(!handovers.Any()){<div class="empty-state">No handovers yet. Approved reassignments and requested handovers will appear here.</div>}
+</section>

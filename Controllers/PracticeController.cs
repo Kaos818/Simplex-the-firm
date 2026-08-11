@@ -24,10 +24,23 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
         ViewBag.Role = role;
         ViewBag.Forecasts = await db.CaseForecasts.Include(x => x.Case).Include(x => x.Attorney)
             .Where(x => role == "Admin" || x.AttorneyId == userId).OrderByDescending(x => x.RequestedAtUtc).Take(8).ToListAsync(ct);
-        ViewBag.Handovers = await db.CaseHandovers.Include(x => x.Case).Include(x => x.ReceivingAttorney)
-            .Where(x => role == "Admin" || x.OutgoingAttorneyId == userId || x.ReceivingAttorneyId == userId).OrderByDescending(x => x.CreatedAtUtc).Take(8).ToListAsync(ct);
         ViewBag.Complaints = role == "Admin" ? await db.ServiceComplaints.Include(x => x.Case).Where(x => x.RoutedToUserId == userId).OrderByDescending(x => x.SubmittedAtUtc).Take(8).ToListAsync(ct) : [];
         ViewBag.Calibration = await db.ForecastCalibrations.Include(x => x.Attorney).OrderBy(x => x.AttorneyId != null).ThenByDescending(x => x.ForecastCount).ToListAsync(ct);
+        return View();
+    }
+
+    public async Task<IActionResult> HandoverHub(CancellationToken ct)
+    {
+        var role = HttpContext.Session.GetString("UserRole");
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null) return RedirectToAction("Login", "Home");
+        if (role is not ("Admin" or "Lawyer")) return Forbid();
+        ViewBag.Role = role;
+        ViewBag.Handovers = await db.CaseHandovers.Include(x => x.Case).Include(x => x.OutgoingAttorney).Include(x => x.ReceivingAttorney)
+            .Where(x => role == "Admin" || x.OutgoingAttorneyId == userId || x.ReceivingAttorneyId == userId).OrderByDescending(x => x.CreatedAtUtc).ToListAsync(ct);
+        ViewBag.HandoverRequestCount = role == "Admin"
+            ? await db.CaseHandoverRequests.CountAsync(x => x.Status == HandoverRequestStatus.Pending, ct)
+            : await db.CaseHandoverRequests.CountAsync(x => x.RequestedByUserId == userId && x.Status == HandoverRequestStatus.Pending, ct);
         if (role == "Admin")
         {
             var busyCaseIds = await db.CaseHandovers.Where(x => x.Status != HandoverStatus.Accepted).Select(x => x.CaseId).ToListAsync(ct);

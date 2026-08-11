@@ -18,6 +18,8 @@ public interface IOperationalUseCaseService
     Task<IReadOnlyList<CaseAuthorityReliance>> BuildMemoAsync(int caseId, int attorneyId, CancellationToken ct = default);
     Task<AttorneyWhereabout> CheckInAsync(int attorneyId, int? eventId, string venue, DateTime expectedReturnUtc, CancellationToken ct = default);
     Task CheckOutAsync(int attorneyId, int whereaboutId, CancellationToken ct = default);
+    Task RaiseEmergencyAsync(int attorneyId, int whereaboutId, CancellationToken ct = default);
+    Task<IReadOnlyList<AttorneyWhereabout>> GetMyTimelineAsync(int attorneyId, CancellationToken ct = default);
     Task EscalateOverdueAsync(CancellationToken ct = default);
     Task RecordSafetyContactAsync(int staffId, int whereaboutId, string outcome, bool attorneyAccountedFor, CancellationToken ct = default);
     Task<IReadOnlyList<ApplicationUser>> UrgentReplacementCandidatesAsync(int calendarEventId, CancellationToken ct = default);
@@ -122,10 +124,27 @@ public sealed class OperationalUseCaseService(ApplicationDbContext db, INotifica
         item.CheckedOutAtUtc=DateTime.UtcNow; item.Status=WhereaboutStatus.Returned; db.AuditEntries.Add(new(){ActorUserId=attorneyId,EntityType="AttorneyWhereabout",EntityId=item.Id.ToString(),Action="Attorney checked out"}); await db.SaveChangesAsync(ct);
     }
 
+    public async Task RaiseEmergencyAsync(int attorneyId, int whereaboutId, CancellationToken ct = default)
+    {
+        var item = await db.AttorneyWhereabouts.Include(x => x.Attorney).SingleOrDefaultAsync(x => x.Id == whereaboutId && x.AttorneyId == attorneyId && x.CheckedOutAtUtc == null, ct)
+            ?? throw new KeyNotFoundException();
+        item.Status = WhereaboutStatus.Emergency;
+        item.AlertedAtUtc = DateTime.UtcNow;
+        db.AuditEntries.Add(new() { ActorUserId = attorneyId, EntityType = nameof(AttorneyWhereabout), EntityId = item.Id.ToString(), Action = "Emergency raised by attorney" });
+        var recipients = await db.Users.Where(x => (x.Role == UserRole.Admin || x.Role == UserRole.Director) && x.IsActive).Select(x => x.Id).ToListAsync(ct);
+        foreach (var id in recipients)
+            await notifications.QueueAsync(id, "AttorneyEmergency", "EMERGENCY: attorney requires assistance",
+                $"{item.Attorney.FullName} raised an emergency alert at {item.Venue}.", "/Operational/Whereabouts", $"whereabout-emergency:{item.Id}:{DateTime.UtcNow.Ticks}", ct);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<AttorneyWhereabout>> GetMyTimelineAsync(int attorneyId, CancellationToken ct = default) =>
+        await db.AttorneyWhereabouts.Where(x => x.AttorneyId == attorneyId).OrderByDescending(x => x.CheckedInAtUtc).Take(30).ToListAsync(ct);
+
     public async Task EscalateOverdueAsync(CancellationToken ct = default)
     {
         var now=DateTime.UtcNow; var directors=await db.Users.Where(x=>(x.Role==UserRole.Director || x.Role==UserRole.Admin) && x.IsActive).Select(x=>x.Id).ToListAsync(ct);
-        foreach(var item in await db.AttorneyWhereabouts.Include(x=>x.Attorney).Where(x=>x.CheckedOutAtUtc==null && x.ExpectedReturnAtUtc<now).ToListAsync(ct))
+        foreach(var item in await db.AttorneyWhereabouts.Include(x=>x.Attorney).Where(x=>x.CheckedOutAtUtc==null && x.ExpectedReturnAtUtc<now && x.Status!=WhereaboutStatus.Emergency).ToListAsync(ct))
         {
             if(item.AlertedAtUtc==null){item.AlertedAtUtc=now;item.Status=WhereaboutStatus.AlertRaised;foreach(var id in directors)await notifications.QueueAsync(id,"AttorneySafety","Attorney overdue from off-site engagement",$"{item.Attorney.FullName} is overdue from {item.Venue}.","/Operational/Whereabouts",$"whereabout-alert:{item.Id}:{id}",ct);}
             else if(item.DirectorEscalatedAtUtc==null && item.AlertedAtUtc<=now.AddMinutes(-30)){item.DirectorEscalatedAtUtc=now;item.Status=WhereaboutStatus.DirectorEscalated;foreach(var id in directors)await notifications.QueueAsync(id,"AttorneySafetyEscalation","Director escalation: attorney unaccounted for",$"{item.Attorney.FullName} remains unaccounted for.","/Operational/Whereabouts",$"whereabout-director:{item.Id}:{id}",ct);}

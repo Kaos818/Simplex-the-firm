@@ -54,7 +54,7 @@ public sealed class ResearchDisagreement
     public DateTime RecordedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
-public enum WhereaboutStatus { Offsite, Returned, AlertRaised, DirectorEscalated, AccountedFor }
+public enum WhereaboutStatus { Offsite, Returned, AlertRaised, DirectorEscalated, AccountedFor, Emergency }
 public sealed class AttorneyWhereabout
 {
     public int Id { get; set; }
