@@ -1,0 +1,91 @@
+@model TimeEntry
+@{
+    ViewData["Title"] = "Log Time Entry";
+    var sessionUserId = Context.Session.GetInt32("UserId");
+}
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-lg-7 mx-auto">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-clock me-2"></i> Log Time Entry</h4>
+                </div>
+                <div class="card-body">
+                    <form asp-action="AddTimeEntry" method="post">
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="All" class="text-danger mb-2"></div>
+
+                        <div class="mb-3">
+                            <label asp-for="LawyerId" class="form-label fw-bold">Attorney</label>
+                            <select asp-for="LawyerId" asp-items="ViewBag.Lawyers" class="form-select">
+                                <option value="">-- Select attorney --</option>
+                            </select>
+                            <span asp-validation-for="LawyerId" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="CaseId" class="form-label fw-bold">Matter</label>
+                            <select asp-for="CaseId" asp-items="ViewBag.Cases" class="form-select">
+                                <option value="">-- Select matter --</option>
+                            </select>
+                            <span asp-validation-for="CaseId" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="RetainerId" class="form-label fw-bold">Retainer (optional)</label>
+                            <select asp-for="RetainerId" asp-items="ViewBag.Retainers" class="form-select">
+                                <option value="">-- None --</option>
+                            </select>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Date" class="form-label fw-bold">Date</label>
+                                <input asp-for="Date" type="date" class="form-control" value="@Model.Date.ToString("yyyy-MM-dd")" />
+                                <span asp-validation-for="Date" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Hours" class="form-label fw-bold">Hours</label>
+                                <input asp-for="Hours" type="number" step="0.1" min="0.1" class="form-control" />
+                                <span asp-validation-for="Hours" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="HourlyRate" class="form-label fw-bold">Hourly rate (R)</label>
+                            <input asp-for="HourlyRate" type="number" step="0.01" min="0" class="form-control" />
+                            <span asp-validation-for="HourlyRate" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Description" class="form-label fw-bold">Description of work</label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="What did you work on?"></textarea>
+                            <span asp-validation-for="Description" class="text-danger"></span>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input asp-for="IsBillable" class="form-check-input" />
+                            <label asp-for="IsBillable" class="form-check-label">Billable</label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Save time entry
+                        </button>
+                        <a href="/Billing/TimeEntries" class="btn btn-outline-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var lawyerSelect = document.querySelector('[name="LawyerId"]');
+        if (lawyerSelect && !lawyerSelect.value) {
+            var mine = lawyerSelect.querySelector('option[value="@sessionUserId"]');
+            if (mine) lawyerSelect.value = '@sessionUserId';
+        }
+    });
+</script>

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace SimplexLawFirm.Models
 {
@@ -8,11 +9,11 @@ namespace SimplexLawFirm.Models
 
         [Required]
         public int InvoiceId { get; set; }
-        public Invoice Invoice { get; set; }
+        [ValidateNever] public Invoice Invoice { get; set; }
 
         [Required]
         public int ClientId { get; set; }
-        public Client Client { get; set; }
+        [ValidateNever] public Client Client { get; set; }
 
         [Required]
         [DataType(DataType.Currency)]
@@ -38,17 +39,17 @@ namespace SimplexLawFirm.Models
 
         [Required]
         public int LawyerId { get; set; }
-        public ApplicationUser Lawyer { get; set; }
+        [ValidateNever] public ApplicationUser Lawyer { get; set; }
 
         [Required]
         public int CaseId { get; set; }
-        public Case Case { get; set; }
+        [ValidateNever] public Case Case { get; set; }
 
         public int? RetainerId { get; set; }
-        public Retainer Retainer { get; set; }
+        [ValidateNever] public Retainer Retainer { get; set; }
 
         public int? InvoiceId { get; set; }
-        public Invoice Invoice { get; set; }
+        [ValidateNever] public Invoice Invoice { get; set; }
 
         [Required]
         public string? Description { get; set; }

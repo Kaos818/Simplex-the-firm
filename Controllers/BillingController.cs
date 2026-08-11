@@ -557,6 +557,8 @@ namespace SimplexLawFirm.Controllers
         [HttpPost]
         public async Task<IActionResult> AddTimeEntry(TimeEntry entry)
         {
+            if (HttpContext.Session.GetString("UserRole") == "Lawyer")
+                entry.LawyerId = HttpContext.Session.GetInt32("UserId")!.Value;
             if (ModelState.IsValid)
             {
                 entry.TotalAmount = entry.Hours * entry.HourlyRate;
