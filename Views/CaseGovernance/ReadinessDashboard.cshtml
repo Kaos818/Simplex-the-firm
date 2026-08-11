@@ -1,0 +1,51 @@
+@model IReadOnlyList<SimplexLawFirm.ViewModels.ReadinessDashboardRowViewModel>
+@using SimplexLawFirm.ViewModels
+@{
+    Layout = Context.Session.GetString("UserRole") == "Admin" ? "_AdminLayout" : "_LawyerLayout";
+    ViewData["Title"] = "Document readiness";
+    var blocked = Model.Count(x => x.Status == ReadinessDashboardStatus.Blocked);
+    var escalated = Model.Count(x => x.Status == ReadinessDashboardStatus.Escalated);
+    var ready = Model.Count(x => x.Status == ReadinessDashboardStatus.CourtReady);
+}
+<div class="page-hero compact"><span class="eyebrow">UC-06 · Case execution</span><h1>Document readiness</h1><p>Every active matter checked against its mandatory documents. A matter cannot be declared court-ready while any are absent.</p></div>
+
+<div class="metric-grid" style="grid-template-columns:repeat(4,1fr);">
+ <div class="metric-card"><span>Active matters</span><strong>@Model.Count</strong></div>
+ <div class="metric-card" style="@(blocked>0?"background:#fdece9;":"")"><span>Blocked</span><strong style="@(blocked>0?"color:#b3261e;":"")">@blocked</strong></div>
+ <div class="metric-card" style="@(escalated>0?"background:#fff6df;":"")"><span>Escalated</span><strong style="@(escalated>0?"color:#7a5b00;":"")">@escalated</strong></div>
+ <div class="metric-card"><span>Court-ready</span><strong>@ready</strong></div>
+</div>
+
+<section class="surface">
+ <div class="section-heading"><h2>Matters</h2></div>
+ @if (!Model.Any())
+ {
+     <p class="muted">No active matters to check.</p>
+ }
+ @foreach (var row in Model)
+ {
+     var days = row.NextCourtDate.HasValue ? (int?)Math.Ceiling((row.NextCourtDate.Value - DateTime.UtcNow).TotalDays) : null;
+     <a class="record-row align-items-start" href="/CaseGovernance/Readiness?caseId=@row.Case.Id" style="text-decoration:none;color:inherit;">
+        <span>
+            <b>@row.Case.CaseNumber · @row.Case.Title</b>
+            <small>
+                @row.Case.CaseType
+                @if (row.Case.Lawyer != null) { <text> · @row.Case.Lawyer.FullName</text> }
+                @if (row.NextCourtDate.HasValue) { <text> · Court @row.NextCourtDate.Value.ToLocalTime().ToString("dd MMM yyyy") (@days@(days==1?" day":" days") away)</text> } else { <text> · No court date set</text> }
+            </small>
+            @if (row.MissingMandatoryCount > 0) { <small class="d-block text-danger">@row.MissingMandatoryCount mandatory document@(row.MissingMandatoryCount==1?"":"s") outstanding</small> }
+        </span>
+        <span class="status-pill" style="@(row.Status switch {
+            ReadinessDashboardStatus.CourtReady => "background:#e3f3e9;color:#1e7d4a",
+            ReadinessDashboardStatus.Escalated => "background:#fff3cd;color:#7a5b00",
+            ReadinessDashboardStatus.Blocked => "background:#fbe4e4;color:#a11",
+            _ => ""
+        })">@(row.Status switch {
+            ReadinessDashboardStatus.CourtReady => "Court-ready",
+            ReadinessDashboardStatus.Escalated => "Escalated",
+            ReadinessDashboardStatus.Blocked => "Blocked",
+            _ => "On track"
+        })</span>
+     </a>
+ }
+</section>

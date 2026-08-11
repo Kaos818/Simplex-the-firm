@@ -14,6 +14,8 @@ public interface ICaseGovernanceService
     Task DecideStrategyAsync(int directorId, int decisionId, bool authorise, string reason, CancellationToken ct = default);
     Task<bool> RetestStrategyAsync(int caseId, CancellationToken ct = default);
     Task<CaseReadinessReportViewModel> ReviewReadinessAsync(int caseId, int userId, CancellationToken ct = default);
+    Task<IReadOnlyList<ReadinessDashboardRowViewModel>> ReadinessDashboardAsync(int? attorneyId, CancellationToken ct = default);
+    Task<IReadOnlyList<CaseReadinessReview>> ReadinessHistoryAsync(int caseId, int userId, CancellationToken ct = default);
     Task<CaseDocumentWaiver> RequestWaiverAsync(int attorneyId, int caseId, int requirementId, string reason, CancellationToken ct = default);
     Task DecideWaiverAsync(int directorId, int waiverId, bool approve, string reason, DateTime? deferDeadlineUtc = null, CancellationToken ct = default);
     Task MarkCourtReadyAsync(int attorneyId, int caseId, CancellationToken ct = default);
@@ -109,6 +111,45 @@ public sealed class CaseGovernanceService(ApplicationDbContext db, INotification
         var ready = authorised && items.All(x => x.Requirement.Importance != DocumentRequirementImportance.Mandatory || x.IsHeld || x.Waiver?.Status == DocumentWaiverStatus.Approved);
         db.CaseReadinessReviews.Add(new() { CaseId = caseId, ReviewedByUserId = userId, HeldCount = items.Count(x => x.IsHeld), MissingMandatoryCount = items.Count(x => x.Requirement.Importance == DocumentRequirementImportance.Mandatory && !x.IsHeld && x.Waiver?.Status != DocumentWaiverStatus.Approved), MissingAdvisoryCount = items.Count(x => x.Requirement.Importance == DocumentRequirementImportance.Advisory && !x.IsHeld), CourtReady = ready, SnapshotJson = JsonSerializer.Serialize(items.Select(x => new { x.Requirement.Code, x.Requirement.Importance, Held = x.IsHeld, Waiver = x.Waiver?.Status })) });
         await db.SaveChangesAsync(ct); return new(matter, items, authorised, ready);
+    }
+
+    /// <summary>
+    /// Matter list for the readiness dashboard. Deliberately read-only: unlike
+    /// <see cref="ReviewReadinessAsync"/> it must not write an audit review just because
+    /// someone opened the dashboard, so mandatory-document status is computed inline rather
+    /// than by calling into the reviewing method.
+    /// </summary>
+    public async Task<IReadOnlyList<ReadinessDashboardRowViewModel>> ReadinessDashboardAsync(int? attorneyId, CancellationToken ct = default)
+    {
+        var cases = await db.Cases.Include(x => x.Lawyer).Where(x => x.Status == CaseStatus.Active && (attorneyId == null || x.LawyerId == attorneyId)).ToListAsync(ct);
+        if (cases.Count == 0) return [];
+        var caseIds = cases.Select(x => x.Id).ToList();
+        var requirementsByType = await db.CaseDocumentRequirements.Where(x => x.IsActive && x.Importance == DocumentRequirementImportance.Mandatory).ToListAsync(ct);
+        var heldByCase = (await db.Documents.Where(x => x.CaseId != null && caseIds.Contains(x.CaseId.Value) && x.RequirementCode != null).Select(x => new { CaseId = x.CaseId!.Value, x.RequirementCode }).ToListAsync(ct))
+            .Concat(await db.ExternalEvidenceDocuments.Include(x => x.Request).Where(x => caseIds.Contains(x.Request.CaseId) && x.RequirementCode != null).Select(x => new { x.Request.CaseId, x.RequirementCode }).ToListAsync(ct))
+            .GroupBy(x => x.CaseId).ToDictionary(g => g.Key, g => g.Select(x => x.RequirementCode!).ToHashSet());
+        var waivedByCase = (await db.CaseDocumentWaivers.Where(x => caseIds.Contains(x.CaseId) && x.Status == DocumentWaiverStatus.Approved).Select(x => new { x.CaseId, x.RequirementId }).ToListAsync(ct))
+            .GroupBy(x => x.CaseId).ToDictionary(g => g.Key, g => g.Select(x => x.RequirementId).ToHashSet());
+        var nextCourtDateByCase = (await db.CalendarEvents.Where(x => x.CaseId != null && caseIds.Contains(x.CaseId.Value) && x.Status != EventStatus.Cancelled && (x.Type == EventType.Hearing || x.Type == EventType.CourtAppearance) && x.StartDateTime >= DateTime.UtcNow).ToListAsync(ct))
+            .GroupBy(x => x.CaseId!.Value).ToDictionary(g => g.Key, g => g.Min(x => x.StartDateTime));
+        var escalatedCaseIds = (await db.AuditEntries.Where(x => x.EntityType == nameof(CaseReadinessReview) && caseIds.Select(id => id.ToString()).Contains(x.EntityId)).Select(x => x.EntityId).ToListAsync(ct)).ToHashSet();
+
+        return cases.Select(matter =>
+        {
+            var requirements = requirementsByType.Where(r => r.CaseType == matter.CaseType || r.CaseType == "General");
+            var held = heldByCase.GetValueOrDefault(matter.Id, []);
+            var waived = waivedByCase.GetValueOrDefault(matter.Id, []);
+            var missing = requirements.Count(r => !held.Contains(r.Code) && !waived.Contains(r.Id));
+            var nextCourtDate = nextCourtDateByCase.TryGetValue(matter.Id, out var date) ? date : (DateTime?)null;
+            return new ReadinessDashboardRowViewModel(matter, nextCourtDate, missing, escalatedCaseIds.Contains(matter.Id.ToString()));
+        }).OrderBy(x => x.NextCourtDate ?? DateTime.MaxValue).ToList();
+    }
+
+    public async Task<IReadOnlyList<CaseReadinessReview>> ReadinessHistoryAsync(int caseId, int userId, CancellationToken ct = default)
+    {
+        var matter = await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId, ct) ?? throw new KeyNotFoundException("Case not found.");
+        if (!await MayManageAsync(matter, userId, ct)) throw new UnauthorizedAccessException();
+        return await db.CaseReadinessReviews.Where(x => x.CaseId == caseId).OrderByDescending(x => x.ReviewedAtUtc).ToListAsync(ct);
     }
 
     public async Task<CaseDocumentWaiver> RequestWaiverAsync(int attorneyId, int caseId, int requirementId, string reason, CancellationToken ct = default)

@@ -20,3 +20,15 @@ public sealed record CaseReadinessReportViewModel(Case Case, IReadOnlyList<Docum
 {
     public IReadOnlyList<DocumentReadinessItemViewModel> MissingMandatory => Items.Where(x => x.Requirement.Importance == DocumentRequirementImportance.Mandatory && !x.IsHeld && x.Waiver?.Status != DocumentWaiverStatus.Approved).ToList();
 }
+
+public enum ReadinessDashboardStatus { CourtReady, Escalated, Blocked, OnTrack }
+
+/// <summary>A row on the readiness dashboard's matter list, computed without writing an audit review.</summary>
+public sealed record ReadinessDashboardRowViewModel(Case Case, DateTime? NextCourtDate, int MissingMandatoryCount, bool Escalated)
+{
+    public ReadinessDashboardStatus Status =>
+        Case.IsCourtReady ? ReadinessDashboardStatus.CourtReady
+        : Escalated ? ReadinessDashboardStatus.Escalated
+        : MissingMandatoryCount > 0 ? ReadinessDashboardStatus.Blocked
+        : ReadinessDashboardStatus.OnTrack;
+}

@@ -1,0 +1,38 @@
+@model IReadOnlyList<SimplexLawFirm.Models.CaseReadinessReview>
+@using SimplexLawFirm.Models
+@{
+    Layout = Context.Session.GetString("UserRole") == "Admin" ? "_AdminLayout" : "_LawyerLayout";
+    var matter = (Case)ViewBag.Case;
+    ViewData["Title"] = "Readiness review history";
+}
+<div class="breadcrumb-line"><a href="/CaseGovernance/ReadinessDashboard">Document readiness</a><span>/</span><a href="/CaseGovernance/Readiness?caseId=@matter.Id">@matter.CaseNumber</a><span>/</span><span>History</span></div>
+<div class="page-hero compact"><span class="eyebrow">Review history</span><h1>@matter.CaseNumber</h1><p>@matter.Title — every readiness check run against this matter, in order.</p></div>
+
+<section class="surface">
+ @if (!Model.Any())
+ {
+     <p class="muted">No readiness review has been run yet. Opening the readiness page for this matter records one.</p>
+ }
+ else
+ {
+     <div style="overflow-x:auto;">
+     <table class="table" style="min-width:640px;">
+      <thead><tr><th>Reviewed</th><th>Outcome</th><th>Mandatory absent</th><th>Advisory absent</th><th>Documents held</th></tr></thead>
+      <tbody>
+      @for (var i = 0; i < Model.Count; i++)
+      {
+          var r = Model[i];
+          <tr>
+           <td>@r.ReviewedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")@(i==0 ? " " : "")@if(i==0){<span class="status-pill" style="background:#e9e6fb;color:#4b2fa5;margin-left:6px;">Current</span>}</td>
+           <td>@if(r.CourtReady){<span class="status-pill" style="background:#e3f3e9;color:#1e7d4a">Court-ready</span>}else{<span class="status-pill" style="background:#fbe4e4;color:#a11">Incomplete — @r.MissingMandatoryCount mandatory missing</span>}</td>
+           <td>@r.MissingMandatoryCount</td>
+           <td>@r.MissingAdvisoryCount</td>
+           <td>@r.HeldCount</td>
+          </tr>
+      }
+      </tbody>
+     </table>
+     </div>
+     <small class="muted d-block mt-2">A review is recorded each time the readiness page is opened for this matter, so this is a full audit trail rather than a manual log.</small>
+ }
+</section>

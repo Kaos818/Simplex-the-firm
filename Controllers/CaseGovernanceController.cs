@@ -45,6 +45,30 @@ public sealed class CaseGovernanceController(ApplicationDbContext db, ICaseGover
         try { return View(await governance.ReviewReadinessAsync(caseId, HttpContext.Session.GetInt32("UserId")!.Value, ct)); }
         catch (UnauthorizedAccessException) { return Forbid(); }
     }
+
+    /// <summary>All active matters with their document-readiness status. A Lawyer sees only
+    /// their own matters; Admin/Director sees the whole practice, matching the Attorney Safety
+    /// and Estimate Governance dashboards' role scoping.</summary>
+    public async Task<IActionResult> ReadinessDashboard(CancellationToken ct)
+    {
+        var isLawyer = HttpContext.Session.GetString("UserRole") == "Lawyer";
+        var rows = await governance.ReadinessDashboardAsync(isLawyer ? HttpContext.Session.GetInt32("UserId") : null, ct);
+        return View(rows);
+    }
+
+    public async Task<IActionResult> ReadinessHistory(int caseId, CancellationToken ct)
+    {
+        try
+        {
+            var matter = await db.Cases.SingleOrDefaultAsync(x => x.Id == caseId, ct);
+            if (matter is null) return NotFound();
+            var history = await governance.ReadinessHistoryAsync(caseId, HttpContext.Session.GetInt32("UserId")!.Value, ct);
+            ViewBag.Case = matter;
+            return View(history);
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
     [HttpPost, ValidateAntiForgeryToken, RequireSessionRole("Lawyer")]
     public async Task<IActionResult> RequestWaiver(int caseId, int requirementId, string reason, CancellationToken ct) { try { await governance.RequestWaiverAsync(HttpContext.Session.GetInt32("UserId")!.Value, caseId, requirementId, reason, ct); TempData["Success"] = "Waiver request sent to the Director."; } catch (Exception ex) { TempData["Error"] = ex.Message; } return RedirectToAction(nameof(Readiness), new { caseId }); }
     [RequireSessionRole("Admin")]

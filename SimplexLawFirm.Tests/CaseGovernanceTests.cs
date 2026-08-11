@@ -112,6 +112,54 @@ public sealed class CaseGovernanceTests
         Assert.Contains(f.Notifications.Items, x => x.UserId == f.Director.Id && x.Type == "FinalDocumentReadinessEscalation");
     }
 
+    [Fact]
+    public async Task Readiness_dashboard_scopes_to_the_requesting_attorney_but_shows_everything_to_the_director()
+    {
+        await using var f = await Fixture.CreateAsync(100_000);
+        var otherAttorney = new ApplicationUser { FullName = "Other Attorney", Email = "other@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
+        f.Db.Add(otherAttorney); await f.Db.SaveChangesAsync();
+        var otherClient = new Client { FirstName = "Other", LastName = "Client", Email = "other-client@test", Phone = "2" };
+        f.Db.Add(otherClient); await f.Db.SaveChangesAsync();
+        f.Db.Cases.Add(new Case { CaseNumber = "GOV-002", Title = "Second matter", CaseType = "Commercial", MatterValue = 50_000, ClientId = otherClient.Id, LawyerId = otherAttorney.Id, Status = CaseStatus.Active });
+        await f.Db.SaveChangesAsync();
+
+        var attorneyView = await f.Service.ReadinessDashboardAsync(f.Attorney.Id);
+        Assert.Single(attorneyView);
+        Assert.Equal(f.Matter.Id, attorneyView[0].Case.Id);
+        Assert.Equal(ReadinessDashboardStatus.Blocked, attorneyView[0].Status);
+
+        var directorView = await f.Service.ReadinessDashboardAsync(null);
+        Assert.Equal(2, directorView.Count);
+    }
+
+    [Fact]
+    public async Task Readiness_dashboard_reports_no_court_date_when_none_is_scheduled_rather_than_a_default_date()
+    {
+        await using var f = await Fixture.CreateAsync(100_000);
+        var rows = await f.Service.ReadinessDashboardAsync(null);
+        Assert.Null(rows.Single().NextCourtDate);
+    }
+
+    [Fact]
+    public async Task Opening_the_readiness_page_records_a_review_that_history_can_list()
+    {
+        await using var f = await Fixture.CreateAsync(100_000);
+        await f.Service.ReviewReadinessAsync(f.Matter.Id, f.Attorney.Id);
+        await f.Service.ReviewReadinessAsync(f.Matter.Id, f.Attorney.Id);
+        var history = await f.Service.ReadinessHistoryAsync(f.Matter.Id, f.Attorney.Id);
+        Assert.Equal(2, history.Count);
+        Assert.True(history[0].ReviewedAtUtc >= history[1].ReviewedAtUtc);
+    }
+
+    [Fact]
+    public async Task Readiness_history_refuses_a_lawyer_who_is_not_assigned_to_the_matter()
+    {
+        await using var f = await Fixture.CreateAsync(100_000);
+        var otherAttorney = new ApplicationUser { FullName = "Other Attorney", Email = "other2@test", PasswordHash = "x", Role = UserRole.Lawyer, IsActive = true };
+        f.Db.Add(otherAttorney); await f.Db.SaveChangesAsync();
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => f.Service.ReadinessHistoryAsync(f.Matter.Id, otherAttorney.Id));
+    }
+
     private static SelectLitigationStrategyViewModel Input(int caseId, LitigationStrategyType strategy) => new() { CaseId = caseId, Strategy = strategy, Reasoning = "This strategy is proportionate to the client's objectives and available evidence." };
 
     private sealed class Fixture : IAsyncDisposable
