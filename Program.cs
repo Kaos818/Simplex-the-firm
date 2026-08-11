@@ -168,6 +168,11 @@ using (var scope = app.Services.CreateScope())
         if (context.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
         {
             await context.Database.EnsureCreatedAsync();
+            // EnsureCreatedAsync is a no-op against an already-existing SQLite file, so any table/column
+            // added to the model since that file was first created never reaches it on its own. Reconcile
+            // the live schema against the current model on every startup so deployed SQLite databases
+            // (dev and the Azure demo instance alike) pick up additive schema changes automatically.
+            await SqliteSchemaSync.EnsureUpToDateAsync(context, services.GetRequiredService<ILogger<Program>>());
             await DevelopmentDatabaseSchema.EnsureBeneficiaryPortalCredentialsAsync(context);
         }
         else

@@ -347,7 +347,7 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
 
     public async Task<ServiceComplaint> ResolveComplaintAsync(int complaintId, int reviewerId, ComplaintResolutionOutcome outcome, IReadOnlyList<string> mediationSteps, string formalResponse, string? remedy, CancellationToken ct = default)
     {
-        var complaint = await db.ServiceComplaints.SingleOrDefaultAsync(x => x.Id == complaintId && x.RoutedToUserId == reviewerId, ct)
+        var complaint = await db.ServiceComplaints.Include(x => x.Client).Include(x => x.Case).SingleOrDefaultAsync(x => x.Id == complaintId && x.RoutedToUserId == reviewerId, ct)
             ?? throw new UnauthorizedAccessException("Only the assigned reviewer may resolve this complaint.");
         if (complaint.Status is ComplaintStatus.Resolved or ComplaintStatus.Rejected) throw new InvalidOperationException("This complaint has already been decided.");
         var steps = mediationSteps.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToList();
@@ -362,6 +362,14 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         complaint.ClientNotifiedOfResolution = true;
         complaint.Status = outcome == ComplaintResolutionOutcome.NotUpheld ? ComplaintStatus.Rejected : ComplaintStatus.Resolved;
         db.AuditEntries.Add(new() { ActorUserId = reviewerId, EntityType = nameof(ServiceComplaint), EntityId = complaint.ReferenceNumber, Action = "Complaint resolved", SafeMetadataJson = System.Text.Json.JsonSerializer.Serialize(new { outcome, status = complaint.Status }) });
+        var outcomeLabel = complaint.Status == ComplaintStatus.Rejected ? "not upheld" : "resolved";
+        var clientUser = await db.Users.SingleOrDefaultAsync(x => x.Email == complaint.Client.Email, ct);
+        if (clientUser != null)
+            await notifications.QueueAsync(clientUser.Id, "ComplaintResolution", $"Your complaint {complaint.ReferenceNumber} has been {outcomeLabel}", complaint.FormalResponse, $"/Practice/ComplaintReceipt/{complaint.Id}", $"complaint-resolved-{complaint.Id}", ct);
+        var remedyHtml = string.IsNullOrWhiteSpace(complaint.Remedy) ? "" : $"<p><strong>Remedy:</strong> {complaint.Remedy}</p>";
+        var emailHtml = $"<p>Your complaint <strong>{complaint.ReferenceNumber}</strong> regarding \"{complaint.Case.Title}\" has been {outcomeLabel}.</p><p>{complaint.FormalResponse}</p>{remedyHtml}";
+        var emailText = $"Your complaint {complaint.ReferenceNumber} regarding \"{complaint.Case.Title}\" has been {outcomeLabel}.\n\n{complaint.FormalResponse}" + (string.IsNullOrWhiteSpace(complaint.Remedy) ? "" : $"\n\nRemedy: {complaint.Remedy}");
+        await email.QueueAsync(complaint.Client.Email, $"Response to your complaint {complaint.ReferenceNumber}", emailHtml, emailText, $"complaint-resolved-email-{complaint.Id}", ct);
         await db.SaveChangesAsync(ct);
         return complaint;
     }
@@ -378,6 +386,7 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         db.AuditEntries.Add(new() { ActorUserId = reviewerId, EntityType = nameof(ServiceComplaint), EntityId = complaint.ReferenceNumber, Action = "Requires more information", SafeMetadataJson = System.Text.Json.JsonSerializer.Serialize(new { note }) });
         var client = await db.Users.SingleOrDefaultAsync(x => x.Email == complaint.Client.Email, ct);
         if (client != null) await notifications.QueueAsync(client.Id, "ComplaintMoreInfo", "More information needed for your complaint", note.Trim(), $"/Practice/ComplaintReceipt/{complaint.Id}", $"complaint-more-info-{complaint.Id}-{DateTime.UtcNow.Ticks}", ct);
+        await email.QueueAsync(complaint.Client.Email, $"Action needed on your complaint {complaint.ReferenceNumber}", $"<p>We need more information about your complaint <strong>{complaint.ReferenceNumber}</strong>.</p><p>{complaint.InformationRequestNote}</p>", $"We need more information about your complaint {complaint.ReferenceNumber}.\n\n{complaint.InformationRequestNote}", $"complaint-more-info-email-{complaint.Id}-{DateTime.UtcNow.Ticks}", ct);
         await db.SaveChangesAsync(ct);
     }
 

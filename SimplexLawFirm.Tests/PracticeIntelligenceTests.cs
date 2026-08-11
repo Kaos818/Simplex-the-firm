@@ -235,6 +235,7 @@ public class PracticeIntelligenceTests
         Assert.Equal(ComplaintStatus.Resolved, resolved.Status);
         Assert.True(resolved.ClientNotifiedOfResolution);
         Assert.Contains("Apology issued", resolved.MediationSteps);
+        Assert.Single(fixture.SentEmails, m => m.To == client.Email);
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ResolveComplaintAsync(complaint.Id, complaint.RoutedToUserId, ComplaintResolutionOutcome.Upheld, ["Again"], "Again.", null));
     }
 
