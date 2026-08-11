@@ -75,7 +75,17 @@ public sealed class OperationalController(ApplicationDbContext db, IOperationalU
         catch (UnauthorizedAccessException) { return Forbid(); }
     }
     [RequireSessionRole("Lawyer")]
-    public async Task<IActionResult> CheckIn(CancellationToken ct){var attorneyId=HttpContext.Session.GetInt32("UserId")!.Value;ViewBag.Active=await db.AttorneyWhereabouts.FirstOrDefaultAsync(x=>x.AttorneyId==attorneyId&&x.CheckedOutAtUtc==null,ct);ViewBag.Venues=await db.CalendarEvents.Where(x=>x.AssignedToUserId==attorneyId&&x.StartDateTime>=DateTime.UtcNow.AddDays(-1)&&x.StartDateTime<=DateTime.UtcNow.AddDays(7)&&x.Location!="").Select(x=>x.Location).Distinct().OrderBy(x=>x).ToListAsync(ct);ViewBag.Timeline=await service.GetMyTimelineAsync(attorneyId,ct);return View();}
+    public async Task<IActionResult> CheckIn(CancellationToken ct){
+        var attorneyId=HttpContext.Session.GetInt32("UserId")!.Value;
+        ViewBag.Active=await db.AttorneyWhereabouts.FirstOrDefaultAsync(x=>x.AttorneyId==attorneyId&&x.CheckedOutAtUtc==null,ct);
+        // The venue list must lead with the recorded venues, because those are the only
+        // ones carrying coordinates for the geofence check. Upcoming diarised locations
+        // are appended so an attorney can still pick a site that is not yet recorded.
+        var knownVenues=await db.KnownVenues.OrderBy(x=>x.Name).Select(x=>x.Name).ToListAsync(ct);
+        var diarised=await db.CalendarEvents.Where(x=>x.AssignedToUserId==attorneyId&&x.StartDateTime>=DateTime.UtcNow.AddDays(-1)&&x.StartDateTime<=DateTime.UtcNow.AddDays(7)&&x.Location!=null&&x.Location!="").Select(x=>x.Location!).Distinct().ToListAsync(ct);
+        ViewBag.Venues=knownVenues.Concat(diarised.Where(x=>!knownVenues.Contains(x)).OrderBy(x=>x)).ToList();
+        ViewBag.Timeline=await service.GetMyTimelineAsync(attorneyId,ct);
+        return View();}
     [HttpPost,ValidateAntiForgeryToken,RequireSessionRole("Lawyer")]
     public async Task<IActionResult> CheckIn(string? venue,string? recordedVenue,DateTime expectedReturnUtc,int? eventId,double? latitude,double? longitude,string? locationOverrideReason,CancellationToken ct){try{await service.CheckInAsync(HttpContext.Session.GetInt32("UserId")!.Value,eventId,string.IsNullOrWhiteSpace(venue)?recordedVenue??"":venue,expectedReturnUtc,latitude,longitude,locationOverrideReason,ct);TempData["Success"]="Off-site check-in recorded.";}catch(Exception ex){TempData["Error"]=ex.Message;}return RedirectToAction(nameof(CheckIn));}
     [HttpPost,ValidateAntiForgeryToken,RequireSessionRole("Lawyer")]

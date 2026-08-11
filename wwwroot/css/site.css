@@ -315,5 +315,24 @@ h4,h5,h6{letter-spacing:-.01em}
   position: relative;
   z-index: 1;
 }
+
+/* Many heroes place the eyebrow, heading and lead paragraph directly inside
+   .page-hero rather than wrapping them in a copy block. Because .page-hero is a
+   space-between flex row, those three elements were laid out as three
+   side-by-side columns, which squeezed the heading and pushed the eyebrow off
+   the left edge. A direct h1 child identifies that unwrapped pattern, so the
+   stacking is scoped to it: heroes that wrap their copy in a block keep the
+   row layout that positions their badge or status pill alongside it. */
+.page-hero:has(> h1) {
+  flex-wrap: wrap;
+}
+
+.page-hero > .eyebrow,
+.page-hero > h1,
+.page-hero > p {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+}
 @media(max-width:900px){.sx-sidebar-brand span{display:none}.sx-sidebar-brand{justify-content:center!important}.sx-sidebar-brand img{width:46px;height:46px;flex-basis:46px}}
 @media(max-width:560px){.beneficiary-brandbar{margin:0 -14px 24px;padding:13px 15px}.beneficiary-access{display:none}.beneficiary-brand img{width:44px;height:44px}}

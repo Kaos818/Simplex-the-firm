@@ -9,8 +9,9 @@
 
 @if(active is not null){
 <div class="surface">
- <span class="eyebrow">Current status</span><h2>Checked in at @active.Venue</h2>
+ <span class="eyebrow">Current status</span><h2>You are checked in at @active.Venue</h2>
  <p>Expected return: <b>@active.ExpectedReturnAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</b></p>
+ <p class="muted">Check out below when you return. The check-in form comes back once you have checked out.</p>
  @if(active.LocationVerified == true){<div class="alert alert-success">📍 Location verified — @active.DistanceFromVenueMeters?.ToString("N0")m from @active.Venue.</div>}
  else if(active.LocationVerified == false){<div class="alert alert-warning">⚠ Checked in @active.DistanceFromVenueMeters?.ToString("N0")m from @active.Venue. Reason recorded: @active.LocationOverrideReason</div>}
  @if(active.Status == WhereaboutStatus.Emergency){
@@ -25,6 +26,8 @@
 </div>
 }else{
 <form method="post" class="surface stack-form" id="checkInForm">@Html.AntiForgeryToken()
+ <span class="eyebrow">Check in</span><h2>Check in to an off-site engagement</h2>
+ <p class="muted">Record where you are going and when you expect to be back, so the safety team can account for you.</p>
  <div id="gpsNote" class="gps-note muted">📍 Requesting your location…</div>
  <input type="hidden" name="latitude" id="latitudeInput"/>
  <input type="hidden" name="longitude" id="longitudeInput"/>
