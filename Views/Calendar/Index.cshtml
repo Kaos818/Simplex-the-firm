@@ -1,7 +1,9 @@
-﻿@{
+﻿@using Microsoft.AspNetCore.Mvc.Rendering
+@{
     ViewData["Title"] = "Calendar";
     Layout = "_AdminLayout";
     var userRole = Context.Session.GetString("UserRole");
+    var preselectCaseId = int.TryParse(Context.Request.Query["caseId"], out var pcid) ? pcid.ToString() : null;
 }
 
 @section Styles {
@@ -177,6 +179,10 @@
                             <label class="form-label fw-bold">Related Case</label>
                             <select id="eventCaseId" name="CaseId" class="form-select">
                                 <option value="">-- Select Case --</option>
+                                @foreach (var item in (SelectList)ViewBag.Cases)
+                                {
+                                    <option value="@item.Value">@item.Text</option>
+                                }
                             </select>
                         </div>
                     </div>
@@ -253,6 +259,13 @@
         document.getElementById('viewWeek').addEventListener('click', () => calendar.changeView('timeGridWeek'));
         document.getElementById('viewMonth').addEventListener('click', () => calendar.changeView('dayGridMonth'));
         document.getElementById('todayBtn').addEventListener('click', () => calendar.today());
+        @if (!string.IsNullOrWhiteSpace(preselectCaseId)) {
+        <text>
+        resetEventForm();
+        document.getElementById('eventCaseId').value = '@preselectCaseId';
+        $('#eventModal').modal('show');
+        </text>
+        }
         });
         
         // Format date for datetime-local input

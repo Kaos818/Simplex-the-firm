@@ -281,7 +281,7 @@
                         <a href="@Url.Action("Upload", "Document", new { caseId = Model.Id })" class="btn btn-outline-primary">
                             <i class="fas fa-upload me-2"></i>Upload Document
                         </a>
-                        <a href="@Url.Action("Create", "Calendar", new { caseId = Model.Id })" class="btn btn-outline-primary">
+                        <a href="@Url.Action("Index", "Calendar", new { caseId = Model.Id })" class="btn btn-outline-primary">
                             <i class="fas fa-calendar-plus me-2"></i>Schedule Event
                         </a>
                         <a href="@Url.Action("Create", "Retainer", new { caseId = Model.Id, clientId = Model.ClientId })" class="btn btn-outline-primary">
