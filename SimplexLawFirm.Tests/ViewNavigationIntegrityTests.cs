@@ -49,6 +49,18 @@ public sealed class ViewNavigationIntegrityTests
     }
 
     [Fact]
+    public void Forecast_comparables_link_to_the_snapshot_scoped_review_action()
+    {
+        var source = File.ReadAllText(Path.Combine(ViewsRoot, "Practice", "Forecast.cshtml"));
+        Assert.Contains("asp-action=\"ComparableMatter\"", source);
+        Assert.Contains("asp-route-forecastId", source);
+        Assert.Contains("asp-route-caseId", source);
+        AssertAction<PracticeController>("ComparableMatter");
+        var safeguardFilter = File.ReadAllText(Path.Combine(ViewsRoot, "..", "Infrastructure", "Authorization", "MatterSafeguardAcknowledgementFilter.cs"));
+        Assert.Contains("controller == \"Practice\" && action == \"ComparableMatter\"", safeguardFilter);
+    }
+
+    [Fact]
     public void Final_director_verdict_and_event_reimbursement_controls_are_visible()
     {
         var handover = File.ReadAllText(Path.Combine(ViewsRoot, "Practice", "Handover.cshtml"));

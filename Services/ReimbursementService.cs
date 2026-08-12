@@ -50,7 +50,8 @@ public sealed class ReimbursementService(
         var calendarActivity = await db.CalendarEvents
             .Where(x => x.Id == input.CalendarEventId && x.CaseId == matter.Id && x.AssignedToUserId == attorneyId
                 && x.ClientResponseStatus == AppointmentResponseStatus.Accepted
-                && x.EndDateTime <= DateTime.UtcNow && x.Status != EventStatus.Cancelled
+                // Calendar events are stored as local, unspecified wall-clock values throughout the app.
+                && x.EndDateTime <= DateTime.Now && x.Status != EventStatus.Cancelled
                 && SupportedEvents.Contains(x.Type))
             .Select(x => new { x.Id, x.Type })
             .SingleOrDefaultAsync(ct);

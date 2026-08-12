@@ -1,0 +1,25 @@
+@model SimplexLawFirm.ViewModels.ComparableMatterPageViewModel
+@{
+    ViewData["Title"] = "Comparable matter review";
+    Layout = Context.Session.GetString("UserRole") == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+}
+
+<div class="breadcrumb-line"><a asp-action="Forecast" asp-route-id="@Model.Forecast.CaseId">Outcome forecast</a><span>›</span><span>Comparable matter</span></div>
+<div class="page-hero compact"><div><span class="eyebrow">Anonymised comparable matter</span><h1>@Model.Matter.CaseNumber</h1><p>@Model.Matter.CaseType · closed @Model.Matter.UpdatedAt?.ToString("dd MMM yyyy")</p></div></div>
+
+<div class="metric-grid">
+    <div class="metric-card"><span>Recorded outcome</span><strong>@Model.Matter.RecordedOutcome</strong><small>Source outcome in this forecast snapshot</small></div>
+    <div class="metric-card"><span>Evidence profile</span><strong>@Model.Matter.EvidenceStrength.ToString("P0")</strong><small>Recorded at matter level</small></div>
+    <div class="metric-card"><span>Lifecycle</span><strong>@Model.Matter.Status</strong><small>Opened @Model.Matter.CreatedAt.ToString("dd MMM yyyy")</small></div>
+</div>
+
+<div class="workspace-grid">
+    <section class="surface"><div class="section-heading"><div><span class="eyebrow">Case contents</span><h2>Matter overview</h2></div></div><h3>@Model.Matter.Title</h3><p>@Model.Matter.Description</p></section>
+    <section class="surface"><div class="section-heading"><div><span class="eyebrow">Result</span><h2>Outcome summary</h2></div></div>@if(Model.SensitiveOutcomeWithheld){<div class="responsibility-note">The source outcome narrative is withheld because it is marked privileged or confidential.</div>}else{<p>@(string.IsNullOrWhiteSpace(Model.Matter.OutcomeSummary) ? "No outcome narrative was recorded." : Model.Matter.OutcomeSummary)</p>}</section>
+</div>
+
+<section class="surface"><div class="section-heading"><div><span class="eyebrow">Review record</span><h2>Non-confidential case notes</h2></div></div>@foreach(var note in Model.ReviewableNotes){<div class="record-row"><span><b>@note.CreatedAt.ToString("dd MMM yyyy")</b><small>@note.Content</small></span></div>}@if(!Model.ReviewableNotes.Any()){<div class="empty-state">No non-confidential notes are available for comparison.</div>}</section>
+
+<section class="surface mt-4"><div class="section-heading"><div><span class="eyebrow">Source material</span><h2>Permitted matter documents</h2></div></div>@foreach(var document in Model.ReviewableDocuments){<a class="record-row" asp-controller="Document" asp-action="Download" asp-route-id="@document.Id"><span><b>@document.FileName</b><small>@document.Category · @document.Description</small></span><span>Read document →</span></a>}@if(!Model.ReviewableDocuments.Any()){<div class="empty-state">Source documents are available only to the assigned lawyer or a Director. The anonymised matter record above remains available for comparison.</div>}</section>
+
+<p class="muted mt-3">Client identity, privileged notes, confidential notes, client documents and correspondence are excluded from this comparison view.</p>

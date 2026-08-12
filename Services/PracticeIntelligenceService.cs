@@ -57,7 +57,7 @@ public sealed class PracticeIntelligenceService(ApplicationDbContext db, INotifi
         forecast.ProbabilityBand = probability >= .70m ? "Strong prospects" : probability >= .45m ? "Balanced prospects" : "Limited prospects";
         forecast.ConfidenceLevel = comparable.Count >= 10 ? "High" : comparable.Count >= 6 ? "Moderate" : "Developing";
         forecast.FactorsJson = JsonSerializer.Serialize(factors);
-        forecast.ComparableCasesJson = JsonSerializer.Serialize(comparable.Select(x => new ComparableMatter(x.CaseNumber, x.Title, x.RecordedOutcome!.Value)));
+        forecast.ComparableCasesJson = JsonSerializer.Serialize(comparable.Select(x => new ComparableMatter(x.CaseNumber, x.Title, x.RecordedOutcome!.Value, x.Id)));
         db.CaseForecasts.Add(forecast);
         await db.SaveChangesAsync(ct);
         return forecast;

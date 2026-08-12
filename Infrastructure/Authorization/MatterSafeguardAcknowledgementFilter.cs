@@ -19,7 +19,7 @@ public sealed class MatterSafeguardAcknowledgementFilter(
         var controller = context.RouteData.Values["controller"]?.ToString() ?? "";
         var action = context.RouteData.Values["action"]?.ToString() ?? "";
         if (!staffId.HasValue || role is not ("Admin" or "Lawyer" or "Paralegal" or "Accountant") ||
-            controller == "VulnerableClient")
+            controller == "VulnerableClient" || controller == "Practice" && action == "ComparableMatter")
         {
             await next(); return;
         }

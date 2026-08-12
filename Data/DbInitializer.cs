@@ -1192,17 +1192,6 @@ namespace SimplexLawFirm.Data
                 var claim = new ReimbursementClaim { ClaimNumber = "RMB-DEMO-001", CaseId = pi.Id, Case = pi, AttorneyId = naledi.Id, Attorney = naledi, ExpenseType = ReimbursementExpenseType.Travel, ExpenseDate = DateTime.UtcNow.Date.AddDays(-2), Amount = 1280m, Description = "Travel to the client-approved medico-legal consultation.", Status = ReimbursementStatus.PendingDirector, MatchedActivityType = ReimbursementActivityType.Appointment, MatchedActivityId = acceptedAppointment.Id, PolicyLimitSnapshot = 1500m, DelegatedLimitSnapshot = 1000m, ExceedsPolicyLimit = false, Classification = ExpenseClassification.ClientRecoverable, ClassificationReason = "Matter-related travel is recoverable under the retainer.", ProofOriginalFileName = "demo-travel-receipt.pdf", ProofRelativePath = "showcase/demo-travel-receipt.pdf", ProofContentType = "application/pdf", SubmittedAtUtc = DateTime.UtcNow.AddDays(-1) };
                 var bytes = new RecordPdfService().CreateReimbursement(claim); var relative = claim.ProofRelativePath.Replace('/', Path.DirectorySeparatorChar); var path = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "SecureReimbursementProofs", relative); Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllBytes(path, bytes); claim.ProofSizeBytes = bytes.Length; claim.ProofSha256Hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)); context.ReimbursementClaims.Add(claim);
             }
-            else
-            {
-                var demoClaim = context.ReimbursementClaims.Single(x => x.ClaimNumber == "RMB-DEMO-001");
-                if (demoClaim.Status == ReimbursementStatus.PendingDirector)
-                {
-                    demoClaim.MatchedActivityType = ReimbursementActivityType.Appointment;
-                    demoClaim.MatchedActivityId = acceptedAppointment.Id;
-                    demoClaim.Description = "Travel to the client-approved medico-legal consultation.";
-                }
-            }
-
             EnsureShowcasePrecedentData(context, director.Id);
             context.SaveChanges();
         }

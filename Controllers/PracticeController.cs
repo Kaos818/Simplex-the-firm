@@ -9,6 +9,7 @@ using SimplexLawFirm.Infrastructure.Authorization;
 using SimplexLawFirm.Services.Email;
 using SimplexLawFirm.Services.Storage;
 using SimplexLawFirm.Services.Notifications;
+using System.Text.Json;
 
 namespace SimplexLawFirm.Controllers;
 
@@ -172,6 +173,38 @@ public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceSe
         var forecast = await db.CaseForecasts.Where(x => x.CaseId == id).OrderByDescending(x => x.RequestedAtUtc).FirstOrDefaultAsync(ct);
         ViewBag.SupportingDocuments = await db.Documents.Where(x => x.CaseId == id).OrderByDescending(x => x.UploadedAt).ToListAsync(ct);
         return View(new ForecastPageViewModel { Case = matter, Forecast = forecast });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ComparableMatter(int forecastId, int caseId, string? caseNumber, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        var role = HttpContext.Session.GetString("UserRole");
+        if (userId is null || role is not ("Lawyer" or "Admin" or "Director")) return Forbid();
+
+        var forecast = await db.CaseForecasts.Include(x => x.Case).SingleOrDefaultAsync(x => x.Id == forecastId, ct);
+        if (forecast is null) return NotFound();
+        if (!IsDirector(role) && forecast.AttorneyId != userId) return Forbid();
+
+        var snapshot = JsonSerializer.Deserialize<List<ComparableMatter>>(forecast.ComparableCasesJson) ?? [];
+        var entry = snapshot.SingleOrDefault(x =>
+            caseId > 0 ? x.CaseId == caseId : string.Equals(x.CaseNumber, caseNumber, StringComparison.OrdinalIgnoreCase));
+        if (entry is null) return NotFound();
+
+        // Forecasts saved before comparable IDs were introduced remain reviewable by their immutable case number.
+        var matter = entry.CaseId > 0
+            ? await db.Cases.Include(x => x.Lawyer).SingleOrDefaultAsync(x => x.Id == entry.CaseId, ct)
+            : await db.Cases.Include(x => x.Lawyer).SingleOrDefaultAsync(x => x.CaseNumber == entry.CaseNumber, ct);
+        if (matter is null || matter.Status != CaseStatus.Closed || matter.RecordedOutcome != entry.Outcome) return NotFound();
+
+        var canReadSourceFiles = IsDirector(role) || matter.LawyerId == userId;
+        var notes = await db.CaseNotes.Where(x => x.CaseId == matter.Id && !x.IsPrivileged && !x.IsConfidential)
+            .OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+        var documents = canReadSourceFiles
+            ? await db.Documents.Where(x => x.CaseId == matter.Id && x.Category != DocumentCategory.ClientDocuments && x.Category != DocumentCategory.Correspondence)
+                .OrderByDescending(x => x.UploadedAt).ToListAsync(ct)
+            : [];
+        return View(new ComparableMatterPageViewModel { Matter = matter, Forecast = forecast, ReviewableNotes = notes, ReviewableDocuments = documents });
     }
 
     [HttpPost, ValidateAntiForgeryToken]

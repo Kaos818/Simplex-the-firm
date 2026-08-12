@@ -34,6 +34,9 @@ public class PracticeIntelligenceTests
         var forecast = await fixture.Service.CreateForecastAsync(matter.Id, lawyer.Id);
         var original = forecast.Probability;
         Assert.Equal(ForecastStatus.Draft, forecast.Status);
+        var comparableSnapshot = System.Text.Json.JsonSerializer.Deserialize<List<ComparableMatter>>(forecast.ComparableCasesJson)!;
+        Assert.Equal(3, comparableSnapshot.Count);
+        Assert.All(comparableSnapshot, comparable => Assert.True(comparable.CaseId > 0));
         Assert.Null(forecast.LockedAtUtc);
         Assert.Equal(ForecastRequestStatus.Pending, (await fixture.Db.ClientForecastRequests.SingleAsync()).Status);
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ScoreForecastAsync(matter.Id, ForecastResult.Successful));

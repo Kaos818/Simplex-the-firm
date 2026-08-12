@@ -56,7 +56,7 @@ public sealed class ReimbursementTests
         var appointment = new CalendarEvent
         {
             Title = "Client appointment", Description = "", Location = "Office",
-            StartDateTime = DateTime.Today.AddHours(9), EndDateTime = DateTime.Today.AddHours(10),
+            StartDateTime = DateTime.Today.AddDays(-1).AddHours(9), EndDateTime = DateTime.Today.AddDays(-1).AddHours(10),
             CaseId = f.Matter.Id, AssignedToUserId = f.Lawyer.Id, Type = EventType.Appointment, Status = EventStatus.Scheduled,
             ClientResponseStatus = AppointmentResponseStatus.Rejected,
             Color = "", MeetingLink = "", CompletionNotes = ""

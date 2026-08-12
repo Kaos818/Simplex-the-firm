@@ -4,7 +4,7 @@ using SimplexLawFirm.Models;
 namespace SimplexLawFirm.ViewModels;
 
 public record ForecastFactor(string Label, decimal Weight, string Rationale);
-public record ComparableMatter(string CaseNumber, string Title, ForecastResult Outcome);
+public record ComparableMatter(string CaseNumber, string Title, ForecastResult Outcome, int CaseId = 0);
 
 public class ForecastPageViewModel
 {
@@ -13,6 +13,15 @@ public class ForecastPageViewModel
     [Range(0, 100)] public decimal AttorneyAssessmentPercent { get; set; }
     public bool AttorneyAgrees { get; set; }
     [MaxLength(1000)] public string? AttorneyNotes { get; set; }
+}
+
+public class ComparableMatterPageViewModel
+{
+    public Case Matter { get; set; } = null!;
+    public CaseForecast Forecast { get; set; } = null!;
+    public IReadOnlyList<CaseNote> ReviewableNotes { get; set; } = [];
+    public IReadOnlyList<Document> ReviewableDocuments { get; set; } = [];
+    public bool SensitiveOutcomeWithheld => Matter.OutcomeIsPrivileged || Matter.OutcomeIsConfidential;
 }
 
 public class HandoverPageViewModel
