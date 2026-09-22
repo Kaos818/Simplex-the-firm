@@ -69,8 +69,14 @@ builder.Services.AddScoped<IReferenceFaceExtractor, ReferenceFaceExtractor>();
 builder.Services.AddScoped<ICurrentClientService, CurrentClientService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IEmailService, EmailOutboxService>();
+builder.Services.AddScoped<IAccountConfirmationService, AccountConfirmationService>();
 builder.Services.AddScoped<IAppointmentBillingService, AppointmentBillingService>();
-builder.Services.AddScoped<IPracticeIntelligenceService, PracticeIntelligenceService>();
+  builder.Services.AddScoped<IPracticeIntelligenceService, PracticeIntelligenceService>();
+  builder.Services.AddScoped<ICasePriorityService, CasePriorityService>();
+  builder.Services.AddScoped<IClientResponseDelayService, ClientResponseDelayService>();
+  builder.Services.AddScoped<IAdverseCostExposureService, AdverseCostExposureService>();
+  builder.Services.AddScoped<IDiscoveryDisclosureService, DiscoveryDisclosureService>();
+  builder.Services.AddScoped<IFeeDiscountService, FeeDiscountService>();
 builder.Services.AddScoped<IMatterCostEstimateService, MatterCostEstimateService>();
 builder.Services.AddScoped<IReimbursementService, ReimbursementService>();
 builder.Services.AddScoped<ILegalCostRecoveryService, LegalCostRecoveryService>();
@@ -94,7 +100,8 @@ builder.Services.AddHostedService<AppointmentBillingWorker>();
 builder.Services.AddHostedService<LatePenaltyWorker>();
 builder.Services.AddHostedService<PrecedentIndexWorker>();
 builder.Services.AddHostedService<VulnerableClientGovernanceWorker>();
-builder.Services.AddHostedService<CaseGovernanceWorker>();
+  builder.Services.AddHostedService<CaseGovernanceWorker>();
+  builder.Services.AddHostedService<ClientResponseDelayWorker>();
 
 if (!builder.Environment.IsDevelopment())
 {
@@ -168,7 +175,8 @@ using (var scope = app.Services.CreateScope())
         }
         else
             await context.Database.MigrateAsync();
-        DbInitializer.Seed(context, app.Environment.IsDevelopment(), builder.Configuration["Seed:KaoticPortalPassword"], builder.Configuration["Seed:SharedPassword"]);
+        var beneficiaryPortalPassword = builder.Configuration["Seed:BeneficiaryPortalPassword"] ?? builder.Configuration["Seed:SharedPassword"];
+        DbInitializer.Seed(context, app.Environment.IsDevelopment(), builder.Configuration["Seed:KaoticPortalPassword"], beneficiaryPortalPassword);
         await LegacyDocumentStorageMigration.MigrateAsync(context, app.Environment, services.GetRequiredService<IDocumentStorage>());
     }
     catch (Exception ex)

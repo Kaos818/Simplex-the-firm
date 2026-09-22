@@ -14,6 +14,7 @@ public class BeneficiaryPortalController(ApplicationDbContext db, ISecureFileSto
     IReferenceFaceExtractor? referenceExtractor = null, SimplexLawFirm.Services.IOperationalUseCaseService? operational = null) : Controller
 {
     private const string PortalKey = "BeneficiaryPortalId";
+    private const string RememberCookie = "Simplex.RememberMe";
     [HttpGet]
     public IActionResult Login() => HttpContext.Session.GetInt32(PortalKey) is null ? View() : RedirectToAction(nameof(Assets));
 
@@ -29,7 +30,7 @@ public class BeneficiaryPortalController(ApplicationDbContext db, ISecureFileSto
             ModelState.AddModelError(string.Empty, "Invalid email or password.");
             return View();
         }
-        HttpContext.Session.SetInt32(PortalKey, beneficiary.Id);
+        EstablishBeneficiarySession(beneficiary.Id);
         return RedirectToAction(nameof(Assets));
     }
 
@@ -49,8 +50,18 @@ public class BeneficiaryPortalController(ApplicationDbContext db, ISecureFileSto
         invite.UsedAtUtc = DateTime.UtcNow;
         if (invite.Beneficiary.Status is BeneficiaryStatus.Draft or BeneficiaryStatus.InvitationSent)
             invite.Beneficiary.Status = BeneficiaryStatus.AwaitingDocuments;
-        HttpContext.Session.SetInt32(PortalKey, invite.BeneficiaryId); await db.SaveChangesAsync(ct);
+        EstablishBeneficiarySession(invite.BeneficiaryId); await db.SaveChangesAsync(ct);
         return View(invite.Beneficiary);
+    }
+
+    private void EstablishBeneficiarySession(int beneficiaryId)
+    {
+        HttpContext.Session.Remove("UserId");
+        HttpContext.Session.Remove("UserRole");
+        HttpContext.Session.Remove("UserFullName");
+        HttpContext.Session.Remove("UserEmail");
+        Response.Cookies.Delete(RememberCookie);
+        HttpContext.Session.SetInt32(PortalKey, beneficiaryId);
     }
     public async Task<IActionResult> Documents(CancellationToken ct)
     {

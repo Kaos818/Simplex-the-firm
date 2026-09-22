@@ -14,8 +14,37 @@ using System.Text.Json;
 namespace SimplexLawFirm.Controllers;
 
 [RequireSessionUser]
-public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceService service, ICurrentClientService currentClient, IComplaintFileStorage complaintFiles, IEmailService email, INotificationService notifications, IPrecedentLibraryService precedents) : Controller
+public class PracticeController(ApplicationDbContext db, IPracticeIntelligenceService service, ICasePriorityService priorityService, ICurrentClientService currentClient, IComplaintFileStorage complaintFiles, IEmailService email, INotificationService notifications, IPrecedentLibraryService precedents) : Controller
 {
+    [HttpGet]
+    public async Task<IActionResult> PriorityHeatmap(CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        var role = HttpContext.Session.GetString("UserRole");
+        if (userId is null || (!IsDirector(role) && role != "Lawyer")) return Forbid();
+        var director = IsDirector(role);
+        var matters = await priorityService.AnalyseAsync(director ? null : userId, ct);
+        var configuration = await priorityService.GetConfigurationAsync(ct);
+        db.AuditEntries.Add(new AuditEntry { ActorUserId = userId, EntityType = "CasePriorityHeatmap", EntityId = director ? "firm" : userId.Value.ToString(), Action = "Priority heatmap accessed", SafeMetadataJson = JsonSerializer.Serialize(new { MatterCount = matters.Count, Scope = director ? "firm" : "assigned" }) });
+        await db.SaveChangesAsync(ct);
+        ViewBag.Role = role;
+        return View(new CasePriorityHeatmapViewModel { Matters = matters, Configuration = configuration, CanConfigure = director });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdatePriorityWeights(CasePriorityWeightConfiguration input, CancellationToken ct)
+    {
+        var userId = HttpContext.Session.GetInt32("UserId");
+        if (userId is null || !IsDirector(HttpContext.Session.GetString("UserRole"))) return Forbid();
+        try
+        {
+            await priorityService.UpdateConfigurationAsync(input, userId.Value, ct);
+            TempData["Success"] = "Priority weighting configuration saved. The heatmap now uses the new weights.";
+        }
+        catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+        return RedirectToAction(nameof(PriorityHeatmap));
+    }
+
     public async Task<IActionResult> Index(CancellationToken ct)
     {
         var role = HttpContext.Session.GetString("UserRole");

@@ -19,4 +19,9 @@
  </div>
  @if (!Model.Any()) { <div class="empty-state">No case document requests are visible for your account.</div> }
 </section>
+@if (role is "Admin" or "Director")
+{
+ var rules = (IReadOnlyList<ClientResponseSlaRule>)ViewBag.SlaRules;
+ <section class="surface mt-4"><div class="section-heading"><div><span class="eyebrow">Director control</span><h2>Response-deadline rules</h2></div><small>Applied when new requests are sent.</small></div><form method="post" action="/CaseDocumentRequest/UpdateSlaRules" class="row g-3">@Html.AntiForgeryToken()@for(var i=0;i<rules.Count;i++){<input type="hidden" name="rules[@i].RequestType" value="@rules[i].RequestType"/><div class="col-md"><label class="form-label">@rules[i].RequestType (days)</label><input class="form-control" type="number" min="1" max="90" name="rules[@i].ResponseDays" value="@rules[i].ResponseDays"/></div>}<div class="col-12"><button class="btn btn-primary">Save SLA rules</button></div></form></section>
+}
 <script>document.getElementById('requestSearch')?.addEventListener('input',function(){const q=this.value.toLowerCase().trim();document.querySelectorAll('.request-row').forEach(x=>x.style.display=!q||x.dataset.search.includes(q)?'':'none');});</script>

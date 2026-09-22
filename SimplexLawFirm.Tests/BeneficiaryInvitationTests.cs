@@ -84,6 +84,25 @@ public sealed class BeneficiaryInvitationTests
     }
 
     [Fact]
+    public async Task Beneficiary_login_clears_an_existing_client_session()
+    {
+        await using var fixture = await Fixture.Create();
+        fixture.Beneficiary.PortalAccessEnabled = true;
+        fixture.Beneficiary.PortalPasswordHash = BCrypt.Net.BCrypt.HashPassword("test-password");
+        fixture.Session.SetInt32("UserId", 42);
+        fixture.Session.SetString("UserRole", "Client");
+        fixture.Session.SetString("UserEmail", "client@simplex.test");
+        await fixture.Db.SaveChangesAsync();
+
+        await fixture.Controller.Login(fixture.Beneficiary.Email, "test-password", default);
+
+        Assert.Equal(fixture.Beneficiary.Id, fixture.Session.GetInt32("BeneficiaryPortalId"));
+        Assert.Null(fixture.Session.GetInt32("UserId"));
+        Assert.Null(fixture.Session.GetString("UserRole"));
+        Assert.Null(fixture.Session.GetString("UserEmail"));
+    }
+
+    [Fact]
     public async Task Password_login_rejects_incorrect_credentials()
     {
         await using var fixture = await Fixture.Create();

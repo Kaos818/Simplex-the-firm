@@ -239,6 +239,7 @@ public sealed class HomeController(
 
     private void SetSession(ApplicationUser user)
     {
+        HttpContext.Session.Remove("BeneficiaryPortalId");
         HttpContext.Session.SetString("UserRole", user.Role == UserRole.Director ? "Admin" : user.Role.ToString());
         HttpContext.Session.SetInt32("UserId", user.Id);
         HttpContext.Session.SetString("UserFullName", user.FullName);

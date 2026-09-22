@@ -41,7 +41,7 @@
                @if(Model.Status == CaseStatus.Active) { <li><a class="dropdown-item" href="@Url.Action("Strategy", "CaseGovernance", new { caseId = Model.Id })"><i class="fas fa-route"></i>Litigation strategy</a></li> }
                <li><a class="dropdown-item" href="@Url.Action("Readiness", "CaseGovernance", new { caseId = Model.Id })"><i class="fas fa-clipboard-check"></i>Court readiness</a></li>
                <li><a class="dropdown-item" href="@Url.Action("Create", "LegalCostRecovery", new { caseId = Model.Id })"><i class="fas fa-scale-balanced"></i>Claim wasted costs</a></li>
-               @if(Model.Status == CaseStatus.Active) { <li><a class="dropdown-item" href="@Url.Action("Create", "Reimbursement", new { caseId = Model.Id })"><i class="fas fa-receipt"></i>Claim reimbursement</a></li><li><a class="dropdown-item" href="/Operational/Research?caseId=@Model.Id"><i class="fas fa-book-open"></i>Research case law</a></li> }
+               @if(Model.Status == CaseStatus.Active) { <li><a class="dropdown-item" href="@Url.Action("Create", "Reimbursement", new { caseId = Model.Id })"><i class="fas fa-receipt"></i>Claim reimbursement</a></li><li><a class="dropdown-item" href="/DiscoveryDisclosure/Create?caseId=@Model.Id"><i class="fas fa-folder-open"></i>Prepare discovery exchange</a></li><li><a class="dropdown-item" href="/Operational/Research?caseId=@Model.Id"><i class="fas fa-book-open"></i>Research case law</a></li> }
               }
              </ul>
             </div>

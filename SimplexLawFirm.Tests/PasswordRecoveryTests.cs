@@ -50,6 +50,24 @@ public sealed class PasswordRecoveryTests
     }
 
     [Fact]
+    public async Task Registration_confirmation_link_confirms_account_and_is_one_time()
+    {
+        await using var f = await Fixture.Create();
+        var registration = new RegisterViewModel { FullName = "New Portal User", Email = "new.portal@example.test", Password = "NewPortalPass9!", ConfirmPassword = "NewPortalPass9!" };
+
+        Assert.IsType<RedirectToActionResult>(await f.Controller.Register(registration));
+        var user = await f.Db.Users.SingleAsync(x => x.Email == registration.Email);
+        var rawToken = TokenFrom(Assert.Single(f.Email.Messages).Text);
+        Assert.False(user.EmailConfirmed);
+        Assert.Equal(HomeController.HashToken(rawToken), user.EmailConfirmationToken);
+
+        Assert.IsType<RedirectToActionResult>(await f.Controller.ConfirmEmail(rawToken));
+        Assert.True(user.EmailConfirmed);
+        Assert.Null(user.EmailConfirmationToken);
+        Assert.IsType<RedirectToActionResult>(await f.Controller.ConfirmEmail(rawToken));
+    }
+
+    [Fact]
     public async Task Expired_link_is_rejected_without_changing_password()
     {
         await using var f = await Fixture.Create();

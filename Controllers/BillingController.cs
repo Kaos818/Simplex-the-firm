@@ -45,7 +45,8 @@ namespace SimplexLawFirm.Controllers
         public async Task<IActionResult> PenaltyQueue()
         {
             var invoices = await _context.Invoices.Include(x => x.Client).Include(x => x.Payments)
-                .Where(x => x.Status == InvoiceStatus.Overdue && !_context.InvoicePenalties.Any(p => p.InvoiceId == x.Id))
+                .Where(x => x.Status == InvoiceStatus.Overdue && !_context.InvoicePenalties.Any(p => p.InvoiceId == x.Id)
+                    && !_context.Retainers.Any(r => r.ClientId == x.ClientId && r.Status == RetainerStatus.Active))
                 .OrderBy(x => x.DueDate).ToListAsync();
             return View(invoices);
         }

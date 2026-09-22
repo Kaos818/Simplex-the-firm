@@ -73,7 +73,7 @@ public class InvoicePenalty
     public long Id { get; set; }
     public int InvoiceId { get; set; }
     public Invoice Invoice { get; set; } = null!;
-    public int CalendarEventId { get; set; }
+    public int? CalendarEventId { get; set; }
     public LatePenaltyType Type { get; set; }
     public decimal BasisAmount { get; set; }
     public decimal PenaltyValue { get; set; }
@@ -82,6 +82,18 @@ public class InvoicePenalty
     public string IdempotencyKey { get; set; } = "";
     public int AppliedByAccountantId { get; set; }
     public string Reason { get; set; } = "";
+}
+
+// Firm-level UC10 fallback. Appointment-specific agreed terms take precedence.
+public class OverduePaymentPenaltyPolicy
+{
+    public int Id { get; set; }
+    public int GracePeriodDays { get; set; } = 7;
+    public LatePenaltyType PenaltyType { get; set; } = LatePenaltyType.Percentage;
+    public decimal PenaltyValue { get; set; } = 5m;
+    public bool IsActive { get; set; } = true;
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+    public int? UpdatedByUserId { get; set; }
 }
 
 public class AuditEntry

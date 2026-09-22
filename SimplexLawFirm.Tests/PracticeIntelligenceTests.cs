@@ -147,6 +147,39 @@ public class PracticeIntelligenceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.LodgeComplaintAsync(client.Id, new LodgeComplaintViewModel { CaseId = matter.Id, Category = ComplaintCategory.Delay, Description = "The archived matter should not accept a new service complaint through this workflow." }));
     }
 
+    [Fact]
+    public async Task Priority_analysis_explains_all_five_factors_and_marks_an_overdue_matter_high()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var (matter, lawyer, client) = await fixture.SeedMatterAsync();
+        matter.MatterValue = 10_000m;
+        fixture.Db.CalendarEvents.Add(new CalendarEvent { Title = "Overdue filing", Description = "", Location = "Court", CaseId = matter.Id, CreatedByUserId = lawyer.Id, Type = EventType.FilingDeadline, Status = EventStatus.Scheduled, StartDateTime = DateTime.UtcNow.AddDays(-1), EndDateTime = DateTime.UtcNow, Color = "#000", MeetingLink = "", RecurrenceRule = "" });
+        fixture.Db.Invoices.Add(new Invoice { InvoiceNumber = $"INV-{Guid.NewGuid():N}", ClientId = client.Id, CaseId = matter.Id, Amount = 25_000m, TotalAmount = 25_000m, IssueDate = DateTime.UtcNow, DueDate = DateTime.UtcNow, CreatedAt = DateTime.UtcNow, Status = InvoiceStatus.Overdue });
+        await fixture.Db.SaveChangesAsync();
+
+        var service = new CasePriorityService(fixture.Db);
+        var result = Assert.Single(await service.AnalyseAsync(lawyer.Id));
+
+        Assert.Equal(CasePriorityBand.High, result.Band);
+        Assert.Equal(5, result.Factors.Count);
+        Assert.Contains(result.Factors, x => x.Name == "Urgency" && x.Score == 100m);
+        Assert.Contains(result.Factors, x => x.Name == "Financial exposure" && x.Score == 100m);
+    }
+
+    [Fact]
+    public async Task Priority_weight_updates_require_a_complete_one_hundred_percent_allocation()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var (_, lawyer, _) = await fixture.SeedMatterAsync();
+        var service = new CasePriorityService(fixture.Db);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdateConfigurationAsync(new CasePriorityWeightConfiguration { RiskWeight = 10m, UrgencyWeight = 10m, ComplexityWeight = 10m, DocumentReadinessWeight = 10m, FinancialExposureWeight = 10m }, lawyer.Id));
+
+        await service.UpdateConfigurationAsync(new CasePriorityWeightConfiguration { RiskWeight = 40m, UrgencyWeight = 20m, ComplexityWeight = 15m, DocumentReadinessWeight = 15m, FinancialExposureWeight = 10m }, lawyer.Id);
+        var configuration = await service.GetConfigurationAsync();
+        Assert.Equal(40m, configuration.RiskWeight);
+        Assert.Single(await fixture.Db.AuditEntries.ToListAsync());
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;

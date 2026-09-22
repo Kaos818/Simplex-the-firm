@@ -96,6 +96,27 @@ public static class DevelopmentDatabaseSchema
         await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS AttorneyWhereabouts (Id INTEGER PRIMARY KEY AUTOINCREMENT, AttorneyId INTEGER NOT NULL, CalendarEventId INTEGER NULL, Venue TEXT NOT NULL, CheckedInAtUtc TEXT NOT NULL, ExpectedReturnAtUtc TEXT NOT NULL, CheckedOutAtUtc TEXT NULL, Status INTEGER NOT NULL, AlertedAtUtc TEXT NULL, DirectorEscalatedAtUtc TEXT NULL, ContactOutcome TEXT NULL)", cancellationToken);
         await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS BeneficiaryTrustDisbursementRequests (Id INTEGER PRIMARY KEY AUTOINCREMENT, ReferenceNumber TEXT NOT NULL UNIQUE, BeneficiaryId INTEGER NOT NULL, TrustAccountId INTEGER NOT NULL, Purpose TEXT NOT NULL, Reason TEXT NOT NULL, Amount TEXT NOT NULL, EntitlementLimitSnapshot TEXT NOT NULL, BalanceSnapshot TEXT NOT NULL, Status INTEGER NOT NULL, SubmittedAtUtc TEXT NOT NULL, DecidedByUserId INTEGER NULL, DecisionReason TEXT NULL, DecidedAtUtc TEXT NULL)", cancellationToken);
         await EnsureColumnAsync(connection, "BeneficiaryTrustDisbursementRequests", "DecidedAtUtc", "TEXT NULL", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS CasePriorityWeightConfigurations (Id INTEGER PRIMARY KEY, RiskWeight TEXT NOT NULL, UrgencyWeight TEXT NOT NULL, ComplexityWeight TEXT NOT NULL, DocumentReadinessWeight TEXT NOT NULL, FinancialExposureWeight TEXT NOT NULL, UpdatedAtUtc TEXT NOT NULL, UpdatedByUserId INTEGER NULL)", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_CasePriorityWeightConfigurations_UpdatedByUserId ON CasePriorityWeightConfigurations(UpdatedByUserId)", cancellationToken);
+        await EnsureColumnAsync(connection, "CaseDocumentRequests", "RequestType", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+        await EnsureColumnAsync(connection, "CaseDocumentRequests", "ResponseSlaDaysSnapshot", "INTEGER NOT NULL DEFAULT 7", cancellationToken);
+        await EnsureColumnAsync(connection, "CaseDocumentRequests", "OverdueAtUtc", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "CaseDocumentRequests", "LastDelayActionAtUtc", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "CaseDocumentRequests", "LastDelayAction", "INTEGER NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "CaseDocumentRequests", "LastDelayActionNote", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "CaseDocumentRequests", "ClientResponseText", "TEXT NULL", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_CaseDocumentRequests_Status_DueAtUtc ON CaseDocumentRequests(Status, DueAtUtc)", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS ClientResponseSlaRules (Id INTEGER PRIMARY KEY AUTOINCREMENT, RequestType INTEGER NOT NULL UNIQUE, ResponseDays INTEGER NOT NULL, IsActive INTEGER NOT NULL, UpdatedAtUtc TEXT NOT NULL, UpdatedByUserId INTEGER NULL)", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS AdverseCostExposures (Id INTEGER PRIMARY KEY AUTOINCREMENT, CaseId INTEGER NOT NULL, CourtOrderDocumentId INTEGER NOT NULL, LoggedByAttorneyId INTEGER NOT NULL, IssuingCourt TEXT NOT NULL, RulingDateUtc TEXT NOT NULL, CostOrderAmount TEXT NOT NULL, ExistingCaseCostsSnapshot TEXT NOT NULL, TotalExposure TEXT NOT NULL, AvailableTrustRetainerSnapshot TEXT NOT NULL, Shortfall TEXT NOT NULL, RevisedAmount TEXT NULL, FinalSettledAmount TEXT NULL, Status INTEGER NOT NULL, ProgressNote TEXT NULL, AccountantReviewedByUserId INTEGER NULL, AccountantReviewedAtUtc TEXT NULL, DirectorReviewedByUserId INTEGER NULL, DirectorPosition TEXT NULL, DirectorReviewedAtUtc TEXT NULL, CreatedAtUtc TEXT NOT NULL, ResolvedAtUtc TEXT NULL)", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE INDEX IF NOT EXISTS IX_AdverseCostExposures_CaseId_Status ON AdverseCostExposures(CaseId, Status)", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS DiscoveryBundles (Id INTEGER PRIMARY KEY AUTOINCREMENT, CaseId INTEGER NOT NULL, AttorneyId INTEGER NOT NULL, Status INTEGER NOT NULL, OpposingAttorneyEmail TEXT NOT NULL, OpposingAttorneyName TEXT NOT NULL, ExchangeToken TEXT NOT NULL UNIQUE, ExchangeExpiresAtUtc TEXT NULL, ExchangedAtUtc TEXT NULL, AccessedAtUtc TEXT NULL, OpposingBundleReceivedAtUtc TEXT NULL, ComplianceNotes TEXT NULL)", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS DiscoveryBundleItems (Id INTEGER PRIMARY KEY AUTOINCREMENT, DiscoveryBundleId INTEGER NOT NULL, DocumentId INTEGER NOT NULL, ProposedPrivileged INTEGER NOT NULL, PrivilegeReason TEXT NULL, PrivilegeDecision INTEGER NOT NULL, DirectorId INTEGER NULL, DirectorReason TEXT NULL, DecidedAtUtc TEXT NULL)", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX IF NOT EXISTS IX_DiscoveryBundleItems_Bundle_Document ON DiscoveryBundleItems(DiscoveryBundleId, DocumentId)", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS OpposingDisclosureDocuments (Id INTEGER PRIMARY KEY AUTOINCREMENT, DiscoveryBundleId INTEGER NOT NULL, FileName TEXT NOT NULL, RelativePath TEXT NOT NULL, ContentType TEXT NOT NULL DEFAULT 'application/octet-stream', SizeBytes INTEGER NOT NULL DEFAULT 0, UploadedAtUtc TEXT NOT NULL)", cancellationToken);
+        await EnsureColumnAsync(connection, "OpposingDisclosureDocuments", "ContentType", "TEXT NOT NULL DEFAULT 'application/octet-stream'", cancellationToken);
+        await EnsureColumnAsync(connection, "OpposingDisclosureDocuments", "SizeBytes", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS OverduePaymentPenaltyPolicies (Id INTEGER PRIMARY KEY AUTOINCREMENT, GracePeriodDays INTEGER NOT NULL, PenaltyType TEXT NOT NULL, PenaltyValue TEXT NOT NULL, IsActive INTEGER NOT NULL, UpdatedAtUtc TEXT NOT NULL, UpdatedByUserId INTEGER NULL)", cancellationToken);
+        await EnsureNullableInvoicePenaltyCalendarEventAsync(connection, cancellationToken);
         if (!wasOpen) await context.Database.CloseConnectionAsync();
     }
 
@@ -105,5 +126,27 @@ public static class DevelopmentDatabaseSchema
         await using (var command = connection.CreateCommand()) { command.CommandText = $"PRAGMA table_info(\"{table}\")"; await using var reader = await command.ExecuteReaderAsync(ct); while (await reader.ReadAsync(ct)) columns.Add(reader.GetString(reader.GetOrdinal("name"))); }
         if (columns.Count == 0 || columns.Contains(column)) return;
         await using var alter = connection.CreateCommand(); alter.CommandText = $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {definition}"; await alter.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task EnsureNullableInvoicePenaltyCalendarEventAsync(System.Data.Common.DbConnection connection, CancellationToken ct)
+    {
+        var exists = false; var required = false;
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA table_info(\"InvoicePenalties\")";
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) { exists = true; if (reader.GetString(reader.GetOrdinal("name")) == "CalendarEventId") required = reader.GetInt32(reader.GetOrdinal("notnull")) != 0; }
+        }
+        if (!exists || !required) return;
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+        foreach (var sql in new[]
+        {
+            "ALTER TABLE InvoicePenalties RENAME TO InvoicePenalties_Legacy",
+            "CREATE TABLE InvoicePenalties (Id INTEGER PRIMARY KEY AUTOINCREMENT, InvoiceId INTEGER NOT NULL, CalendarEventId INTEGER NULL, Type TEXT NOT NULL, BasisAmount TEXT NOT NULL, PenaltyValue TEXT NOT NULL, Amount TEXT NOT NULL, AppliedAtUtc TEXT NOT NULL, IdempotencyKey TEXT NOT NULL, AppliedByAccountantId INTEGER NOT NULL, Reason TEXT NOT NULL)",
+            "INSERT INTO InvoicePenalties (Id,InvoiceId,CalendarEventId,Type,BasisAmount,PenaltyValue,Amount,AppliedAtUtc,IdempotencyKey,AppliedByAccountantId,Reason) SELECT Id,InvoiceId,CalendarEventId,Type,BasisAmount,PenaltyValue,Amount,AppliedAtUtc,IdempotencyKey,AppliedByAccountantId,Reason FROM InvoicePenalties_Legacy",
+            "DROP TABLE InvoicePenalties_Legacy",
+            "CREATE UNIQUE INDEX IF NOT EXISTS IX_InvoicePenalties_IdempotencyKey ON InvoicePenalties(IdempotencyKey)"
+        }) { await using var command = connection.CreateCommand(); command.Transaction = transaction; command.CommandText = sql; await command.ExecuteNonQueryAsync(ct); }
+        await transaction.CommitAsync(ct);
     }
 }

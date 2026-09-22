@@ -5,6 +5,7 @@ using SimplexLawFirm.Data;
 using SimplexLawFirm.Models;
 using BCrypt.Net;
 using SimplexLawFirm.Infrastructure.Authorization;
+using SimplexLawFirm.Services.Email;
 
 namespace SimplexLawFirm.Controllers
 {
@@ -12,10 +13,12 @@ namespace SimplexLawFirm.Controllers
     public class UsersController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IAccountConfirmationService _accountConfirmation;
 
-        public UsersController(ApplicationDbContext context)
+        public UsersController(ApplicationDbContext context, IAccountConfirmationService accountConfirmation)
         {
             _context = context;
+            _accountConfirmation = accountConfirmation;
         }
 
         // GET: Users/Index
@@ -140,7 +143,7 @@ namespace SimplexLawFirm.Controllers
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
                 Role = model.Role,
                 IsActive = model.IsActive,
-                EmailConfirmed = true,
+                EmailConfirmed = false,
                 CreatedAt = DateTime.Now
             };
 
@@ -178,7 +181,8 @@ namespace SimplexLawFirm.Controllers
                 return View(model);
             }
 
-            TempData["Success"] = "Staff member created successfully!";
+            await _accountConfirmation.IssueAsync(user);
+            TempData["Success"] = "Staff member created. A confirmation email has been sent before first sign-in.";
             return RedirectToAction("Index");
         }
 

@@ -47,6 +47,34 @@ namespace SimplexLawFirm.Data
                     new CaseDocumentRequirement { CaseType = "Commercial", Code = "GOVERNING_CONTRACT", Name = "Governing contract", Description = "Executed agreement governing the dispute.", Category = DocumentCategory.Contracts, Importance = DocumentRequirementImportance.Mandatory, DisplayOrder = 10 });
                 context.SaveChanges();
             }
+            if (!context.CasePriorityWeightConfigurations.Any())
+            {
+                context.CasePriorityWeightConfigurations.Add(new CasePriorityWeightConfiguration
+                {
+                    Id = 1,
+                    RiskWeight = 30m,
+                    UrgencyWeight = 25m,
+                    ComplexityWeight = 15m,
+                    DocumentReadinessWeight = 15m,
+                    FinancialExposureWeight = 15m,
+                    UpdatedAtUtc = DateTime.UtcNow
+                });
+                context.SaveChanges();
+            }
+            if (!context.ClientResponseSlaRules.Any())
+            {
+                context.ClientResponseSlaRules.AddRange(
+                    new ClientResponseSlaRule { RequestType = ClientResponseRequestType.Information, ResponseDays = 5 },
+                    new ClientResponseSlaRule { RequestType = ClientResponseRequestType.Document, ResponseDays = 7 },
+                    new ClientResponseSlaRule { RequestType = ClientResponseRequestType.Approval, ResponseDays = 3 },
+                    new ClientResponseSlaRule { RequestType = ClientResponseRequestType.Decision, ResponseDays = 5 });
+                context.SaveChanges();
+            }
+            if (!context.OverduePaymentPenaltyPolicies.Any())
+            {
+                context.OverduePaymentPenaltyPolicies.Add(new OverduePaymentPenaltyPolicy { GracePeriodDays = 7, PenaltyType = LatePenaltyType.Percentage, PenaltyValue = 5m, IsActive = true });
+                context.SaveChanges();
+            }
 
             // ========== SEED USERS ==========
             if (!context.Users.Any())
@@ -1033,10 +1061,14 @@ namespace SimplexLawFirm.Data
             if (isDevelopment && !string.IsNullOrWhiteSpace(kaoticPortalPassword))
                 SeedKaoticBeneficiaryVerificationScenario(context, kaoticPortalPassword);
 
+            if (!string.IsNullOrWhiteSpace(sharedPassword))
+                SeedConfiguredBeneficiaryPortalAccess(context, sharedPassword);
+
             EnsureBeneficiaryDocumentAssignments(context);
             EnsureDirectorIdentity(context);
             EnsureCostEstimatorSeedData(context);
             EnsureShowcaseUseCaseData(context);
+            EnsureDiscoveryDisclosureSeedData(context);
             ApplyRequestedDevelopmentPasswords(context, sharedPassword);
         }
 
@@ -1057,6 +1089,42 @@ namespace SimplexLawFirm.Data
             pi.CaseType = "Personal Injury"; pi.EvidenceStrength = .78m; pi.MatterValue = 1_250_000m;
             family.CaseType = "Family Law"; family.EvidenceStrength = .62m; family.MatterValue = 420_000m;
             commercial.CaseType = "Commercial"; commercial.EvidenceStrength = .71m; commercial.MatterValue = 2_800_000m;
+
+            // A larger assigned workload gives Naledi multiple independent matters for
+            // handover, reassignment, readiness and client-portal workflow testing.
+            var nalediMatterSeeds = new[]
+            {
+                (CaseNumber: "PI-2026-0101", FirstName: "Zinhle", LastName: "Mabaso", Email: "zinhle.mabaso@example.com", Title: "Mabaso vs Road Accident Fund", Description: "Pedestrian collision claim with an upcoming merits consultation.", Value: 680_000m),
+                (CaseNumber: "PI-2026-0102", FirstName: "Sibusiso", LastName: "Dlamini", Email: "sibusiso.dlamini@example.com", Title: "Dlamini vs Road Accident Fund", Description: "Motor-vehicle injury claim awaiting expert disclosure.", Value: 940_000m),
+                (CaseNumber: "PI-2026-0103", FirstName: "Lindiwe", LastName: "Cele", Email: "lindiwe.cele@example.com", Title: "Cele vs Road Accident Fund", Description: "Passenger injury claim with settlement mandate preparation.", Value: 520_000m),
+                (CaseNumber: "PI-2026-0104", FirstName: "Themba", LastName: "Ndlovu", Email: "themba.ndlovu@example.com", Title: "Ndlovu vs Road Accident Fund", Description: "Serious-injury assessment requiring a coordinated expert timetable.", Value: 1_100_000m),
+                (CaseNumber: "PI-2026-0105", FirstName: "Nomfundo", LastName: "Khumalo", Email: "nomfundo.khumalo@example.com", Title: "Khumalo vs Road Accident Fund", Description: "Loss-of-support claim with dependent-beneficiary documentation outstanding.", Value: 760_000m),
+                (CaseNumber: "PI-2026-0106", FirstName: "Bongani", LastName: "Mthethwa", Email: "bongani.mthethwa@example.com", Title: "Mthethwa vs Road Accident Fund", Description: "Collision claim ready for a director-led handover exercise.", Value: 830_000m)
+            };
+            foreach (var seed in nalediMatterSeeds)
+            {
+                var client = context.Clients.FirstOrDefault(x => x.Email == seed.Email);
+                if (client is null)
+                {
+                    client = new Client { FirstName = seed.FirstName, LastName = seed.LastName, Email = seed.Email, Phone = "0820000000", SAIDNumber = $"900101{context.Clients.Count() + 1000:0000000}", IsActive = true, CreatedAt = DateTime.UtcNow.AddDays(-20) };
+                    context.Clients.Add(client);
+                    context.SaveChanges();
+                }
+                if (!context.Users.Any(x => x.Email == seed.Email))
+                    context.Users.Add(new ApplicationUser { FullName = $"{seed.FirstName} {seed.LastName}", Email = seed.Email, PasswordHash = BCrypt.Net.BCrypt.HashPassword(GetSeedPassword()), Role = UserRole.Client, IsActive = true, EmailConfirmed = true, CreatedAt = DateTime.UtcNow.AddDays(-20), AssignedCases = [] });
+                if (!context.Cases.Any(x => x.CaseNumber == seed.CaseNumber))
+                    context.Cases.Add(new Case { CaseNumber = seed.CaseNumber, Title = seed.Title, Description = seed.Description, CaseType = "Personal Injury", ClientId = client.Id, LawyerId = naledi.Id, Status = CaseStatus.Active, EvidenceStrength = .55m, MatterValue = seed.Value, CreatedAt = DateTime.UtcNow.AddDays(-18), UpdatedAt = DateTime.UtcNow.AddDays(-1) });
+            }
+            context.SaveChanges();
+
+            EnsureOverduePaymentPenaltySeedData(context, pi, thabo);
+
+            var nalediHandoverCases = context.Cases.Where(x => x.CaseNumber == "PI-2026-0101" || x.CaseNumber == "PI-2026-0102").ToList();
+            foreach (var matter in nalediHandoverCases)
+            {
+                if (!context.CaseHandoverRequests.Any(x => x.CaseId == matter.Id))
+                    context.CaseHandoverRequests.Add(new CaseHandoverRequest { CaseId = matter.Id, RequestedByAttorneyId = naledi.Id, Reason = "Seeded capacity-management request for end-to-end director review, recipient selection and client-continuity testing.", Status = HandoverRequestStatus.PendingDirector, RequestedAtUtc = DateTime.UtcNow.AddHours(-4) });
+            }
 
             var scenarios = new[]
             {
@@ -1120,10 +1188,27 @@ namespace SimplexLawFirm.Data
 
             if (!context.CaseDocumentRequests.Any(x => x.CaseId == pi.Id && x.Title == "Updated medico-legal evidence pack"))
             {
-                var request = new CaseDocumentRequest { CaseId = pi.Id, ClientId = thabo.Id, RequestedByAttorneyId = naledi.Id, Title = "Updated medico-legal evidence pack", RequiredDocuments = "Latest specialist report\nProof of transport expenses\nUpdated employment-loss schedule", Instructions = "Upload clear PDF copies. Reports must show the practitioner's name and date.", DueAtUtc = DateTime.UtcNow.AddDays(7), Status = CaseDocumentRequestStatus.Requested };
+                var request = new CaseDocumentRequest { CaseId = pi.Id, ClientId = thabo.Id, RequestedByAttorneyId = naledi.Id, Title = "Updated medico-legal evidence pack", RequestType = ClientResponseRequestType.Document, ResponseSlaDaysSnapshot = 7, RequiredDocuments = "Latest specialist report\nProof of transport expenses\nUpdated employment-loss schedule", Instructions = "Upload clear PDF copies. Reports must show the practitioner's name and date.", DueAtUtc = DateTime.UtcNow.AddDays(7), Status = CaseDocumentRequestStatus.Requested };
                 context.CaseDocumentRequests.Add(request); context.SaveChanges();
                 var clientUser = context.Users.FirstOrDefault(x => x.Email == thabo.Email);
                 if (clientUser is not null && !context.SystemNotifications.Any(x => x.DeduplicationKey == $"seed-case-doc-request-{request.Id}")) context.SystemNotifications.Add(new SystemNotification { UserId = clientUser.Id, Type = "CaseDocuments", Title = $"Documents requested for {pi.CaseNumber}", Message = request.RequiredDocuments, ActionUrl = $"/CaseDocumentRequest/Respond/{request.Id}", DeduplicationKey = $"seed-case-doc-request-{request.Id}" });
+            }
+            if (!context.CaseDocumentRequests.Any(x => x.CaseId == family.Id && x.Title == "Confirm mediation proposal"))
+            {
+                var overdue = new CaseDocumentRequest { CaseId = family.Id, ClientId = ayanda.Id, RequestedByAttorneyId = sipho.Id, Title = "Confirm mediation proposal", RequestType = ClientResponseRequestType.Decision, ResponseSlaDaysSnapshot = 5, RequiredDocuments = "", Instructions = "Confirm whether the proposed mediation date and parenting-plan terms are acceptable.", DueAtUtc = DateTime.UtcNow.AddDays(-2), Status = CaseDocumentRequestStatus.Overdue, CreatedAtUtc = DateTime.UtcNow.AddDays(-7), OverdueAtUtc = DateTime.UtcNow.AddDays(-2) };
+                context.CaseDocumentRequests.Add(overdue); context.SaveChanges();
+                if (!context.SystemNotifications.Any(x => x.DeduplicationKey == $"seed-client-response-overdue-{overdue.Id}")) context.SystemNotifications.Add(new SystemNotification { UserId = sipho.Id, Type = "ClientResponseOverdue", Title = $"Client response overdue: {family.CaseNumber}", Message = "Ayanda Dlamini has not responded to the mediation decision request.", ActionUrl = $"/CaseDocumentRequest/Details/{overdue.Id}", DeduplicationKey = $"seed-client-response-overdue-{overdue.Id}" });
+            }
+            var seededCourtOrder = context.Documents.FirstOrDefault(x => x.CaseId == pi.Id && x.FileName == "Seeded adverse cost order.pdf");
+            if (seededCourtOrder is null)
+            {
+                seededCourtOrder = new Document { CaseId = pi.Id, ClientId = thabo.Id, UploadedById = naledi.Id, FileName = "Seeded adverse cost order.pdf", FilePath = "seed/adverse-cost-order.pdf", FileSize = "12 KB", FileType = "application/pdf", Description = "Court order supporting the adverse-cost exposure demonstration.", Category = DocumentCategory.CourtOrders, UploadedAt = DateTime.UtcNow.AddDays(-5), VersionNumber = 1 };
+                context.Documents.Add(seededCourtOrder); context.SaveChanges();
+            }
+            if (!context.AdverseCostExposures.Any(x => x.CaseId == pi.Id && x.IssuingCourt == "KwaZulu-Natal High Court"))
+            {
+                var accountant = context.Users.FirstOrDefault(x => x.Role == UserRole.Accountant && x.IsActive);
+                context.AdverseCostExposures.Add(new AdverseCostExposure { CaseId = pi.Id, CourtOrderDocumentId = seededCourtOrder.Id, LoggedByAttorneyId = naledi.Id, IssuingCourt = "KwaZulu-Natal High Court", RulingDateUtc = DateTime.UtcNow.AddDays(-6), CostOrderAmount = 18_000m, ExistingCaseCostsSnapshot = 7_500m, TotalExposure = 25_500m, AvailableTrustRetainerSnapshot = 12_000m, Shortfall = 13_500m, RevisedAmount = 16_000m, Status = AdverseCostExposureStatus.Negotiation, ProgressNote = "Opposing attorney invited to negotiate the bill of costs.", AccountantReviewedByUserId = accountant?.Id, AccountantReviewedAtUtc = DateTime.UtcNow.AddDays(-4), DirectorReviewedByUserId = director.Id, DirectorReviewedAtUtc = DateTime.UtcNow.AddDays(-3), DirectorPosition = "Negotiate the bill and preserve a formal taxation option." });
             }
 
             if (!context.CaseHandoverRequests.Any(x => x.CaseId == pi.Id))
@@ -1192,7 +1277,94 @@ namespace SimplexLawFirm.Data
                 var claim = new ReimbursementClaim { ClaimNumber = "RMB-DEMO-001", CaseId = pi.Id, Case = pi, AttorneyId = naledi.Id, Attorney = naledi, ExpenseType = ReimbursementExpenseType.Travel, ExpenseDate = DateTime.UtcNow.Date.AddDays(-2), Amount = 1280m, Description = "Travel to the client-approved medico-legal consultation.", Status = ReimbursementStatus.PendingDirector, MatchedActivityType = ReimbursementActivityType.Appointment, MatchedActivityId = acceptedAppointment.Id, PolicyLimitSnapshot = 1500m, DelegatedLimitSnapshot = 1000m, ExceedsPolicyLimit = false, Classification = ExpenseClassification.ClientRecoverable, ClassificationReason = "Matter-related travel is recoverable under the retainer.", ProofOriginalFileName = "demo-travel-receipt.pdf", ProofRelativePath = "showcase/demo-travel-receipt.pdf", ProofContentType = "application/pdf", SubmittedAtUtc = DateTime.UtcNow.AddDays(-1) };
                 var bytes = new RecordPdfService().CreateReimbursement(claim); var relative = claim.ProofRelativePath.Replace('/', Path.DirectorySeparatorChar); var path = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "SecureReimbursementProofs", relative); Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllBytes(path, bytes); claim.ProofSizeBytes = bytes.Length; claim.ProofSha256Hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)); context.ReimbursementClaims.Add(claim);
             }
+            if (!context.ReimbursementClaims.Any(x => x.ClaimNumber == "RMB-DEMO-002"))
+            {
+                var claim = new ReimbursementClaim { ClaimNumber = "RMB-DEMO-002", CaseId = pi.Id, Case = pi, AttorneyId = naledi.Id, Attorney = naledi, ExpenseType = ReimbursementExpenseType.CourtFiling, ExpenseDate = DateTime.UtcNow.Date.AddDays(-2), Amount = 2450m, Description = "Medico-legal records filing fee for the client-approved consultation follow-up.", Status = ReimbursementStatus.PendingDirector, MatchedActivityType = ReimbursementActivityType.Appointment, MatchedActivityId = acceptedAppointment.Id, PolicyLimitSnapshot = 5000m, DelegatedLimitSnapshot = 1000m, ExceedsPolicyLimit = false, Classification = ExpenseClassification.ClientRecoverable, ClassificationReason = "Necessary court-filing expense for the active personal-injury matter.", ProofOriginalFileName = "demo-filing-receipt.pdf", ProofRelativePath = "showcase/demo-filing-receipt.pdf", ProofContentType = "application/pdf", SubmittedAtUtc = DateTime.UtcNow.AddHours(-18) };
+                var bytes = new RecordPdfService().CreateReimbursement(claim); var relative = claim.ProofRelativePath.Replace('/', Path.DirectorySeparatorChar); var path = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "SecureReimbursementProofs", relative); Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllBytes(path, bytes); claim.ProofSizeBytes = bytes.Length; claim.ProofSha256Hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)); context.ReimbursementClaims.Add(claim);
+            }
+
+            var wastedCostSeeds = new[]
+            {
+                (Description: "Wasted attendance after RAF missed case-management hearing", Hours: 2.5m, Ground: LegalCostRecoveryGround.MissedHearing, Justification: "The Road Accident Fund failed to attend the scheduled case-management hearing despite notice, requiring unnecessary preparation and court attendance.", Opponent: "Road Accident Fund", Email: "litigation@raf.example.com"),
+                (Description: "Wasted response to duplicative RAF interlocutory application", Hours: 1.75m, Ground: LegalCostRecoveryGround.FrivolousOrVexatiousApplication, Justification: "The opposing party brought a duplicative interlocutory application after the issue had already been resolved in correspondence.", Opponent: "Road Accident Fund", Email: "litigation@raf.example.com"),
+                (Description: "Wasted compliance review after RAF disclosure default", Hours: 3m, Ground: LegalCostRecoveryGround.NonComplianceWithCourtOrder, Justification: "The opposing party did not comply with the disclosure timetable ordered by the court, causing avoidable review and follow-up work.", Opponent: "Road Accident Fund", Email: "litigation@raf.example.com"),
+                (Description: "Wasted preparation caused by late RAF expert-report withdrawal", Hours: 2.25m, Ground: LegalCostRecoveryGround.OtherUnreasonableConduct, Justification: "The opposing party withdrew its expert report immediately before the consultation after Naledi had prepared to address it.", Opponent: "Road Accident Fund", Email: "litigation@raf.example.com")
+            };
+            foreach (var (description, hours, ground, justification, opponent, email) in wastedCostSeeds)
+            {
+                var entry = context.TimeEntries.FirstOrDefault(x => x.CaseId == pi.Id && x.LawyerId == naledi.Id && x.Description == description);
+                if (entry is null)
+                {
+                    entry = new TimeEntry { CaseId = pi.Id, LawyerId = naledi.Id, Description = description, Date = DateTime.UtcNow.Date.AddDays(-3), Hours = hours, HourlyRate = 2200m, TotalAmount = hours * 2200m, IsBillable = false, IsBilled = false, CreatedAt = DateTime.UtcNow.AddDays(-3) };
+                    context.TimeEntries.Add(entry);
+                    context.SaveChanges();
+                }
+                if (context.LegalCostRecoveryTimeEntries.Any(x => x.TimeEntryId == entry.Id)) continue;
+
+                var claim = new LegalCostRecoveryClaim { CaseId = pi.Id, AttorneyId = naledi.Id, Ground = ground, Justification = justification, OpposingPartyName = opponent, OpposingPartyEmail = email, ClaimedAmount = entry.TotalAmount, Status = LegalCostRecoveryStatus.PendingDirectorApproval, SubmittedAtUtc = DateTime.UtcNow.AddDays(-2) };
+                claim.TimeEntries.Add(new LegalCostRecoveryTimeEntry { TimeEntryId = entry.Id, AmountSnapshot = entry.TotalAmount });
+                claim.AuditEntries.Add(new LegalCostRecoveryAuditEntry { ActorUserId = naledi.Id, Action = "Submitted", Details = "Seeded showcase claim submitted for one wasted working-hour entry.", RecordedAtUtc = DateTime.UtcNow.AddDays(-2) });
+                context.LegalCostRecoveryClaims.Add(claim);
+            }
             EnsureShowcasePrecedentData(context, director.Id);
+            context.SaveChanges();
+        }
+
+        private static void EnsureOverduePaymentPenaltySeedData(ApplicationDbContext context, Case matter, Client retainedClient)
+        {
+            var client = context.Clients.SingleOrDefault(x => x.Email == "penalty.demo@example.com");
+            if (client is null)
+            {
+                client = new Client { FirstName = "Penalty", LastName = "Demo", Email = "penalty.demo@example.com", Phone = "0820000010", IsActive = true, CreatedAt = DateTime.UtcNow.AddDays(-30) };
+                context.Clients.Add(client); context.SaveChanges();
+            }
+            if (!context.Users.Any(x => x.Email == client.Email)) context.Users.Add(new ApplicationUser { FullName = "Penalty Demo", Email = client.Email, PasswordHash = BCrypt.Net.BCrypt.HashPassword(GetSeedPassword()), Role = UserRole.Client, IsActive = true, EmailConfirmed = true, AssignedCases = [] });
+            if (!context.Invoices.Any(x => x.InvoiceNumber == "UC10-PARTIAL-OVERDUE"))
+            {
+                var invoice = new Invoice { ClientId = client.Id, InvoiceNumber = "UC10-PARTIAL-OVERDUE", Amount = 1000m, TotalAmount = 1000m, IssueDate = DateTime.UtcNow.AddDays(-20), DueDate = DateTime.UtcNow.AddDays(-12), CreatedDate = DateTime.UtcNow.AddDays(-20), CreatedAt = DateTime.UtcNow.AddDays(-20), Status = InvoiceStatus.Sent, Description = "UC10 seed: partially paid, no active retainer, grace period expired." };
+                invoice.Payments.Add(new Payment { ClientId = client.Id, Amount = 300m, PaymentDate = DateTime.UtcNow.AddDays(-10), CreatedAt = DateTime.UtcNow.AddDays(-10), PaymentMethod = PaymentMethod.EFT, TransactionReference = "UC10-PARTIAL", Notes = "Partial payment" }); context.Invoices.Add(invoice);
+            }
+            if (!context.Invoices.Any(x => x.InvoiceNumber == "UC10-WITHIN-GRACE")) context.Invoices.Add(new Invoice { ClientId = client.Id, InvoiceNumber = "UC10-WITHIN-GRACE", Amount = 500m, TotalAmount = 500m, IssueDate = DateTime.UtcNow.AddDays(-5), DueDate = DateTime.UtcNow.AddDays(-2), CreatedDate = DateTime.UtcNow.AddDays(-5), CreatedAt = DateTime.UtcNow.AddDays(-5), Status = InvoiceStatus.Sent, Description = "UC10 seed: unpaid but still inside the configured seven-day grace period." });
+            if (!context.Invoices.Any(x => x.InvoiceNumber == "UC10-ACTIVE-RETAINER-BLOCK")) context.Invoices.Add(new Invoice { ClientId = retainedClient.Id, CaseId = matter.Id, InvoiceNumber = "UC10-ACTIVE-RETAINER-BLOCK", Amount = 750m, TotalAmount = 750m, IssueDate = DateTime.UtcNow.AddDays(-20), DueDate = DateTime.UtcNow.AddDays(-12), CreatedDate = DateTime.UtcNow.AddDays(-20), CreatedAt = DateTime.UtcNow.AddDays(-20), Status = InvoiceStatus.Sent, Description = "UC10 seed: grace period expired but client has active retainer, so penalty is blocked." });
+            context.SaveChanges();
+        }
+
+        private static void EnsureDiscoveryDisclosureSeedData(ApplicationDbContext context)
+        {
+            var attorney = context.Users.FirstOrDefault(x => x.Email == "naledi.khumalo@simplex.com" && x.IsActive);
+            var director = context.Users.FirstOrDefault(x => x.Email == "director@simplex.com" && x.IsActive);
+            var matter = context.Cases.FirstOrDefault(x => x.CaseNumber == "PI-2026-0001" && x.Status == CaseStatus.Active);
+            if (attorney is null || director is null || matter is null) return;
+
+            var document = context.Documents.FirstOrDefault(x => x.CaseId == matter.Id && x.FileName == "Seeded discovery witness statement.pdf");
+            if (document is null)
+            {
+                const string relativePath = "seed/discovery-witness-statement.pdf";
+                var path = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "SecureCaseDocuments", relativePath.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                if (!File.Exists(path)) File.WriteAllText(path, "%PDF-1.4\n% Seeded discovery witness statement for test use only.\n%%EOF");
+                document = new Document { CaseId = matter.Id, ClientId = matter.ClientId, UploadedById = attorney.Id, FileName = "Seeded discovery witness statement.pdf", FilePath = relativePath, FileSize = "1 KB", FileType = "application/pdf", Description = "Test disclosure document for the reciprocal exchange workflow.", Category = DocumentCategory.Evidence, UploadedAt = DateTime.UtcNow.AddDays(-2), VersionNumber = 1 };
+                context.Documents.Add(document); context.SaveChanges();
+            }
+
+            if (!context.DiscoveryBundles.Any(x => x.ExchangeToken == "seed-discovery-prepared-token-2026"))
+            {
+                var prepared = new DiscoveryBundle { CaseId = matter.Id, AttorneyId = attorney.Id, OpposingAttorneyName = "Opposing Counsel (prepared test)", OpposingAttorneyEmail = "opposing.counsel@example.test", ExchangeToken = "seed-discovery-prepared-token-2026", ExchangeExpiresAtUtc = DateTime.UtcNow.AddDays(7), Status = DiscoveryBundleStatus.ReadyForExchange };
+                prepared.Items.Add(new DiscoveryBundleItem { DocumentId = document.Id, ProposedPrivileged = false, PrivilegeDecision = PrivilegeDecision.OverruledDisclose, DirectorId = director.Id, DirectorReason = "Routine factual witness statement is disclosable.", DecidedAtUtc = DateTime.UtcNow });
+                context.DiscoveryBundles.Add(prepared);
+            }
+            var exchanged = context.DiscoveryBundles.Include(x => x.Items).SingleOrDefault(x => x.ExchangeToken == "seed-discovery-portal-token-2026");
+            if (exchanged is null)
+            {
+                exchanged = new DiscoveryBundle { CaseId = matter.Id, AttorneyId = attorney.Id, OpposingAttorneyName = "Opposing Counsel (portal test)", OpposingAttorneyEmail = "opposing.portal@example.test", ExchangeToken = "seed-discovery-portal-token-2026" };
+                exchanged.Items.Add(new DiscoveryBundleItem { DocumentId = document.Id, ProposedPrivileged = false, PrivilegeDecision = PrivilegeDecision.OverruledDisclose, DirectorId = director.Id, DirectorReason = "Routine factual witness statement is disclosable.", DecidedAtUtc = DateTime.UtcNow });
+                context.DiscoveryBundles.Add(exchanged);
+            }
+            exchanged.Status = DiscoveryBundleStatus.Exchanged;
+            exchanged.OpposingAttorneyName = "Opposing Counsel (portal test)";
+            exchanged.OpposingAttorneyEmail = "opposing.portal@example.test";
+            exchanged.ExchangeExpiresAtUtc = DateTime.UtcNow.AddDays(7);
+            exchanged.ExchangedAtUtc ??= DateTime.UtcNow.AddHours(-1);
             context.SaveChanges();
         }
 
@@ -1367,7 +1539,7 @@ namespace SimplexLawFirm.Data
         {
             var requestedPassword = sharedPassword ?? Environment.GetEnvironmentVariable("SIMPLEX_SEED_PASSWORD");
             if (string.IsNullOrWhiteSpace(requestedPassword)) return;
-            var testEmails = new[] { "director@simplex.com", "naledi.khumalo@simplex.com", "sipho.nkosi@simplex.com", "david.pillay@simplex.com", "nomsa.zulu@simplex.com", "accountant@simplex.com", "thabo.mthembu@example.com" };
+            var testEmails = new[] { "director@simplex.com", "naledi.khumalo@simplex.com", "sipho.nkosi@simplex.com", "david.pillay@simplex.com", "nomsa.zulu@simplex.com", "accountant@simplex.com", "thabo.mthembu@example.com", "zinhle.mabaso@example.com", "sibusiso.dlamini@example.com", "lindiwe.cele@example.com", "themba.ndlovu@example.com", "nomfundo.khumalo@example.com", "bongani.mthethwa@example.com" };
             var hash = BCrypt.Net.BCrypt.HashPassword(requestedPassword);
             foreach (var user in context.Users.Where(x => testEmails.Contains(x.Email)))
             {
@@ -1388,6 +1560,37 @@ namespace SimplexLawFirm.Data
         private static string GenerateToken()
         {
             return Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Replace("/", "_").Replace("+", "-").TrimEnd('=');
+        }
+
+        private static void SeedConfiguredBeneficiaryPortalAccess(ApplicationDbContext context, string portalPassword)
+        {
+            const string email = "ndlovukhetha818@gmail.com";
+            var benefactor = context.Clients.OrderBy(x => x.Id).FirstOrDefault();
+            if (benefactor is null) return;
+
+            var beneficiary = context.Beneficiaries.SingleOrDefault(x => x.Email == email);
+            if (beneficiary is null)
+            {
+                beneficiary = new Beneficiary { Email = email };
+                context.Beneficiaries.Add(beneficiary);
+            }
+
+            beneficiary.BenefactorClientId = benefactor.Id;
+            beneficiary.FirstName = "Seed";
+            beneficiary.LastName = "Beneficiary";
+            beneficiary.RelationshipToBenefactor = "Recorded beneficiary";
+            beneficiary.AssetAccessTerms = "Access is limited to this beneficiary's recorded entitlement and verification workflow.";
+            beneficiary.PermittedAssetPurposes = "No disbursement purpose is configured.";
+            beneficiary.EntitlementDescription = "Seeded beneficiary portal access for deployment verification.";
+            if (beneficiary.Status is BeneficiaryStatus.Draft or BeneficiaryStatus.InvitationSent)
+                beneficiary.Status = BeneficiaryStatus.AwaitingDocuments;
+            beneficiary.PortalAccessEnabled = true;
+            if (string.IsNullOrWhiteSpace(beneficiary.PortalPasswordHash) || !BCrypt.Net.BCrypt.Verify(portalPassword, beneficiary.PortalPasswordHash))
+            {
+                beneficiary.PortalPasswordHash = BCrypt.Net.BCrypt.HashPassword(portalPassword);
+                beneficiary.PortalPasswordSetAtUtc = DateTime.UtcNow;
+            }
+            context.SaveChanges();
         }
 
         private static void SeedKaoticBeneficiaryVerificationScenario(ApplicationDbContext context, string portalPassword)
