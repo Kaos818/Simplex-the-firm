@@ -1,0 +1,14 @@
+@model IReadOnlyList<SimplexLawFirm.DTOs.Witnesses.WitnessConflictDto>
+@{ var role=(string)(ViewBag.Role ?? "Lawyer"); Layout=role=="Lawyer"?"_LawyerLayout":"_AdminLayout"; }
+<div class="page-hero compact"><div><span class="eyebrow">Use case 9</span><h1>Witness schedule conflicts</h1><p>Active clashes between court dates and witness availability across your matters.</p></div></div>
+<section class="surface">
+@if(!Model.Any()){<p class="text-success mb-0"><i class="fas fa-check-circle"></i> No active witness conflicts. All court dates are clear.</p>}
+else{
+<table class="table"><thead><tr><th>Matter</th><th>Witness</th><th>Court date</th><th>Clashes with</th><th>Severity</th><th></th></tr></thead><tbody>
+@foreach(var c in Model){<tr class="@(c.Severity=="Critical"?"table-danger":"")">
+<td>@c.CaseNumber</td><td>@c.WitnessName @(c.WitnessIsRequired?"<span class=\"badge bg-dark\">Required</span>":"")</td>
+<td>@c.CourtDateStart.ToString("dd MMM yyyy HH:mm")</td><td>@c.ConflictingEventSummary</td>
+<td><span class="badge @(c.Severity=="Critical"?"bg-danger":"bg-warning text-dark")">@c.Severity</span></td>
+<td><a class="btn-secondary-modern" href="/WitnessSchedule/Case?caseId=@c.CaseId">Open matter</a></td></tr>}
+</tbody></table>}
+</section>

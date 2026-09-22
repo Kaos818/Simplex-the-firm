@@ -1,0 +1,19 @@
+@model IReadOnlyList<SimplexLawFirm.Models.SettlementRecommendation>
+@{ ViewData["Title"] = "Settlement opportunities"; var director = ViewBag.Role is "Director" or "Admin"; }
+<div class="page-hero compact"><div><span class="eyebrow">Use case 06</span><h1>Settlement opportunities</h1><p>@(director ? "Firm-wide director review queue." : "Only recommendations for your assigned matters.")</p></div></div>
+@{ var reviewableCases = ViewBag.ReviewableCases as IEnumerable<dynamic>; }
+@if (reviewableCases?.Any() == true)
+{
+    <form method="post" action="/SettlementDashboard/Evaluate" class="surface stack-form mb-3">
+        @Html.AntiForgeryToken()
+        <h2>Run a strategy review</h2>
+        <p>Recalculate the expected litigation and settlement outcomes for one active matter.</p>
+        <label>Active matter
+            <select name="caseId" required>
+                @foreach (var matter in reviewableCases) { <option value="@matter.Id">@matter.CaseNumber · @matter.Title</option> }
+            </select>
+        </label>
+        <button class="btn-primary-modern">Analyse settlement opportunity</button>
+    </form>
+}
+<section class="surface"><table class="table"><thead><tr><th>Matter</th><th>Recommendation</th><th>Expected litigation</th><th>Expected settlement</th><th>Status</th><th></th></tr></thead><tbody>@foreach(var item in Model){<tr><td>@item.Case?.CaseNumber<br/><small>@item.Case?.Title</small></td><td>@(item.SettlementRecommended ? "Pursue settlement" : "Continue litigation")</td><td>R @item.ExpectedLitigationValue.ToString("N2")</td><td>R @item.ExpectedSettlementValue.ToString("N2")</td><td>@item.Status</td><td><a class="btn-secondary-modern" href="/SettlementDashboard/Details/@item.Id">Review</a></td></tr>}</tbody></table>@if(!Model.Any()){<p>No settlement recommendations are available for your role.</p>}</section>

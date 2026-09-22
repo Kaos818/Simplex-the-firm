@@ -37,6 +37,103 @@ namespace SimplexLawFirm.Migrations
                     b.ToTable("LawyerProfileLawyerSpecialization");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.AdverseCostExposure", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("AccountantReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("AccountantReviewedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("AvailableTrustRetainerSnapshot")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CaseId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("CostOrderAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CourtOrderDocumentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DirectorPosition")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("DirectorReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DirectorReviewedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("ExistingCaseCostsSnapshot")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("FinalSettledAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("IssuingCourt")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("LoggedByAttorneyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProgressNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("RevisedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("RulingDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Shortfall")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalExposure")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountantReviewedByUserId");
+
+                    b.HasIndex("CourtOrderDocumentId");
+
+                    b.HasIndex("DirectorReviewedByUserId");
+
+                    b.HasIndex("LoggedByAttorneyId");
+
+                    b.HasIndex("CaseId", "Status");
+
+                    b.ToTable("AdverseCostExposures");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.ApplicationUser", b =>
                 {
                     b.Property<int>("Id")
@@ -1228,6 +1325,10 @@ namespace SimplexLawFirm.Migrations
                     b.Property<int>("ClientId")
                         .HasColumnType("int");
 
+                    b.Property<string>("ClientResponseText")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -1239,6 +1340,22 @@ namespace SimplexLawFirm.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<int?>("LastDelayAction")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("LastDelayActionAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastDelayActionNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("OverdueAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RequestType")
+                        .HasColumnType("int");
+
                     b.Property<int>("RequestedByAttorneyId")
                         .HasColumnType("int");
 
@@ -1246,6 +1363,9 @@ namespace SimplexLawFirm.Migrations
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("ResponseSlaDaysSnapshot")
+                        .HasColumnType("int");
 
                     b.Property<string>("ReviewFeedback")
                         .HasMaxLength(2000)
@@ -1272,6 +1392,8 @@ namespace SimplexLawFirm.Migrations
                     b.HasIndex("RequestedByAttorneyId");
 
                     b.HasIndex("CaseId", "Status");
+
+                    b.HasIndex("Status", "DueAtUtc");
 
                     b.ToTable("CaseDocumentRequests");
                 });
@@ -1618,6 +1740,47 @@ namespace SimplexLawFirm.Migrations
                     b.ToTable("CaseNotes", (string)null);
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.CasePriorityWeightConfiguration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("ComplexityWeight")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("DocumentReadinessWeight")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("FinancialExposureWeight")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("RiskWeight")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("UrgencyWeight")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("CasePriorityWeightConfigurations");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.CaseReadinessReview", b =>
                 {
                     b.Property<long>("Id")
@@ -1700,6 +1863,47 @@ namespace SimplexLawFirm.Migrations
                     b.HasIndex("CaseId", "Status");
 
                     b.ToTable("CaseReassignments");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.CaseWitness", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CaseId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId", "IsActive");
+
+                    b.ToTable("CaseWitnesses");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.Client", b =>
@@ -1830,6 +2034,64 @@ namespace SimplexLawFirm.Migrations
                     b.ToTable("ClientForecastRequests");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.ClientRelationshipRisk", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CalculatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DirectorAction")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("DirectorNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Explanation")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<decimal>("FinancialScore")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("HighRiskAlert")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("LegalScore")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OverallScore")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PredictedRelationshipScore")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ReputationScore")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ReviewedByUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.ToTable("ClientRelationshipRisks");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.ClientRequest", b =>
                 {
                     b.Property<int>("Id")
@@ -1883,6 +2145,39 @@ namespace SimplexLawFirm.Migrations
                     b.HasIndex("TemplateId");
 
                     b.ToTable("ClientRequests", (string)null);
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.ClientResponseSlaRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("RequestType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ResponseDays")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestType")
+                        .IsUnique();
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("ClientResponseSlaRules");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.ClientSupportSession", b =>
@@ -2064,6 +2359,137 @@ namespace SimplexLawFirm.Migrations
                     b.ToTable("CostEstimateEnquiries");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.CourtFilingSubmission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AttorneyOfRecordId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CaseId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CourtReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int?>("DocumentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("ExpectedDocumentType")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime?>("FiledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FilingNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("ReturnReason")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime?>("ReturnedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("SignatureDetected")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SignedByAttorneyName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("SubmittedByAttorneyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SubmittedCaseNumber")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("TimelineEntry")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ValidatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ValidatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ValidationFailuresJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttorneyOfRecordId");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("SubmittedByAttorneyId");
+
+                    b.HasIndex("ValidatedByUserId");
+
+                    b.ToTable("CourtFilingSubmissions");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.CourtProcedureStep", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CaseType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CourtProcedureSteps");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.CoverageCommission", b =>
                 {
                     b.Property<int>("Id")
@@ -2100,6 +2526,112 @@ namespace SimplexLawFirm.Migrations
                     b.HasIndex("LegalSubjectId", "Status");
 
                     b.ToTable("CoverageCommissions");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.DiscoveryBundle", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("AccessedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("AttorneyId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CaseId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ComplianceNotes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime?>("ExchangeExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ExchangeToken")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime?>("ExchangedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OpposingAttorneyEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("OpposingAttorneyName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("OpposingBundleReceivedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttorneyId");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("ExchangeToken")
+                        .IsUnique();
+
+                    b.ToTable("DiscoveryBundles");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.DiscoveryBundleItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DirectorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DirectorReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("DiscoveryBundleId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DocumentId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PrivilegeDecision")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PrivilegeReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("ProposedPrivileged")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DirectorId");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("DiscoveryBundleId", "DocumentId")
+                        .IsUnique();
+
+                    b.ToTable("DiscoveryBundleItems");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.Document", b =>
@@ -2603,6 +3135,137 @@ namespace SimplexLawFirm.Migrations
                     b.ToTable("ExternalEvidenceRequests");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.FeeDiscountPolicy", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AutomaticApprovalPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("MatterType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<decimal>("MinimumRecoveryPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatterType")
+                        .IsUnique();
+
+                    b.ToTable("FeeDiscountPolicies");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.FeeDiscountRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AutomaticApprovalPercentSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("CounterOfferAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DecidedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<decimal>("DiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("EligibilityLimitSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("EligibilityScore")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("EligibilityTier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("MinimumRecoveryPercentSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("PaymentReliability")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal>("ProposedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Recommendation")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SupportingDocumentPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ThresholdCheckSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("FeeDiscountRequests");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.ForecastCalibration", b =>
                 {
                     b.Property<int>("Id")
@@ -2839,7 +3502,7 @@ namespace SimplexLawFirm.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int>("CalendarEventId")
+                    b.Property<int?>("CalendarEventId")
                         .HasColumnType("int");
 
                     b.Property<string>("IdempotencyKey")
@@ -3514,6 +4177,78 @@ namespace SimplexLawFirm.Migrations
                         .IsUnique();
 
                     b.ToTable("MatterExpenseTerms");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.OpposingDisclosureDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("DiscoveryBundleId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UploadedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DiscoveryBundleId");
+
+                    b.ToTable("OpposingDisclosureDocuments");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.OverduePaymentPenaltyPolicy", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("GracePeriodDays")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PenaltyType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("PenaltyValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("OverduePaymentPenaltyPolicies");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.Payment", b =>
@@ -4448,6 +5183,107 @@ namespace SimplexLawFirm.Migrations
                     b.ToTable("ServiceComplaints");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.SettlementRecommendation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AttorneyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("AttorneyRespondedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AttorneyResponse")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<decimal>("AverageComparableSettlement")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CaseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ComparableMatterCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ComparableMattersJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DirectorDecidedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DirectorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DirectorResponse")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<decimal>("ExpectedLitigationValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ExpectedSettlementValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("LikelihoodOfSuccess")
+                        .HasPrecision(6, 5)
+                        .HasColumnType("decimal(6,5)");
+
+                    b.Property<decimal>("MatterValueSnapshot")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ProjectedLitigationCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Rationale")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<bool>("SettlementRecommended")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("SuggestedSettlementHigh")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("SuggestedSettlementLow")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("SupersededAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TriggerType")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttorneyId");
+
+                    b.HasIndex("DirectorId");
+
+                    b.HasIndex("CaseId", "Status");
+
+                    b.ToTable("SettlementRecommendations");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.StaffServiceRecordEntry", b =>
                 {
                     b.Property<int>("Id")
@@ -4951,6 +5787,108 @@ namespace SimplexLawFirm.Migrations
                     b.ToTable("VulnerableFlagAcknowledgements");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.WitnessCommitment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CaseWitnessId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("EndDateTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("StartDateTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseWitnessId");
+
+                    b.ToTable("WitnessCommitments");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.WitnessScheduleConflict", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CaseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CaseWitnessId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ConflictingEventSummary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("CourtDateEnd")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CourtDateStart")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CourtEventId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("DetectedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ResolutionNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ResolvedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Severity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("WitnessCommitmentId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseWitnessId");
+
+                    b.HasIndex("WitnessCommitmentId");
+
+                    b.HasIndex("CaseId", "Status");
+
+                    b.ToTable("WitnessScheduleConflicts");
+                });
+
             modelBuilder.Entity("LawyerProfileLawyerSpecialization", b =>
                 {
                     b.HasOne("SimplexLawFirm.Models.LawyerProfile", null)
@@ -4964,6 +5902,47 @@ namespace SimplexLawFirm.Migrations
                         .HasForeignKey("SpecializationsId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.AdverseCostExposure", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "AccountantReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("AccountantReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SimplexLawFirm.Models.Case", "Case")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SimplexLawFirm.Models.Document", "CourtOrderDocument")
+                        .WithMany()
+                        .HasForeignKey("CourtOrderDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "DirectorReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("DirectorReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "LoggedByAttorney")
+                        .WithMany()
+                        .HasForeignKey("LoggedByAttorneyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AccountantReviewedByUser");
+
+                    b.Navigation("Case");
+
+                    b.Navigation("CourtOrderDocument");
+
+                    b.Navigation("DirectorReviewedByUser");
+
+                    b.Navigation("LoggedByAttorney");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.AppointmentBillingRecord", b =>
@@ -5391,6 +6370,16 @@ namespace SimplexLawFirm.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.CasePriorityWeightConfiguration", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("UpdatedByUser");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.CaseReassignment", b =>
                 {
                     b.HasOne("SimplexLawFirm.Models.ApplicationUser", "ApprovedByUser")
@@ -5424,6 +6413,17 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("OutgoingAttorney");
 
                     b.Navigation("ReceivingAttorney");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.CaseWitness", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.Case", "Case")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Case");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.ClientCorrespondence", b =>
@@ -5463,6 +6463,17 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("FulfilledByForecast");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.ClientRelationshipRisk", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.Client", "Client")
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Client");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.ClientRequest", b =>
                 {
                     b.HasOne("SimplexLawFirm.Models.Client", "Client")
@@ -5480,6 +6491,16 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("Client");
 
                     b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.ClientResponseSlaRule", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("UpdatedByUser");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.ClientSupportSession", b =>
@@ -5518,6 +6539,43 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("Client");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.CourtFilingSubmission", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "AttorneyOfRecord")
+                        .WithMany()
+                        .HasForeignKey("AttorneyOfRecordId");
+
+                    b.HasOne("SimplexLawFirm.Models.Case", "Case")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SimplexLawFirm.Models.Document", "Document")
+                        .WithMany()
+                        .HasForeignKey("DocumentId");
+
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "SubmittedByAttorney")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByAttorneyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "ValidatedByUser")
+                        .WithMany()
+                        .HasForeignKey("ValidatedByUserId");
+
+                    b.Navigation("AttorneyOfRecord");
+
+                    b.Navigation("Case");
+
+                    b.Navigation("Document");
+
+                    b.Navigation("SubmittedByAttorney");
+
+                    b.Navigation("ValidatedByUser");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.CoverageCommission", b =>
                 {
                     b.HasOne("SimplexLawFirm.Models.LegalSubject", "LegalSubject")
@@ -5527,6 +6585,49 @@ namespace SimplexLawFirm.Migrations
                         .IsRequired();
 
                     b.Navigation("LegalSubject");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.DiscoveryBundle", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "Attorney")
+                        .WithMany()
+                        .HasForeignKey("AttorneyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SimplexLawFirm.Models.Case", "Case")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Attorney");
+
+                    b.Navigation("Case");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.DiscoveryBundleItem", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("DirectorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SimplexLawFirm.Models.DiscoveryBundle", "DiscoveryBundle")
+                        .WithMany("Items")
+                        .HasForeignKey("DiscoveryBundleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SimplexLawFirm.Models.Document", "Document")
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DiscoveryBundle");
+
+                    b.Navigation("Document");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.Document", b =>
@@ -5634,6 +6735,25 @@ namespace SimplexLawFirm.Migrations
                         .IsRequired();
 
                     b.Navigation("Case");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.FeeDiscountRequest", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.Client", "Client")
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SimplexLawFirm.Models.Invoice", "Invoice")
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Client");
+
+                    b.Navigation("Invoice");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.ForecastCalibration", b =>
@@ -5880,6 +7000,17 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("Case");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.OpposingDisclosureDocument", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.DiscoveryBundle", "DiscoveryBundle")
+                        .WithMany("OpposingDocuments")
+                        .HasForeignKey("DiscoveryBundleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DiscoveryBundle");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.Payment", b =>
                 {
                     b.HasOne("SimplexLawFirm.Models.Client", "Client")
@@ -6115,6 +7246,29 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("RoutedToUser");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.SettlementRecommendation", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "Attorney")
+                        .WithMany()
+                        .HasForeignKey("AttorneyId");
+
+                    b.HasOne("SimplexLawFirm.Models.Case", "Case")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SimplexLawFirm.Models.ApplicationUser", "Director")
+                        .WithMany()
+                        .HasForeignKey("DirectorId");
+
+                    b.Navigation("Attorney");
+
+                    b.Navigation("Case");
+
+                    b.Navigation("Director");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.StaffServiceRecordEntry", b =>
                 {
                     b.HasOne("SimplexLawFirm.Models.ServiceComplaint", "ServiceComplaint")
@@ -6322,6 +7476,42 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("Flag");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.WitnessCommitment", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.CaseWitness", "CaseWitness")
+                        .WithMany("Commitments")
+                        .HasForeignKey("CaseWitnessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CaseWitness");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.WitnessScheduleConflict", b =>
+                {
+                    b.HasOne("SimplexLawFirm.Models.Case", "Case")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SimplexLawFirm.Models.CaseWitness", "CaseWitness")
+                        .WithMany()
+                        .HasForeignKey("CaseWitnessId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SimplexLawFirm.Models.WitnessCommitment", "WitnessCommitment")
+                        .WithMany()
+                        .HasForeignKey("WitnessCommitmentId");
+
+                    b.Navigation("Case");
+
+                    b.Navigation("CaseWitness");
+
+                    b.Navigation("WitnessCommitment");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.ApplicationUser", b =>
                 {
                     b.Navigation("AssignedCases");
@@ -6358,6 +7548,11 @@ namespace SimplexLawFirm.Migrations
                     b.Navigation("Items");
                 });
 
+            modelBuilder.Entity("SimplexLawFirm.Models.CaseWitness", b =>
+                {
+                    b.Navigation("Commitments");
+                });
+
             modelBuilder.Entity("SimplexLawFirm.Models.Client", b =>
                 {
                     b.Navigation("Cases");
@@ -6366,6 +7561,13 @@ namespace SimplexLawFirm.Migrations
             modelBuilder.Entity("SimplexLawFirm.Models.CostEstimateEnquiry", b =>
                 {
                     b.Navigation("Estimates");
+                });
+
+            modelBuilder.Entity("SimplexLawFirm.Models.DiscoveryBundle", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("OpposingDocuments");
                 });
 
             modelBuilder.Entity("SimplexLawFirm.Models.Document", b =>

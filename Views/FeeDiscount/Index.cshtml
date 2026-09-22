@@ -1,0 +1,2 @@
+@model IReadOnlyList<SimplexLawFirm.Models.FeeDiscountRequest>
+@{Layout=Context.Session.GetString("UserRole")=="Client"?"_ClientLayout":"_AdminLayout";}<div class="page-hero compact"><div><h1>Fee discount requests</h1></div></div><section class="surface"><table class="table"><thead><tr><th>Invoice</th><th>Proposed</th><th>Status</th><th></th></tr></thead><tbody>@foreach(var x in Model){<tr><td>@x.Invoice.InvoiceNumber</td><td>R @x.ProposedAmount.ToString("N2")</td><td>@x.Status</td><td><a href="/FeeDiscount/Details/@x.Id">Open</a></td></tr>}</tbody></table></section>

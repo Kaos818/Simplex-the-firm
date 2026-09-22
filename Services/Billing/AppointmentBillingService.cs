@@ -69,11 +69,15 @@ public sealed class AppointmentBillingService(ApplicationDbContext db, IEmailSer
     }
     public async Task<int> ApplyPenaltiesAsync(DateTime now, CancellationToken ct = default)
     {
+        var policy = await db.OverduePaymentPenaltyPolicies.OrderBy(x => x.Id).FirstOrDefaultAsync(x => x.IsActive, ct);
         var events = await db.CalendarEvents.Include(x => x.GeneratedInvoice).ThenInclude(x => x!.Payments).Include(x => x.Client)
             .Where(x => x.BillingProcessed && x.GeneratedInvoiceId != null && x.LatePenaltyType != LatePenaltyType.None && x.GeneratedInvoice!.Status != InvoiceStatus.Paid && x.GeneratedInvoice.Status != InvoiceStatus.Cancelled && x.GeneratedInvoice.DueDate.AddDays(x.LatePenaltyGraceDays) < now).ToListAsync(ct);
         var count = 0;
         foreach (var e in events)
         {
+            // UC10 excludes clients protected by an active, valid retainer. Do this
+            // before changing invoice state or notifying the accountant.
+            if (await db.Retainers.AnyAsync(x => x.ClientId == e.GeneratedInvoice!.ClientId && x.Status == RetainerStatus.Active, ct)) continue;
             var key = $"penalty-review:{e.Id}";
             if (await db.AuditEntries.AnyAsync(x => x.EntityType == "Invoice" && x.EntityId == e.GeneratedInvoiceId!.Value.ToString() && x.Action == key, ct)) continue;
             var invoice = e.GeneratedInvoice!;
@@ -91,6 +95,26 @@ public sealed class AppointmentBillingService(ApplicationDbContext db, IEmailSer
             }
             count++;
         }
+        // UC10 also applies to ordinary invoices, not only appointment invoices.
+        if (policy is not null && policy.GracePeriodDays >= 0 && policy.PenaltyType != LatePenaltyType.None && policy.PenaltyValue > 0)
+        {
+            var ordinary = await db.Invoices.Include(x => x.Payments).Include(x => x.Client)
+                .Where(x => x.Status != InvoiceStatus.Paid && x.Status != InvoiceStatus.Cancelled
+                    && x.DueDate.AddDays(policy.GracePeriodDays) < now
+                    && !db.CalendarEvents.Any(e => e.GeneratedInvoiceId == x.Id)
+                    && !db.InvoicePenalties.Any(p => p.InvoiceId == x.Id)
+                    && !db.Retainers.Any(r => r.ClientId == x.ClientId && r.Status == RetainerStatus.Active)).ToListAsync(ct);
+            foreach (var invoice in ordinary)
+            {
+                var outstanding = Math.Max(0, invoice.TotalAmount - invoice.Payments.Sum(x => x.Amount));
+                if (outstanding <= 0) continue;
+                invoice.Status = InvoiceStatus.Overdue;
+                db.AuditEntries.Add(new() { EntityType = "Invoice", EntityId = invoice.Id.ToString(), Action = "penalty-review:firm-policy", SafeMetadataJson = System.Text.Json.JsonSerializer.Serialize(new { outstanding, policy.GracePeriodDays, policy.PenaltyType, policy.PenaltyValue }) });
+                foreach (var accountant in await db.Users.Where(x => x.Role == UserRole.Accountant && x.IsActive).ToListAsync(ct))
+                    await email.QueueAsync(accountant.Email, "Penalty review required", $"<h2>Penalty review required</h2><p>Invoice {System.Net.WebUtility.HtmlEncode(invoice.InvoiceNumber)} is overdue after the configured {policy.GracePeriodDays}-day grace period.</p>", $"Invoice {invoice.InvoiceNumber} is overdue after the configured grace period.", $"penalty-review:firm:{invoice.Id}:{accountant.Id}", ct);
+                count++;
+            }
+        }
         await db.SaveChangesAsync(ct); return count;
     }
     public async Task ApplyPenaltyAsync(int invoiceId, int accountantUserId, string reason, DateTime now, CancellationToken ct = default)
@@ -100,22 +124,27 @@ public sealed class AppointmentBillingService(ApplicationDbContext db, IEmailSer
             ?? throw new UnauthorizedAccessException("Only an active accountant may apply a penalty.");
         var invoice = await db.Invoices.Include(x => x.Payments).Include(x => x.Client).SingleOrDefaultAsync(x => x.Id == invoiceId, ct)
             ?? throw new InvalidOperationException("Invoice not found.");
-        var appointment = await db.CalendarEvents.SingleOrDefaultAsync(x => x.GeneratedInvoiceId == invoiceId, ct)
-            ?? throw new InvalidOperationException("No agreed appointment penalty terms exist for this invoice.");
-        if (invoice.Status != InvoiceStatus.Overdue || invoice.DueDate.AddDays(appointment.LatePenaltyGraceDays) >= now) throw new InvalidOperationException("The invoice is not eligible for a penalty.");
-        if (appointment.LatePenaltyType == LatePenaltyType.None || appointment.LatePenaltyValue <= 0) throw new InvalidOperationException("No penalty was agreed for this service.");
-        var key = $"appointment-penalty:{appointment.Id}";
+        var appointment = await db.CalendarEvents.SingleOrDefaultAsync(x => x.GeneratedInvoiceId == invoiceId, ct);
+        if (await db.Retainers.AnyAsync(x => x.ClientId == invoice.ClientId && x.Status == RetainerStatus.Active, ct))
+            throw new InvalidOperationException("A penalty cannot be applied while the client has an active retainer.");
+        var policy = appointment is null ? await db.OverduePaymentPenaltyPolicies.OrderBy(x => x.Id).FirstOrDefaultAsync(x => x.IsActive, ct) : null;
+        var graceDays = appointment?.LatePenaltyGraceDays ?? policy?.GracePeriodDays ?? -1;
+        var type = appointment?.LatePenaltyType ?? policy?.PenaltyType ?? LatePenaltyType.None;
+        var value = appointment?.LatePenaltyValue ?? policy?.PenaltyValue ?? 0m;
+        if (invoice.Status != InvoiceStatus.Overdue || graceDays < 0 || invoice.DueDate.AddDays(graceDays) >= now) throw new InvalidOperationException("The invoice is not eligible for a penalty.");
+        if (type == LatePenaltyType.None || value <= 0) throw new InvalidOperationException("No active penalty rule is configured for this invoice.");
+        var key = appointment is null ? $"firm-penalty:{invoice.Id}" : $"appointment-penalty:{appointment.Id}";
         if (await db.InvoicePenalties.AnyAsync(x => x.IdempotencyKey == key, ct)) throw new InvalidOperationException("A penalty has already been applied.");
         var outstanding = Math.Max(0, invoice.TotalAmount - invoice.Payments.Sum(x => x.Amount));
         if (outstanding <= 0) throw new InvalidOperationException("The invoice has no outstanding balance.");
-        var amount = appointment.LatePenaltyType == LatePenaltyType.FixedAmount ? appointment.LatePenaltyValue : decimal.Round(outstanding * appointment.LatePenaltyValue / 100m, 2);
-        db.InvoicePenalties.Add(new() { InvoiceId = invoice.Id, CalendarEventId = appointment.Id, Type = appointment.LatePenaltyType, BasisAmount = outstanding, PenaltyValue = appointment.LatePenaltyValue, Amount = amount, AppliedAtUtc = now, IdempotencyKey = key, AppliedByAccountantId = accountant.Id, Reason = reason.Trim() });
+        var amount = type == LatePenaltyType.FixedAmount ? value : decimal.Round(outstanding * value / 100m, 2);
+        db.InvoicePenalties.Add(new() { InvoiceId = invoice.Id, CalendarEventId = appointment?.Id, Type = type, BasisAmount = outstanding, PenaltyValue = value, Amount = amount, AppliedAtUtc = now, IdempotencyKey = key, AppliedByAccountantId = accountant.Id, Reason = reason.Trim() });
         invoice.TotalAmount += amount;
         var text = $"A pre-agreed late payment penalty of R{amount:N2} was applied to invoice {invoice.InvoiceNumber}. Reason: {reason.Trim()}";
-        await email.QueueAsync(invoice.Client!.Email, "Late payment penalty applied", $"<h2>Late payment penalty</h2><p>{System.Net.WebUtility.HtmlEncode(text)}</p><p><a href=\"{PublicUrl($"/Billing/ClientInvoiceDetails/{invoice.Id}")}\">View invoice</a></p>", text, $"penalty:{appointment.Id}", ct);
+        await email.QueueAsync(invoice.Client!.Email, "Late payment penalty applied", $"<h2>Late payment penalty</h2><p>{System.Net.WebUtility.HtmlEncode(text)}</p><p><a href=\"{PublicUrl($"/Billing/ClientInvoiceDetails/{invoice.Id}")}\">View invoice</a></p>", text, $"penalty:{invoice.Id}", ct);
         var clientUserId = await db.Users.Where(x => x.Email == invoice.Client.Email).Select(x => (int?)x.Id).SingleOrDefaultAsync(ct);
-        if (clientUserId is not null && notifications is not null) await notifications.QueueAsync(clientUserId.Value, "LatePaymentPenalty", "Late payment penalty applied", text, $"/Billing/ClientInvoiceDetails/{invoice.Id}", $"penalty:{appointment.Id}", ct);
-        db.AuditEntries.Add(new() { ActorUserId = accountant.Id, EntityType = "Invoice", EntityId = invoice.Id.ToString(), Action = "Penalty applied by accountant", SafeMetadataJson = System.Text.Json.JsonSerializer.Serialize(new { amount, reason = reason.Trim(), terms = appointment.LatePenaltyType.ToString(), appointment.LatePenaltyValue }) });
+        if (clientUserId is not null && notifications is not null) await notifications.QueueAsync(clientUserId.Value, "LatePaymentPenalty", "Late payment penalty applied", text, $"/Billing/ClientInvoiceDetails/{invoice.Id}", $"penalty:{invoice.Id}", ct);
+        db.AuditEntries.Add(new() { ActorUserId = accountant.Id, EntityType = "Invoice", EntityId = invoice.Id.ToString(), Action = "Penalty applied by accountant", SafeMetadataJson = System.Text.Json.JsonSerializer.Serialize(new { amount, reason = reason.Trim(), terms = type.ToString(), value, graceDays }) });
         await db.SaveChangesAsync(ct);
     }
     private static Invoice CreateInvoice(CalendarEvent e, decimal fee, DateTime now, InvoiceStatus status) => new() { ClientId = e.ClientId!.Value, RetainerId = e.RetainerId, CaseId = e.CaseId, Amount = fee, TaxAmount = 0, TotalAmount = fee, IssueDate = now, DueDate = now.AddDays(e.PaymentDueDays), CreatedDate = now, CreatedAt = now, Status = status, InvoiceNumber = $"APT-{e.Id}-{now:yyyyMMdd}", Notes = $"Appointment: {e.Title}", Description = $"Accepted appointment fee: {e.Title}", Payments = [], TimeEntries = [] };

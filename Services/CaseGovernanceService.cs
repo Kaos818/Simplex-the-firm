@@ -179,7 +179,8 @@ public sealed class CaseGovernanceWorker(IServiceScopeFactory scopes, ILogger<Ca
             try { using var scope = scopes.CreateScope(); await scope.ServiceProvider.GetRequiredService<ICaseGovernanceService>().RunGovernanceAsync(DateTime.UtcNow, stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
             catch (Exception ex) { logger.LogError(ex, "Case governance cycle failed."); }
-            await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
+            try { await Task.Delay(TimeSpan.FromHours(1), stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
         }
     }
 }

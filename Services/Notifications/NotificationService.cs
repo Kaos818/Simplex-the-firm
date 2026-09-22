@@ -11,4 +11,7 @@ public sealed class NotificationService(ApplicationDbContext db) : INotification
         if (key is not null && await db.SystemNotifications.AnyAsync(x => x.DeduplicationKey == key, ct)) return;
         db.SystemNotifications.Add(new() { UserId = userId, Type = type, Title = title, Message = message, ActionUrl = actionUrl, DeduplicationKey = key });
     }
+
+    public Task SendAsync(int recipientUserId, string title, string message, CancellationToken ct = default) =>
+        QueueAsync(recipientUserId, "Workflow", title, message, null, null, ct);
 }

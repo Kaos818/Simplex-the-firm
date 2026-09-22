@@ -11,3 +11,7 @@ Apply migrations with `dotnet ef database update`. The legacy `SimplexLawFirmLoc
 ## Development-only Kaotic verification scenario
 
 The Kaotic Being seed is created only when `ASPNETCORE_ENVIRONMENT=Development` and the `Seed:KaoticPortalPassword` user secret is configured. It has a test-only face reference under `Data/SeedAssets`, documentation marked complete, and starts at facial verification. Sign in through `/BeneficiaryPortal/Login`; this creates only the limited beneficiary session and does not grant a client or member account. Never configure this seed password in a production environment.
+
+## Deployment beneficiary access
+
+Set the existing Azure `Seed:SharedPassword` setting (or the more specific `Seed:BeneficiaryPortalPassword`) to provision `ndlovukhetha818@gmail.com` as a beneficiary-only portal account. The seed never creates an `ApplicationUser`, so the email cannot sign in to the client portal unless it is separately registered as a client. Entering the beneficiary portal also clears any stakeholder session and remembered stakeholder sign-in in that browser.

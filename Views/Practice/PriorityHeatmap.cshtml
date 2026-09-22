@@ -1,0 +1,60 @@
+@model SimplexLawFirm.ViewModels.CasePriorityHeatmapViewModel
+@using SimplexLawFirm.Models
+@{
+    ViewData["Title"] = "Legal matter heatmap";
+    Layout = ViewBag.Role == "Lawyer" ? "_LawyerLayout" : "_AdminLayout";
+    string Tone(CasePriorityBand band) => band.ToString().ToLowerInvariant();
+}
+
+<div class="page-hero">
+    <div><span class="eyebrow">Use case 01</span><h1>Legal matter heatmap</h1><p>Priorities are calculated from current matter data. Open a matter to review the complete, explainable score breakdown.</p></div>
+    <div class="hero-mark">!</div>
+</div>
+
+<section class="surface mb-4">
+    <div class="section-heading"><div><span class="eyebrow">Priority queue</span><h2>@Model.Matters.Count active matter(s)</h2></div><small>High and critical matters require prompt review.</small></div>
+    @if (!Model.Matters.Any())
+    { <div class="empty-state">There are no active matters in your permitted scope.</div> }
+    else
+    {
+        <div class="priority-grid">
+        @foreach (var matter in Model.Matters)
+        {
+            <details class="priority-card @Tone(matter.Band)">
+                <summary><span><b>@matter.CaseNumber</b><small>@matter.CaseTitle · @matter.ClientName</small></span><span class="priority-score"><strong>@matter.Score.ToString("0.0")</strong><em>@matter.Band</em></span></summary>
+                <div class="priority-details">
+                    @foreach (var factor in matter.Factors)
+                    { <div class="factor-row"><span><b>@factor.Name</b><small>@factor.Explanation</small></span><span>@factor.Score.ToString("0.0") / 100<br /><small>@factor.Weight.ToString("0.##")% weight · @factor.Contribution.ToString("0.0") points</small></span></div> }
+                </div>
+            </details>
+        }
+        </div>
+    }
+</section>
+
+@if (Model.CanConfigure)
+{
+    <section class="surface">
+        <div class="section-heading"><div><span class="eyebrow">Director control</span><h2>Priority weighting</h2></div><small>Weights must total exactly 100%.</small></div>
+        <form method="post" action="/Practice/UpdatePriorityWeights" class="row g-3">
+            @Html.AntiForgeryToken()
+            <div class="col-md"><label class="form-label">Risk %</label><input class="form-control" type="number" step="0.01" min="0" max="100" name="RiskWeight" value="@Model.Configuration.RiskWeight" /></div>
+            <div class="col-md"><label class="form-label">Urgency %</label><input class="form-control" type="number" step="0.01" min="0" max="100" name="UrgencyWeight" value="@Model.Configuration.UrgencyWeight" /></div>
+            <div class="col-md"><label class="form-label">Complexity %</label><input class="form-control" type="number" step="0.01" min="0" max="100" name="ComplexityWeight" value="@Model.Configuration.ComplexityWeight" /></div>
+            <div class="col-md"><label class="form-label">Document readiness %</label><input class="form-control" type="number" step="0.01" min="0" max="100" name="DocumentReadinessWeight" value="@Model.Configuration.DocumentReadinessWeight" /></div>
+            <div class="col-md"><label class="form-label">Financial exposure %</label><input class="form-control" type="number" step="0.01" min="0" max="100" name="FinancialExposureWeight" value="@Model.Configuration.FinancialExposureWeight" /></div>
+            <div class="col-12"><button class="btn btn-primary">Save weights</button></div>
+        </form>
+    </section>
+}
+
+@section Styles {
+<style>
+    .priority-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:1rem; }
+    .priority-card { border:1px solid #dce3ea; border-left:6px solid #64748b; border-radius:.65rem; padding:.85rem; background:#fff; }
+    .priority-card.medium { border-left-color:#d97706; } .priority-card.high { border-left-color:#dc2626; } .priority-card.critical { border-left-color:#7f1d1d; background:#fff7f7; }
+    .priority-card summary { cursor:pointer; display:flex; justify-content:space-between; gap:1rem; list-style:none; } .priority-card summary::-webkit-details-marker { display:none; }
+    .priority-card small, .factor-row small { display:block; color:#64748b; margin-top:.2rem; } .priority-score { text-align:right; } .priority-score strong { display:block; font-size:1.35rem; } .priority-score em { font-style:normal; font-size:.8rem; font-weight:700; text-transform:uppercase; }
+    .priority-details { margin-top:.8rem; border-top:1px solid #e5e7eb; } .factor-row { display:flex; justify-content:space-between; gap:1rem; padding:.65rem 0; border-bottom:1px solid #edf0f3; } .factor-row > span:last-child { text-align:right; white-space:nowrap; }
+</style>
+}

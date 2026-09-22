@@ -874,9 +874,9 @@ namespace SimplexLawFirm.Controllers
             foreach (var request in documentRequests)
                 activities.Add(new CaseActivityViewModel
                 {
-                    Date = request.ReviewedAtUtc ?? request.SubmittedAtUtc ?? request.CreatedAtUtc,
+                    Date = request.LastDelayActionAtUtc ?? request.OverdueAtUtc ?? request.ReviewedAtUtc ?? request.SubmittedAtUtc ?? request.CreatedAtUtc,
                     Type = "Document request",
-                    Description = $"{request.Title} ({request.Status}) - {request.RequiredDocuments.Replace("\n", ", ")}",
+                    Description = $"{request.Title} ({request.Status}) - {request.RequiredDocuments.Replace("\n", ", ")}" + (request.LastDelayAction is null ? "" : $". Delay action: {request.LastDelayAction} — {request.LastDelayActionNote}"),
                     User = request.RequestedByAttorney.FullName
                 });
 

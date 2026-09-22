@@ -1,5 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using SimplexLawFirm.Models;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Globalization;
 using SimplexLawFirm.Models.Beneficiaries;
 
 namespace SimplexLawFirm.Data
@@ -67,6 +69,7 @@ namespace SimplexLawFirm.Data
 
         // Client & Case Management
         public DbSet<Client> Clients { get; set; }
+        public DbSet<ClientRelationshipRisk> ClientRelationshipRisks { get; set; }
         public DbSet<Case> Cases { get; set; }
         public DbSet<CaseNote> CaseNotes { get; set; }
         public DbSet<Document> Documents { get; set; }
@@ -111,10 +114,12 @@ namespace SimplexLawFirm.Data
         public DbSet<AppointmentInvitation> AppointmentInvitations { get; set; }
         public DbSet<AppointmentBillingRecord> AppointmentBillingRecords { get; set; }
         public DbSet<InvoicePenalty> InvoicePenalties { get; set; }
+        public DbSet<OverduePaymentPenaltyPolicy> OverduePaymentPenaltyPolicies { get; set; }
         public DbSet<AuditEntry> AuditEntries { get; set; }
         public DbSet<ExternalEvidenceRequest> ExternalEvidenceRequests { get; set; }
         public DbSet<ExternalEvidenceDocument> ExternalEvidenceDocuments { get; set; }
         public DbSet<CaseForecast> CaseForecasts { get; set; }
+        public DbSet<CasePriorityWeightConfiguration> CasePriorityWeightConfigurations { get; set; }
         public DbSet<CaseHandover> CaseHandovers { get; set; }
         public DbSet<HandoverItem> HandoverItems { get; set; }
         public DbSet<ServiceComplaint> ServiceComplaints { get; set; }
@@ -158,11 +163,40 @@ namespace SimplexLawFirm.Data
         public DbSet<AttorneyWhereabout> AttorneyWhereabouts { get; set; }
         public DbSet<BeneficiaryTrustDisbursementRequest> BeneficiaryTrustDisbursementRequests { get; set; }
         public DbSet<CaseDocumentRequest> CaseDocumentRequests { get; set; }
+        public DbSet<ClientResponseSlaRule> ClientResponseSlaRules { get; set; }
         public DbSet<CaseHandoverRequest> CaseHandoverRequests { get; set; }
+        public DbSet<AdverseCostExposure> AdverseCostExposures { get; set; }
+        public DbSet<DiscoveryBundle> DiscoveryBundles { get; set; }
+        public DbSet<DiscoveryBundleItem> DiscoveryBundleItems { get; set; }
+          public DbSet<OpposingDisclosureDocument> OpposingDisclosureDocuments { get; set; }
+          public DbSet<FeeDiscountPolicy> FeeDiscountPolicies { get; set; }
+          public DbSet<FeeDiscountRequest> FeeDiscountRequests { get; set; }
+        public DbSet<SettlementRecommendation> SettlementRecommendations { get; set; }
+        public DbSet<CaseWitness> CaseWitnesses { get; set; }
+        public DbSet<WitnessCommitment> WitnessCommitments { get; set; }
+        public DbSet<WitnessScheduleConflict> WitnessScheduleConflicts { get; set; }
+        public DbSet<CourtFilingSubmission> CourtFilingSubmissions { get; set; }
+        public DbSet<CourtProcedureStep> CourtProcedureSteps { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            // SQLite persists legacy relationship scores as TEXT. Use an invariant
+            // conversion so regional settings cannot make values like "0.00" fail.
+            if (Database.IsSqlite())
+            {
+                var invariantScore = new ValueConverter<decimal, string>(
+                    value => value.ToString("0.00", CultureInfo.InvariantCulture),
+                    value => decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture));
+                modelBuilder.Entity<ClientRelationshipRisk>(entity =>
+                {
+                    entity.Property(x => x.FinancialScore).HasConversion(invariantScore).HasColumnType("TEXT");
+                    entity.Property(x => x.LegalScore).HasConversion(invariantScore).HasColumnType("TEXT");
+                    entity.Property(x => x.ReputationScore).HasConversion(invariantScore).HasColumnType("TEXT");
+                    entity.Property(x => x.PredictedRelationshipScore).HasConversion(invariantScore).HasColumnType("TEXT");
+                    entity.Property(x => x.OverallScore).HasConversion(invariantScore).HasColumnType("TEXT");
+                });
+            }
             modelBuilder.Entity<CaseAuthorityReliance>().HasIndex(x => new { x.CaseId, x.LegalAuthorityId, x.AttorneyId });
             modelBuilder.Entity<AttorneyWhereabout>().HasIndex(x => new { x.Status, x.ExpectedReturnAtUtc });
             modelBuilder.Entity<BeneficiaryTrustDisbursementRequest>().HasIndex(x => x.ReferenceNumber).IsUnique();
@@ -171,9 +205,32 @@ namespace SimplexLawFirm.Data
             modelBuilder.Entity<BeneficiaryTrustDisbursementRequest>().Property(x => x.BalanceSnapshot).HasPrecision(18, 2);
             modelBuilder.Entity<CaseDocumentRequest>(e => {
                 e.HasIndex(x => new { x.CaseId, x.Status });
+                e.HasIndex(x => new { x.Status, x.DueAtUtc });
                 e.HasOne(x => x.RequestedByAttorney).WithMany().HasForeignKey(x => x.RequestedByAttorneyId).OnDelete(DeleteBehavior.Restrict);
                 e.HasMany(x => x.Documents).WithOne(x => x.CaseDocumentRequest).HasForeignKey(x => x.CaseDocumentRequestId).OnDelete(DeleteBehavior.SetNull);
             });
+            modelBuilder.Entity<ClientResponseSlaRule>(e => {
+                e.HasIndex(x => x.RequestType).IsUnique();
+                e.HasOne(x => x.UpdatedByUser).WithMany().HasForeignKey(x => x.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<AdverseCostExposure>(e => {
+                e.HasIndex(x => new { x.CaseId, x.Status });
+                e.Property(x => x.CostOrderAmount).HasPrecision(18, 2); e.Property(x => x.ExistingCaseCostsSnapshot).HasPrecision(18, 2); e.Property(x => x.TotalExposure).HasPrecision(18, 2); e.Property(x => x.AvailableTrustRetainerSnapshot).HasPrecision(18, 2); e.Property(x => x.Shortfall).HasPrecision(18, 2); e.Property(x => x.RevisedAmount).HasPrecision(18, 2); e.Property(x => x.FinalSettledAmount).HasPrecision(18, 2);
+                e.HasOne(x => x.Case).WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.CourtOrderDocument).WithMany().HasForeignKey(x => x.CourtOrderDocumentId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.LoggedByAttorney).WithMany().HasForeignKey(x => x.LoggedByAttorneyId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.AccountantReviewedByUser).WithMany().HasForeignKey(x => x.AccountantReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.DirectorReviewedByUser).WithMany().HasForeignKey(x => x.DirectorReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<DiscoveryBundle>(e => { e.HasIndex(x => x.ExchangeToken).IsUnique(); e.HasOne(x=>x.Case).WithMany().HasForeignKey(x=>x.CaseId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x=>x.Attorney).WithMany().HasForeignKey(x=>x.AttorneyId).OnDelete(DeleteBehavior.Restrict); });
+            modelBuilder.Entity<DiscoveryBundleItem>(e => { e.HasIndex(x=>new{x.DiscoveryBundleId,x.DocumentId}).IsUnique(); e.HasOne(x=>x.Document).WithMany().HasForeignKey(x=>x.DocumentId).OnDelete(DeleteBehavior.Restrict); e.HasOne<ApplicationUser>().WithMany().HasForeignKey(x=>x.DirectorId).OnDelete(DeleteBehavior.Restrict); });
+            modelBuilder.Entity<OpposingDisclosureDocument>().HasOne(x=>x.DiscoveryBundle).WithMany(x=>x.OpposingDocuments).HasForeignKey(x=>x.DiscoveryBundleId).OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<FeeDiscountPolicy>(e=>{e.HasIndex(x=>x.MatterType).IsUnique();e.Property(x=>x.MinimumRecoveryPercent).HasPrecision(5,2);e.Property(x=>x.AutomaticApprovalPercent).HasPrecision(5,2);});
+            modelBuilder.Entity<FeeDiscountRequest>(e=>{e.Property(x=>x.OriginalAmount).HasPrecision(18,2);e.Property(x=>x.ProposedAmount).HasPrecision(18,2);e.Property(x=>x.DiscountPercent).HasPrecision(5,2);e.Property(x=>x.CounterOfferAmount).HasPrecision(18,2);e.HasOne(x=>x.Invoice).WithMany().HasForeignKey(x=>x.InvoiceId).OnDelete(DeleteBehavior.Restrict);e.HasOne(x=>x.Client).WithMany().HasForeignKey(x=>x.ClientId).OnDelete(DeleteBehavior.Restrict);});
+            modelBuilder.Entity<SettlementRecommendation>(e => { e.HasIndex(x => new { x.CaseId, x.Status }); e.Property(x => x.ProjectedLitigationCost).HasPrecision(18, 2); e.Property(x => x.MatterValueSnapshot).HasPrecision(18, 2); });
+            modelBuilder.Entity<CaseWitness>(e => { e.HasIndex(x => new { x.CaseId, x.IsActive }); e.HasOne(x => x.Case).WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict); });
+            modelBuilder.Entity<WitnessCommitment>(e => e.HasOne(x => x.CaseWitness).WithMany(x => x.Commitments).HasForeignKey(x => x.CaseWitnessId).OnDelete(DeleteBehavior.Cascade));
+            modelBuilder.Entity<WitnessScheduleConflict>(e => { e.HasIndex(x => new { x.CaseId, x.Status }); e.HasOne(x => x.CaseWitness).WithMany().HasForeignKey(x => x.CaseWitnessId).OnDelete(DeleteBehavior.Restrict); });
             modelBuilder.Entity<CaseHandoverRequest>(e => {
                 e.HasIndex(x => new { x.Status, x.RequestedAtUtc });
                 e.HasOne(x => x.RequestedByAttorney).WithMany().HasForeignKey(x => x.RequestedByAttorneyId).OnDelete(DeleteBehavior.Restrict);
@@ -255,6 +312,14 @@ namespace SimplexLawFirm.Data
                 e.Property(x => x.AccuracyScore).HasPrecision(6,5);
                 e.HasOne(x => x.Case).WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.Attorney).WithMany().HasForeignKey(x => x.AttorneyId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<CasePriorityWeightConfiguration>(e => {
+                e.Property(x => x.RiskWeight).HasPrecision(5, 2);
+                e.Property(x => x.UrgencyWeight).HasPrecision(5, 2);
+                e.Property(x => x.ComplexityWeight).HasPrecision(5, 2);
+                e.Property(x => x.DocumentReadinessWeight).HasPrecision(5, 2);
+                e.Property(x => x.FinancialExposureWeight).HasPrecision(5, 2);
+                e.HasOne(x => x.UpdatedByUser).WithMany().HasForeignKey(x => x.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
             });
             modelBuilder.Entity<ForecastCalibration>(e => {
                 e.HasIndex(x => x.AttorneyId).IsUnique();
@@ -514,6 +579,11 @@ namespace SimplexLawFirm.Data
                 entity.Property(x => x.Reason).IsRequired().HasMaxLength(1000);
                 entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.AppliedByAccountantId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.Invoice).WithMany().HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<OverduePaymentPenaltyPolicy>(entity =>
+            {
+                entity.Property(x => x.PenaltyType).HasConversion<string>();
+                entity.Property(x => x.PenaltyValue).HasPrecision(18, 2);
             });
             modelBuilder.Entity<AuditEntry>(entity =>
             {

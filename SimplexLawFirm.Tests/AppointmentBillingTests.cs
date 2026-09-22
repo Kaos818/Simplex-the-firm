@@ -156,6 +156,34 @@ public sealed class AppointmentBillingTests
         Assert.Contains("agreed grace period", penalty.Reason);
     }
 
+    [Fact]
+    public async Task Active_retainer_blocks_overdue_penalty_even_after_grace_period()
+    {
+        await using var fixture = await Fixture.Create();
+        var accountant = new ApplicationUser { FullName="Test Accountant", Email="accounts2@example.test", PasswordHash="x", Role=UserRole.Accountant, IsActive=true, AssignedCases=[] }; fixture.Db.Users.Add(accountant);
+        fixture.AddRetainer();
+        var appointment=fixture.AddEvent(AppointmentResponseStatus.Accepted,EventStatus.Scheduled,DateTime.UtcNow.AddDays(-10)); appointment.BillingProcessed=true; appointment.LatePenaltyType=LatePenaltyType.FixedAmount; appointment.LatePenaltyValue=25; appointment.LatePenaltyGraceDays=1;
+        var invoice=new Invoice { ClientId=fixture.Client.Id,InvoiceNumber="RETAINER-BLOCK",Amount=100,TotalAmount=100,IssueDate=DateTime.UtcNow.AddDays(-10),DueDate=DateTime.UtcNow.AddDays(-5),CreatedAt=DateTime.UtcNow,CreatedDate=DateTime.UtcNow,Status=InvoiceStatus.Sent,Payments=[] }; fixture.Db.Invoices.Add(invoice); await fixture.Db.SaveChangesAsync(); appointment.GeneratedInvoiceId=invoice.Id; await fixture.Db.SaveChangesAsync();
+        Assert.Equal(0, await fixture.Service.ApplyPenaltiesAsync(DateTime.UtcNow));
+        invoice.Status=InvoiceStatus.Overdue; await fixture.Db.SaveChangesAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ApplyPenaltyAsync(invoice.Id, accountant.Id, "Grace period expired but retainer remains active.", DateTime.UtcNow));
+        Assert.Empty(fixture.Db.InvoicePenalties);
+    }
+
+    [Fact]
+    public async Task Firm_policy_penalises_partially_paid_ordinary_invoice_after_grace_period()
+    {
+        await using var fixture = await Fixture.Create();
+        var accountant = new ApplicationUser { FullName="Policy Accountant", Email="policy.accounts@example.test", PasswordHash="x", Role=UserRole.Accountant, IsActive=true, AssignedCases=[] }; fixture.Db.Users.Add(accountant);
+        fixture.Db.OverduePaymentPenaltyPolicies.Add(new OverduePaymentPenaltyPolicy { GracePeriodDays=3, PenaltyType=LatePenaltyType.Percentage, PenaltyValue=10m, IsActive=true });
+        var invoice = new Invoice { ClientId=fixture.Client.Id, InvoiceNumber="ORDINARY-PARTIAL", Amount=100m, TotalAmount=100m, IssueDate=DateTime.UtcNow.AddDays(-12), DueDate=DateTime.UtcNow.AddDays(-7), CreatedDate=DateTime.UtcNow.AddDays(-12), CreatedAt=DateTime.UtcNow.AddDays(-12), Status=InvoiceStatus.Sent, Payments=[] };
+        invoice.Payments.Add(new Payment { ClientId=fixture.Client.Id, Amount=40m, PaymentDate=DateTime.UtcNow.AddDays(-6), CreatedAt=DateTime.UtcNow.AddDays(-6), PaymentMethod=PaymentMethod.EFT, TransactionReference="partial" }); fixture.Db.Invoices.Add(invoice); await fixture.Db.SaveChangesAsync();
+        Assert.Equal(1, await fixture.Service.ApplyPenaltiesAsync(DateTime.UtcNow));
+        Assert.Equal(InvoiceStatus.Overdue, invoice.Status);
+        await fixture.Service.ApplyPenaltyAsync(invoice.Id, accountant.Id, "Configured grace period expired with a partial outstanding balance.", DateTime.UtcNow);
+        var penalty = await fixture.Db.InvoicePenalties.SingleAsync(); Assert.Null(penalty.CalendarEventId); Assert.Equal(6m, penalty.Amount); Assert.Equal(106m, invoice.TotalAmount);
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;

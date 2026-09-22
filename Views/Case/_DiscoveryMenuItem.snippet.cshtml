@@ -1,0 +1,5 @@
+@* Add inside Case/Details.cshtml's actions dropdown (where the existing discovery link lives it already does).
+   This snippet is a reminder that UC-08 is launched from the matter page. *@
+<li><a class="dropdown-item" href="/DiscoveryDisclosure/Create?caseId=@Model.Id"><i class="fas fa-folder-open"></i>Prepare discovery exchange</a></li>
+@* UC-09 witness register link: *@
+<li><a class="dropdown-item" href="/WitnessSchedule/Case?caseId=@Model.Id"><i class="fas fa-user-clock"></i>Witness schedule</a></li>

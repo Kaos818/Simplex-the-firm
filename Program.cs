@@ -26,6 +26,11 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException(
         "Connection string 'DefaultConnection' was not configured.");
 
+// A fresh development checkout has no SQLite data directory yet. Create it
+// before EF opens the relative App_Data database path during application seed.
+if (builder.Environment.IsDevelopment() && connectionString.Contains("Data Source=App_Data/", StringComparison.OrdinalIgnoreCase))
+    Directory.CreateDirectory(Path.Combine(builder.Environment.ContentRootPath, "App_Data"));
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     if (connectionString.Contains("Data Source=", StringComparison.OrdinalIgnoreCase) &&
@@ -62,6 +67,7 @@ builder.Services.AddHttpContextAccessor();
 // Add Razor runtime compilation
 builder.Services.Configure<VerificationOptions>(builder.Configuration.GetSection("Verification"));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
+builder.Services.Configure<ClientRelationshipRiskOptions>(builder.Configuration.GetSection("ClientRelationshipRisk"));
 builder.Services.AddScoped<ISecureFileStorage, LocalSecureFileStorage>();
 builder.Services.AddScoped<IDocumentStorage, SecureDocumentStorage>();
 builder.Services.AddHttpClient<ILocalVerificationClient, LocalVerificationClient>();
@@ -69,8 +75,24 @@ builder.Services.AddScoped<IReferenceFaceExtractor, ReferenceFaceExtractor>();
 builder.Services.AddScoped<ICurrentClientService, CurrentClientService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IEmailService, EmailOutboxService>();
+builder.Services.AddScoped<IAccountConfirmationService, AccountConfirmationService>();
 builder.Services.AddScoped<IAppointmentBillingService, AppointmentBillingService>();
-builder.Services.AddScoped<IPracticeIntelligenceService, PracticeIntelligenceService>();
+  builder.Services.AddScoped<IPracticeIntelligenceService, PracticeIntelligenceService>();
+  builder.Services.AddScoped<ICasePriorityService, CasePriorityService>();
+  builder.Services.AddScoped<IClientResponseDelayService, ClientResponseDelayService>();
+  builder.Services.AddScoped<IAdverseCostExposureService, AdverseCostExposureService>();
+builder.Services.AddScoped<IDiscoveryDisclosureService>(sp => new DiscoveryDisclosureService(
+    sp.GetRequiredService<ApplicationDbContext>(),
+    sp.GetRequiredService<IAuditService>(),
+    sp.GetRequiredService<INotificationService>(),
+    sp.GetRequiredService<IWebHostEnvironment>(),
+    sp.GetRequiredService<IDocumentStorage>()));
+  builder.Services.AddScoped<IFeeDiscountService, FeeDiscountService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<ISettlementService, SettlementService>();
+builder.Services.AddScoped<IClientRelationshipRiskService, ClientRelationshipRiskService>();
+builder.Services.AddScoped<IWitnessScheduleService, WitnessScheduleService>();
+builder.Services.AddScoped<ICourtFilingQueueService, CourtFilingQueueService>();
 builder.Services.AddScoped<IMatterCostEstimateService, MatterCostEstimateService>();
 builder.Services.AddScoped<IReimbursementService, ReimbursementService>();
 builder.Services.AddScoped<ILegalCostRecoveryService, LegalCostRecoveryService>();
@@ -94,7 +116,10 @@ builder.Services.AddHostedService<AppointmentBillingWorker>();
 builder.Services.AddHostedService<LatePenaltyWorker>();
 builder.Services.AddHostedService<PrecedentIndexWorker>();
 builder.Services.AddHostedService<VulnerableClientGovernanceWorker>();
-builder.Services.AddHostedService<CaseGovernanceWorker>();
+  builder.Services.AddHostedService<CaseGovernanceWorker>();
+  builder.Services.AddHostedService<ClientResponseDelayWorker>();
+builder.Services.AddHostedService<SettlementEvaluationBackgroundJob>();
+builder.Services.AddHostedService<ClientRelationshipRiskWorker>();
 
 if (!builder.Environment.IsDevelopment())
 {
@@ -168,7 +193,8 @@ using (var scope = app.Services.CreateScope())
         }
         else
             await context.Database.MigrateAsync();
-        DbInitializer.Seed(context, app.Environment.IsDevelopment(), builder.Configuration["Seed:KaoticPortalPassword"], builder.Configuration["Seed:SharedPassword"]);
+        var beneficiaryPortalPassword = builder.Configuration["Seed:BeneficiaryPortalPassword"] ?? builder.Configuration["Seed:SharedPassword"];
+        DbInitializer.Seed(context, app.Environment.IsDevelopment(), builder.Configuration["Seed:KaoticPortalPassword"], beneficiaryPortalPassword);
         await LegacyDocumentStorageMigration.MigrateAsync(context, app.Environment, services.GetRequiredService<IDocumentStorage>());
     }
     catch (Exception ex)

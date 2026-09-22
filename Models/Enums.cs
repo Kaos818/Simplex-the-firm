@@ -1,9 +1,5 @@
 ﻿namespace SimplexLawFirm.Models
 {
-    public class Enums
-    {
-    }
-
     public enum UserRole
     {
         Director,

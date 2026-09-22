@@ -1,0 +1,47 @@
+@model IReadOnlyList<SimplexLawFirm.Models.CaseWitness>
+@using SimplexLawFirm.Models
+@using SimplexLawFirm.DTOs.Witnesses
+@{ Layout="_LawyerLayout"; var caseId=(int)ViewBag.CaseId; var conflicts=(IReadOnlyList<WitnessConflictDto>)ViewBag.Conflicts; }
+<div class="page-hero compact"><div><span class="eyebrow">Use case 9</span><h1>Witness register</h1><p>Witnesses, their commitments, and schedule conflicts for this matter.</p></div></div>
+
+@if(conflicts.Any(c=>c.Status=="Active")){<div class="alert alert-danger"><b>@conflicts.Count(c=>c.Status=="Active") active conflict(s).</b> Resolve them before the hearing.</div>}
+
+<section class="surface"><h2>Add witness</h2>
+<form method="post" action="/WitnessSchedule/AddWitness" class="stack-form">@Html.AntiForgeryToken()
+<input type="hidden" name="CaseId" value="@caseId"/>
+<label>Full name<input name="FullName" maxlength="200" required/></label>
+<div class="row"><div class="col"><label>Email<input name="Email" type="email" maxlength="320"/></label></div>
+<div class="col"><label>Phone<input name="Phone" maxlength="40"/></label></div></div>
+<label><input type="checkbox" name="IsRequired" value="true" checked/> Required witness (conflicts are Critical)</label>
+<label>Notes<textarea name="Notes" maxlength="1000"></textarea></label>
+<button class="btn-primary-modern">Add witness</button></form></section>
+
+@foreach(var w in Model){
+<section class="surface"><h2>@w.FullName @(w.IsRequired?"<span class=\"badge bg-dark\">Required</span>":"")</h2>
+<p><small>@w.Email @(!string.IsNullOrWhiteSpace(w.Phone)?" · "+w.Phone:"")</small></p>
+
+@{
+ var active=conflicts.Where(c=>c.WitnessName==w.FullName && c.Status=="Active").ToList();
+ if(active.Any()){<div class="alert alert-danger">@foreach(var c in active){<div><b>@c.Severity:</b> court @c.CourtDateStart.ToString("dd MMM yyyy HH:mm") clashes with @c.ConflictingEventSummary
+  <form method="post" action="/WitnessSchedule/Resolve" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="ConflictId" value="@c.ConflictId"/><input name="ResolutionNotes" maxlength="1000" required placeholder="How was it resolved?" class="form-control d-inline w-auto"/><button class="btn btn-sm btn-success">Resolve</button></form></div>}</div>}
+}
+
+<h3>Commitments</h3>
+@if(!w.Commitments.Any(c=>c.IsActive)){<p class="text-muted">No commitments recorded.</p>}
+<ul>@foreach(var c in w.Commitments.Where(c=>c.IsActive).OrderBy(c=>c.StartDateTime)){
+<li>@c.StartDateTime.ToString("dd MMM yyyy HH:mm") - @c.EndDateTime.ToString("HH:mm") · <b>@c.Title</b> (@c.Kind)
+<form method="post" action="/WitnessSchedule/RemoveCommitment" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="commitmentId" value="@c.Id"/><button class="btn btn-sm btn-outline-danger">Remove</button></form></li>}
+</ul>
+
+<form method="post" action="/WitnessSchedule/AddCommitment" class="stack-form">@Html.AntiForgeryToken()
+<input type="hidden" name="CaseWitnessId" value="@w.Id"/>
+<h4>Record a commitment</h4>
+<label>Title<input name="Title" maxlength="200" required placeholder="e.g. Another court appearance"/></label>
+<div class="row"><div class="col"><label>Start<input name="StartDateTime" type="datetime-local" required/></label></div>
+<div class="col"><label>End<input name="EndDateTime" type="datetime-local" required/></label></div></div>
+<label>Kind<select name="Kind"><option>Appointment</option><option>CourtAppearance</option><option>Personal</option><option>Other</option></select></label>
+<button class="btn-secondary-modern">Save and recheck</button></form></section>}
+
+@if(!Model.Any()){<section class="surface"><p>No witnesses linked to this matter yet.</p></section>}
+
+<form method="post" action="/WitnessSchedule/Recheck" class="mt-3">@Html.AntiForgeryToken()<input type="hidden" name="caseId" value="@caseId"/><button class="btn-secondary-modern">Re-run conflict check</button></form>

@@ -1,0 +1,6 @@
+@model SimplexLawFirm.Models.DiscoveryBundle
+@using SimplexLawFirm.Models
+@{ Layout="_Layout"; var token=Context.Request.Query["token"].ToString(); }
+<div class="page-hero compact"><div><span class="eyebrow">Secure reciprocal exchange</span><h1>@Model.Case.CaseNumber disclosure</h1><p>Download the disclosed material and upload the opposing disclosure bundle.</p></div></div>
+<section class="surface"><h2>Available disclosure documents</h2><ul>@foreach(var item in Model.Items.Where(x=>x.PrivilegeDecision is PrivilegeDecision.NotFlagged or PrivilegeDecision.OverruledDisclose)){<li><a href="/DiscoveryDisclosure/Download?token=@Uri.EscapeDataString(token)&documentId=@item.DocumentId">@item.Document.FileName</a></li>}</ul></section>
+<form method="post" enctype="multipart/form-data" action="/DiscoveryDisclosure/SubmitOpposingBundle" class="surface stack-form"><input type="hidden" name="token" value="@token"/>@Html.AntiForgeryToken()<h2>Upload opposing disclosure bundle</h2><p>Attach one to ten files. Each file may be up to 50 MB.</p><input type="file" name="files" multiple required/><button class="btn-primary-modern">Submit reciprocal disclosure</button></form>

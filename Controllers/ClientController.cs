@@ -6,6 +6,7 @@ using SimplexLawFirm.Models;
 using BCrypt.Net;
 using SimplexLawFirm.Services;
 using SimplexLawFirm.Infrastructure.Authorization;
+using SimplexLawFirm.Services.Email;
 
 namespace SimplexLawFirm.Controllers
 {
@@ -14,11 +15,13 @@ namespace SimplexLawFirm.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IVulnerableClientService _safeguards;
+        private readonly IAccountConfirmationService _accountConfirmation;
 
-        public ClientController(ApplicationDbContext context, IVulnerableClientService safeguards)
+        public ClientController(ApplicationDbContext context, IVulnerableClientService safeguards, IAccountConfirmationService accountConfirmation)
         {
             _context = context;
             _safeguards = safeguards;
+            _accountConfirmation = accountConfirmation;
         }
 
         // GET: Client/Index
@@ -189,7 +192,7 @@ namespace SimplexLawFirm.Controllers
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
                 Role = UserRole.Client,
                 IsActive = true,
-                EmailConfirmed = true,
+                EmailConfirmed = false,
                 CreatedAt = DateTime.Now,
                 AssignedCases = new List<Case>() // prevents null refs
             };
@@ -198,7 +201,8 @@ namespace SimplexLawFirm.Controllers
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            TempData["Success"] = "Client registered successfully!";
+            await _accountConfirmation.IssueAsync(user);
+            TempData["Success"] = "Client registered. A confirmation email has been sent before first sign-in.";
             return RedirectToAction("Details", new { id = client.Id });
             }
             catch (DbUpdateException)

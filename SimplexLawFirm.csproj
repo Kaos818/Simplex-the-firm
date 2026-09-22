@@ -32,8 +32,9 @@
     <Compile Remove="SimplexLawFirm.Tests\**\*.cs" />
     <Content Remove="SimplexLawFirm.Tests\**\*" />
     <None Remove="SimplexLawFirm.Tests\**\*" />
-    <Content Remove=".artifacts\**\*;tmp\**\*;wwwroot\uploads\**\*" />
-    <None Remove=".artifacts\**\*;tmp\**\*;wwwroot\uploads\**\*" />
+    <Compile Remove="_inspect\**\*.cs" />
+    <Content Remove=".artifacts\**\*;tmp\**\*;wwwroot\uploads\**\*;_inspect\**\*" />
+    <None Remove=".artifacts\**\*;tmp\**\*;wwwroot\uploads\**\*;_inspect\**\*" />
     <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
   <ItemGroup>

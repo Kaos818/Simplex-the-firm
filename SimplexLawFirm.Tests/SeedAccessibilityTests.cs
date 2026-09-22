@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using SimplexLawFirm.Controllers;
 using SimplexLawFirm.Data;
 using SimplexLawFirm.Models;
+using SimplexLawFirm.Services.Email;
 using Xunit;
 
 namespace SimplexLawFirm.Tests;
@@ -26,8 +27,8 @@ public sealed class SeedAccessibilityTests
         Assert.Empty(await db.CaseDocumentRequests.ToListAsync());
         Assert.Empty(await db.CaseHandoverRequests.ToListAsync());
         DbInitializer.Seed(db, true, null, "SimplexTest!2026");
-        Assert.Single(await db.CaseDocumentRequests.ToListAsync());
-        Assert.Single(await db.CaseHandoverRequests.ToListAsync());
+        Assert.Equal(2, await db.CaseDocumentRequests.CountAsync());
+        Assert.Equal(3, await db.CaseHandoverRequests.CountAsync());
     }
 
     [Fact]
@@ -59,6 +60,22 @@ public sealed class SeedAccessibilityTests
     }
 
     [Fact]
+    public async Task Configured_beneficiary_seed_has_only_beneficiary_portal_credentials()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+
+        DbInitializer.Seed(db, false, null, "SimplexTest!2026");
+
+        var beneficiary = await db.Beneficiaries.SingleAsync(x => x.Email == "ndlovukhetha818@gmail.com");
+        Assert.True(beneficiary.PortalAccessEnabled);
+        Assert.True(BCrypt.Net.BCrypt.Verify("SimplexTest!2026", beneficiary.PortalPasswordHash));
+        Assert.False(await db.Users.AnyAsync(x => x.Email == beneficiary.Email));
+    }
+
+    [Fact]
     public async Task Showcase_seed_is_linked_and_idempotent()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -80,18 +97,32 @@ public sealed class SeedAccessibilityTests
         Assert.Equal(24, await db.Invoices.CountAsync(x => x.InvoiceNumber.StartsWith("EST-REV-") && x.Status == InvoiceStatus.Paid));
         Assert.True(await db.LawyerProfiles.CountAsync(x => x.IsActive && x.HourlyRate > 0) >= 3);
         Assert.Single(await db.CaseDocumentRequests.Where(x => x.Status == CaseDocumentRequestStatus.Requested).ToListAsync());
-        Assert.Single(await db.CaseHandoverRequests.Where(x => x.Status == HandoverRequestStatus.PendingDirector).ToListAsync());
+        Assert.Single(await db.CaseDocumentRequests.Where(x => x.Status == CaseDocumentRequestStatus.Overdue && x.RequestType == ClientResponseRequestType.Decision).ToListAsync());
+        Assert.Equal(3, await db.CaseHandoverRequests.CountAsync(x => x.Status == HandoverRequestStatus.PendingDirector));
         var reimbursement = await db.ReimbursementClaims.SingleAsync(x => x.ClaimNumber == "RMB-DEMO-001");
         Assert.Equal("naledi.khumalo@simplex.com", (await db.Users.FindAsync(reimbursement.AttorneyId))!.Email);
         Assert.NotNull(reimbursement.ProofSha256Hash);
+        Assert.Equal(2, await db.ReimbursementClaims.CountAsync(x => x.AttorneyId == reimbursement.AttorneyId && x.ClaimNumber.StartsWith("RMB-DEMO-")));
+        Assert.Equal(4, await db.LegalCostRecoveryClaims.CountAsync(x => x.Case.CaseNumber == "PI-2026-0001" && x.AttorneyId == reimbursement.AttorneyId && x.Status == LegalCostRecoveryStatus.PendingDirectorApproval));
+        Assert.Equal(4, await db.LegalCostRecoveryTimeEntries.CountAsync());
+        Assert.True(await db.Cases.CountAsync(x => x.LawyerId == reimbursement.AttorneyId && x.Status == CaseStatus.Active) >= 7);
+        Assert.Equal(3, await db.CaseHandoverRequests.CountAsync(x => x.RequestedByAttorneyId == reimbursement.AttorneyId && x.Status == HandoverRequestStatus.PendingDirector));
+        var nalediCapacityClient = await db.Users.SingleAsync(x => x.Email == "zinhle.mabaso@example.com");
+        Assert.True(nalediCapacityClient.IsActive && nalediCapacityClient.EmailConfirmed);
+        Assert.True(BCrypt.Net.BCrypt.Verify("SimplexTest!2026", nalediCapacityClient.PasswordHash));
 
         DbInitializer.Seed(db, false, null, "SimplexTest!2026");
         Assert.Equal(9, await db.Cases.CountAsync(x => x.CaseNumber.StartsWith("DEMO-") && x.Status == CaseStatus.Closed));
         Assert.Single(await db.ServiceComplaints.Where(x => x.ReferenceNumber == "SLC-DEMO-2026-001").ToListAsync());
         Assert.Single(await db.ReimbursementClaims.Where(x => x.ClaimNumber == "RMB-DEMO-001").ToListAsync());
+        Assert.Single(await db.ReimbursementClaims.Where(x => x.ClaimNumber == "RMB-DEMO-002").ToListAsync());
+        Assert.Equal(4, await db.LegalCostRecoveryClaims.CountAsync(x => x.Case.CaseNumber == "PI-2026-0001" && x.Status == LegalCostRecoveryStatus.PendingDirectorApproval));
+        Assert.Equal(4, await db.LegalCostRecoveryTimeEntries.CountAsync());
+        Assert.Equal(6, await db.Cases.CountAsync(x => x.CaseNumber.StartsWith("PI-2026-01")));
+        Assert.Equal(3, await db.CaseHandoverRequests.CountAsync(x => x.RequestedByAttorneyId == reimbursement.AttorneyId && x.Status == HandoverRequestStatus.PendingDirector));
         Assert.Equal(24, await db.Invoices.CountAsync(x => x.InvoiceNumber.StartsWith("EST-REV-")));
-        Assert.Single(await db.CaseDocumentRequests.ToListAsync());
-        Assert.Single(await db.CaseHandoverRequests.ToListAsync());
+        Assert.Equal(2, await db.CaseDocumentRequests.CountAsync());
+        Assert.Equal(3, await db.CaseHandoverRequests.CountAsync());
         Assert.Equal(5, await db.HandoverItems.Where(x => x.CaseHandoverId == handover.Id).CountAsync());
     }
 
@@ -102,12 +133,12 @@ public sealed class SeedAccessibilityTests
         await connection.OpenAsync();
         await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
-        var controller = new UsersController(db) { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+        var controller = new UsersController(db, new NoOpAccountConfirmationService()) { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
         controller.TempData = new TempDataDictionary(controller.HttpContext, new MemoryTempDataProvider());
         var result = await controller.Create(new CreateUserViewModel { FullName = "New Lawyer", Email = "new.lawyer@example.test", Role = UserRole.Lawyer, Password = "Strong!Staff2026", IsActive = true, AreaOfProfession = "Commercial law" });
         Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
         var user = await db.Users.SingleAsync();
-        Assert.True(user.EmailConfirmed);
+        Assert.False(user.EmailConfirmed);
         Assert.True(user.IsActive);
         Assert.Equal(UserRole.Lawyer, user.Role);
         Assert.True(BCrypt.Net.BCrypt.Verify("Strong!Staff2026", user.PasswordHash));
@@ -136,5 +167,10 @@ public sealed class SeedAccessibilityTests
     {
         public IDictionary<string, object> LoadTempData(HttpContext context) => new Dictionary<string, object>();
         public void SaveTempData(HttpContext context, IDictionary<string, object> values) { }
+    }
+
+    private sealed class NoOpAccountConfirmationService : IAccountConfirmationService
+    {
+        public Task IssueAsync(ApplicationUser user, CancellationToken ct = default) => Task.CompletedTask;
     }
 }
